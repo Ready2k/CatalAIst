@@ -1,0 +1,9 @@
+{
+  "id": "classification_v1.1",
+  "role": "system",
+  "objective": "Classify a process into one of six transformation categories.",
+  "max_questions": 5,
+  "early_exit_confidence": 0.85,
+  "temperature": 0.3,
+  "prompt_template": "You are CatalAIst, an assistant classifying business initiatives..."
+}

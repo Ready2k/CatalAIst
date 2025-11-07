@@ -1,0 +1,12 @@
+# classify_initiative.yaml
+name: classify_initiative
+description: Use Bedrock LLM to classify business initiatives.
+inputs:
+  - responses.json
+outputs:
+  - classification.json
+run:
+  type: bedrock_call
+  model: claude-3
+  prompt: prompts/classification_v1.1.json
+  log_output: true
