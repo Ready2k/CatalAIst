@@ -251,9 +251,9 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
                   borderBottom: '1px solid #ddd'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>
-                        Session: {sessionId.substring(0, 8)}...
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', fontFamily: 'monospace' }}>
+                        Session: {sessionId}
                       </div>
                       <div style={{ fontSize: '12px', color: '#666' }}>
                         <span style={{ marginRight: '15px' }}>

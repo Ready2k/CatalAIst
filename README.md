@@ -106,6 +106,12 @@ On first launch, the system will:
 3. Set up the audit logging system
 4. Prepare the analytics engine
 
+**Decision Matrix Initialization:**
+- Navigate to the "Decision Matrix" tab in the admin interface
+- Click "Generate Decision Matrix" to auto-generate the initial matrix using AI
+- The matrix includes business process attributes, classification rules, and decision logic
+- You can edit the matrix afterwards or let it evolve through the AI Learning system
+
 No additional configuration is required - just provide your OpenAI API key and start using the system!
 
 ### Local Development
@@ -277,7 +283,9 @@ Health checks run every 30 seconds with a 10-second timeout.
 
 ## Version
 
-**v1.0.0** - Initial Release
+**v1.1.0** - Auto-initialization for Decision Matrix
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 

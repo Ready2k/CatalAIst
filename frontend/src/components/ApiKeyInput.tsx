@@ -1,12 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 
 interface ApiKeyInputProps {
-  onApiKeySubmit: (apiKey: string) => void;
+  onApiKeySubmit: (apiKey: string, model: string) => void;
 }
 
 const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
   const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('gpt-4');
+  const [models, setModels] = useState<Array<{ id: string; created: number; ownedBy: string }>>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState('');
+
+  // Default models to show before API key is entered
+  const defaultModels = [
+    { id: 'gpt-4', created: 0, ownedBy: 'openai' },
+    { id: 'gpt-4-turbo', created: 0, ownedBy: 'openai' },
+    { id: 'gpt-3.5-turbo', created: 0, ownedBy: 'openai' },
+    { id: 'o1-preview', created: 0, ownedBy: 'openai' },
+    { id: 'o1-mini', created: 0, ownedBy: 'openai' },
+  ];
+
+  useEffect(() => {
+    setModels(defaultModels);
+  }, []);
+
+  const loadModels = async (key: string) => {
+    if (!key || !key.startsWith('sk-')) return;
+    
+    setLoadingModels(true);
+    try {
+      const response = await apiService.listModels(key);
+      if (response.models && response.models.length > 0) {
+        setModels(response.models);
+      }
+    } catch (err) {
+      console.warn('Failed to load models, using defaults:', err);
+      // Keep default models if loading fails
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const handleApiKeyBlur = () => {
+    if (apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
+      loadModels(apiKey);
+    }
+  };
 
   const validateApiKey = (key: string): boolean => {
     // OpenAI API keys start with 'sk-' and are at least 20 characters
@@ -30,7 +70,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
     setError('');
     
     if (validateApiKey(apiKey)) {
-      onApiKeySubmit(apiKey);
+      onApiKeySubmit(apiKey, model);
     }
   };
 
@@ -44,9 +84,9 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
       backgroundColor: '#fff',
       boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
     }}>
-      <h2 style={{ marginTop: 0, marginBottom: '10px' }}>Welcome to CatalAIst</h2>
+      <h2 style={{ marginTop: 0, marginBottom: '10px' }}>API Configuration</h2>
       <p style={{ color: '#666', marginBottom: '20px' }}>
-        Enter your OpenAI API key to get started. Your key is stored securely in your session and never persisted.
+        Enter your OpenAI API key to enable the classifier. Your key is stored securely in your session and never persisted.
       </p>
       
       <form onSubmit={handleSubmit}>
@@ -59,6 +99,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
+            onBlur={handleApiKeyBlur}
             placeholder="sk-..."
             style={{
               width: '100%',
@@ -74,6 +115,42 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
               {error}
             </div>
           )}
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label htmlFor="model" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            Model
+          </label>
+          <select
+            id="model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={loadingModels}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '14px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              boxSizing: 'border-box',
+              backgroundColor: loadingModels ? '#f8f9fa' : '#fff',
+              cursor: loadingModels ? 'wait' : 'pointer'
+            }}
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id}
+              </option>
+            ))}
+          </select>
+          {loadingModels && (
+            <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+              Loading available models...
+            </div>
+          )}
+          <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+            Select the model to use for classification. GPT-4 is recommended for best results.
+          </div>
         </div>
         
         <button
@@ -92,7 +169,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
         >
-          Start Session
+          Save API Key
         </button>
       </form>
       

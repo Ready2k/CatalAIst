@@ -135,36 +135,42 @@ router.post('/submit', async (req: Request, res: Response) => {
 
       const questionTexts = clarificationResponse.questions.map(q => q.question);
 
-      // Scrub PII from questions
-      const scrubbedQuestions = await Promise.all(
-        questionTexts.map(q => piiService.scrubOnly(q))
-      );
+      // If no questions were generated, proceed to classification instead
+      if (questionTexts.length === 0) {
+        console.log('No clarification questions generated, proceeding to classification');
+        // Continue to classification below
+      } else {
+        // Scrub PII from questions
+        const scrubbedQuestions = await Promise.all(
+          questionTexts.map(q => piiService.scrubOnly(q))
+        );
 
-      // Log clarification
-      await auditLogService.logClarification(
-        session.sessionId,
-        userId,
-        questionTexts,
-        [],
-        scrubbedQuestions.map(sq => sq.scrubbedText),
-        [],
-        scrubbedQuestions.some(sq => sq.hasPII),
-        undefined,
-        undefined,
-        {
-          modelVersion: model,
-          llmProvider: 'openai',
-          latencyMs: classificationLatency,
-          action: 'clarify'
-        }
-      );
+        // Log clarification
+        await auditLogService.logClarification(
+          session.sessionId,
+          userId,
+          questionTexts,
+          [],
+          scrubbedQuestions.map(sq => sq.scrubbedText),
+          [],
+          scrubbedQuestions.some(sq => sq.hasPII),
+          undefined,
+          undefined,
+          {
+            modelVersion: model,
+            llmProvider: 'openai',
+            latencyMs: classificationLatency,
+            action: 'clarify'
+          }
+        );
 
-      return res.json({
-        sessionId: session.sessionId,
-        clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
-        totalQuestions: questionTexts.length,
-        responseTime: Date.now() - startTime
-      });
+        return res.json({
+          sessionId: session.sessionId,
+          clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
+          totalQuestions: questionTexts.length,
+          responseTime: Date.now() - startTime
+        });
+      }
     }
 
     // Check if manual review is needed
@@ -262,7 +268,7 @@ router.post('/submit', async (req: Request, res: Response) => {
 
     res.json({
       sessionId: session.sessionId,
-      classification: finalClassification,
+      classification: classificationToStore,
       decisionMatrixEvaluation,
       extractedAttributes,
       responseTime: Date.now() - startTime
@@ -477,7 +483,7 @@ router.post('/classify', async (req: Request, res: Response) => {
 
     res.json({
       action: 'auto_classify',
-      classification: finalClassification,
+      classification: classificationToStore,
       decisionMatrixEvaluation,
       extractedAttributes,
       sessionId,
@@ -712,7 +718,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     );
 
     res.json({
-      classification: finalClassification,
+      classification: classificationToStore,
       decisionMatrixEvaluation,
       extractedAttributes,
       sessionId,

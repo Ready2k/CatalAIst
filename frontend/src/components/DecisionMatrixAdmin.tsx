@@ -6,6 +6,7 @@ interface DecisionMatrixAdminProps {
   onLoadVersions: () => Promise<{ versions: string[] }>;
   onLoadVersion: (version: string) => Promise<DecisionMatrix>;
   onUpdateMatrix: (matrix: DecisionMatrix) => Promise<DecisionMatrix>;
+  onGenerateMatrix: () => Promise<{ matrix: DecisionMatrix }>;
 }
 
 const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
@@ -13,6 +14,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   onLoadVersions,
   onLoadVersion,
   onUpdateMatrix,
+  onGenerateMatrix,
 }) => {
   const [matrix, setMatrix] = useState<DecisionMatrix | null>(null);
   const [versions, setVersions] = useState<string[]>([]);
@@ -21,6 +23,8 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<string>('');
+  const [generating, setGenerating] = useState(false);
+  const [needsInitialization, setNeedsInitialization] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -29,6 +33,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const loadData = async () => {
     setLoading(true);
     setError('');
+    setNeedsInitialization(false);
     try {
       const [matrixData, versionsData] = await Promise.all([
         onLoadMatrix(),
@@ -38,9 +43,30 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
       setVersions(versionsData.versions || []);
       setSelectedVersion(matrixData.version);
     } catch (err: any) {
-      setError(err.message || 'Failed to load decision matrix');
+      // Check if it's a 404 (matrix not initialized)
+      if (err.status === 404) {
+        setNeedsInitialization(true);
+        setError('');
+      } else {
+        setError(err.message || 'Failed to load decision matrix');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setError('');
+    try {
+      const response = await onGenerateMatrix();
+      setMatrix(response.matrix);
+      setNeedsInitialization(false);
+      await loadData(); // Reload to get versions
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate decision matrix');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -100,6 +126,64 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
     return (
       <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', textAlign: 'center' }}>
         <p>Loading decision matrix...</p>
+      </div>
+    );
+  }
+
+  if (needsInitialization) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '50px auto', padding: '40px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ marginTop: 0, color: '#343a40', textAlign: 'center' }}>Initialize Decision Matrix</h2>
+        <p style={{ fontSize: '16px', color: '#666', textAlign: 'center', marginBottom: '30px' }}>
+          The decision matrix hasn't been initialized yet. This matrix will be used to evaluate and classify business processes based on attributes like complexity, business value, and risk.
+        </p>
+        <div style={{
+          padding: '20px',
+          backgroundColor: '#e7f3ff',
+          borderRadius: '4px',
+          marginBottom: '30px'
+        }}>
+          <p style={{ margin: '0 0 10px 0', color: '#004085', fontWeight: 'bold' }}>
+            What will be generated:
+          </p>
+          <ul style={{ margin: 0, paddingLeft: '20px', color: '#004085' }}>
+            <li>Business process attributes (frequency, complexity, risk, etc.)</li>
+            <li>Classification rules for the 6 transformation categories</li>
+            <li>Decision logic based on industry best practices</li>
+          </ul>
+        </div>
+        {error && (
+          <div style={{
+            padding: '15px',
+            backgroundColor: '#f8d7da',
+            color: '#721c24',
+            borderRadius: '4px',
+            marginBottom: '20px'
+          }}>
+            {error}
+          </div>
+        )}
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            style={{
+              padding: '12px 32px',
+              backgroundColor: generating ? '#6c757d' : '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: generating ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {generating ? '🔄 Generating Matrix...' : '✨ Generate Decision Matrix'}
+          </button>
+        </div>
+        <p style={{ fontSize: '12px', color: '#999', textAlign: 'center', marginTop: '20px' }}>
+          This process uses AI to generate an initial decision matrix. You can edit it afterwards.
+        </p>
       </div>
     );
   }

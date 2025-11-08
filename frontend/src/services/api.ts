@@ -74,14 +74,33 @@ class ApiService {
   }
 
   // Session endpoints
-  async createSession(apiKey: string): Promise<{ sessionId: string }> {
+  async createSession(apiKey: string, model?: string): Promise<{ sessionId: string; model: string }> {
     this.setApiKey(apiKey);
-    const response = await this.request<{ sessionId: string }>('/api/sessions', {
+    const response = await this.request<{ sessionId: string; model: string }>('/api/sessions', {
       method: 'POST',
-      body: JSON.stringify({ apiKey }),
+      body: JSON.stringify({ apiKey, model }),
     });
     this.setSessionId(response.sessionId);
     return response;
+  }
+
+  async listModels(apiKey: string): Promise<{ models: Array<{ id: string; created: number; ownedBy: string }> }> {
+    const response = await fetch(`${API_BASE_URL}/api/sessions/models`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to list models' }));
+      throw {
+        message: errorData.message || 'Failed to list models',
+        status: response.status,
+      } as ApiError;
+    }
+
+    return await response.json();
   }
 
   async getSession(sessionId: string): Promise<any> {
@@ -169,14 +188,17 @@ class ApiService {
       throw { message: 'No API key set', status: 401 } as ApiError;
     }
 
+    if (!this.sessionId) {
+      throw { message: 'No active session', status: 400 } as ApiError;
+    }
+
     const formData = new FormData();
     formData.append('audio', audioFile);
+    formData.append('apiKey', this.apiKey);
+    formData.append('sessionId', this.sessionId);
 
     const response = await fetch(`${API_BASE_URL}/api/voice/transcribe`, {
       method: 'POST',
-      headers: {
-        'X-API-Key': this.apiKey,
-      },
       body: formData,
     });
 
@@ -196,13 +218,20 @@ class ApiService {
       throw { message: 'No API key set', status: 401 } as ApiError;
     }
 
+    if (!this.sessionId) {
+      throw { message: 'No active session', status: 400 } as ApiError;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/voice/synthesize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey,
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ 
+        text,
+        apiKey: this.apiKey,
+        sessionId: this.sessionId
+      }),
     });
 
     if (!response.ok) {
@@ -238,6 +267,16 @@ class ApiService {
     return this.request('/api/decision-matrix', {
       method: 'PUT',
       body: JSON.stringify(matrix),
+    });
+  }
+
+  async generateDecisionMatrix(): Promise<any> {
+    if (!this.apiKey) {
+      throw { message: 'No API key set', status: 401 } as ApiError;
+    }
+    return this.request('/api/decision-matrix/generate', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey: this.apiKey }),
     });
   }
 

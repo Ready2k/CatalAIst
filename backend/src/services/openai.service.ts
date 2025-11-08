@@ -72,23 +72,24 @@ export class OpenAIService {
 
   /**
    * Transcribe audio using OpenAI Whisper
-   * @param audioFile - Audio file buffer or stream
+   * @param audioFile - Audio file buffer, blob, or stream
    * @param apiKey - User-provided OpenAI API key
    * @returns Transcription response
    */
   async transcribe(
-    audioFile: Buffer | Blob,
+    audioFile: any,
     apiKey: string
   ): Promise<TranscriptionResponse> {
     return this.withRetry(async () => {
       const client = new OpenAI({ apiKey });
 
+      // Whisper can handle longer files, so use a longer timeout (2 minutes)
       const transcription = await this.withTimeout(
         client.audio.transcriptions.create({
-          file: audioFile as any,
+          file: audioFile,
           model: 'whisper-1',
         }),
-        this.TIMEOUT_MS
+        120000 // 2 minutes for audio transcription
       );
 
       return {

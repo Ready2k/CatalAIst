@@ -216,9 +216,13 @@ const ClassificationResult: React.FC<ClassificationResultProps> = ({
           fontSize: '12px',
           color: '#999'
         }}>
-          <div>Model: {classification.modelUsed}</div>
-          <div>Provider: {classification.llmProvider}</div>
-          <div>Timestamp: {new Date(classification.timestamp).toLocaleString()}</div>
+          <div>Model: {classification.modelUsed || 'N/A'}</div>
+          <div>Provider: {classification.llmProvider || 'N/A'}</div>
+          <div>
+            Timestamp: {classification.timestamp 
+              ? new Date(classification.timestamp).toLocaleString() 
+              : 'N/A'}
+          </div>
           {classification.decisionMatrixEvaluation && (
             <div>Decision Matrix Version: {classification.decisionMatrixEvaluation.matrixVersion}</div>
           )}

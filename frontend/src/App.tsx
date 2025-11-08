@@ -13,11 +13,12 @@ import AuditTrail from './components/AuditTrail';
 import { apiService } from './services/api';
 import { Classification, TransformationCategory } from '../../shared/types';
 
-type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit';
+type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration';
 type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback';
 
 function App() {
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4');
   const [currentView, setCurrentView] = useState<AppView>('main');
   const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
@@ -30,12 +31,13 @@ function App() {
   const [questionCount, setQuestionCount] = useState(0);
   const [classification, setClassification] = useState<Classification | null>(null);
 
-  const handleApiKeySubmit = async (apiKey: string) => {
+  const handleApiKeySubmit = async (apiKey: string, model: string) => {
     setError('');
     setIsProcessing(true);
     try {
-      await apiService.createSession(apiKey);
+      await apiService.createSession(apiKey, model);
       setHasApiKey(true);
+      setSelectedModel(model);
     } catch (err: any) {
       setError(err.message || 'Failed to create session');
     } finally {
@@ -93,6 +95,9 @@ function App() {
   };
 
   const handleVoiceTranscribe = async (audioBlob: Blob): Promise<string> => {
+    if (!hasApiKey) {
+      throw new Error('Please configure your API key in the Configuration tab before using voice input.');
+    }
     const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
     const response = await apiService.transcribeAudio(audioFile);
     return response.transcription;
@@ -182,6 +187,20 @@ function App() {
             Classifier
           </button>
           <button
+            onClick={() => setCurrentView('configuration')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: currentView === 'configuration' ? '#007bff' : 'transparent',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Configuration
+          </button>
+          <button
             onClick={() => setCurrentView('analytics')}
             style={{
               padding: '8px 16px',
@@ -256,26 +275,6 @@ function App() {
     </nav>
   );
 
-  if (!hasApiKey) {
-    return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-        <ApiKeyInput onApiKeySubmit={handleApiKeySubmit} />
-        {error && (
-          <div style={{
-            maxWidth: '500px',
-            margin: '20px auto',
-            padding: '15px',
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            borderRadius: '4px'
-          }}>
-            {error}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
       {renderNavigation()}
@@ -293,16 +292,87 @@ function App() {
         </div>
       )}
 
+      {currentView === 'configuration' && (
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <ApiKeyInput onApiKeySubmit={handleApiKeySubmit} />
+          {hasApiKey && (
+            <div style={{
+              maxWidth: '500px',
+              margin: '20px auto',
+              padding: '15px',
+              backgroundColor: '#d4edda',
+              color: '#155724',
+              borderRadius: '4px',
+              textAlign: 'center'
+            }}>
+              <div style={{ marginBottom: '8px' }}>
+                ✓ API Key configured successfully!
+              </div>
+              <div style={{ fontSize: '14px' }}>
+                Using model: <strong>{selectedModel}</strong>
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '8px', color: '#0c5460' }}>
+                You can now use the Classifier. To change the model, enter your API key again.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {currentView === 'main' && (
         <>
-          {workflowState === 'input' && (
-            <ChatInterface
-              onSubmit={handleProcessSubmit}
-              onVoiceRecord={() => setShowVoiceRecorder(true)}
-              isProcessing={isProcessing}
-              showVoiceButton={true}
-            />
-          )}
+          {!hasApiKey ? (
+            <div style={{
+              maxWidth: '800px',
+              margin: '50px auto',
+              padding: '40px',
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }}>
+              <h2 style={{ marginTop: 0, color: '#343a40' }}>Welcome to CatalAIst</h2>
+              <p style={{ fontSize: '16px', color: '#666', marginBottom: '30px' }}>
+                An intelligent process classification system that helps you categorize and understand your business processes.
+              </p>
+              <div style={{
+                padding: '20px',
+                backgroundColor: '#fff3cd',
+                borderRadius: '4px',
+                marginBottom: '20px'
+              }}>
+                <p style={{ margin: 0, color: '#856404' }}>
+                  ⚠️ To get started, please configure your OpenAI API key in the Configuration tab.
+                </p>
+              </div>
+              <button
+                onClick={() => setCurrentView('configuration')}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#007bff',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
+              >
+                Go to Configuration
+              </button>
+            </div>
+          ) : (
+            <>
+              {workflowState === 'input' && (
+                <ChatInterface
+                  onSubmit={handleProcessSubmit}
+                  onVoiceRecord={() => setShowVoiceRecorder(true)}
+                  isProcessing={isProcessing}
+                  showVoiceButton={true}
+                />
+              )}
 
           {workflowState === 'clarification' && (
             <ClarificationQuestions
@@ -334,29 +404,31 @@ function App() {
             </>
           )}
 
-          {workflowState === 'feedback' && (
-            <div style={{
-              maxWidth: '800px',
-              margin: '20px auto',
-              padding: '20px',
-              textAlign: 'center'
-            }}>
-              <button
-                onClick={resetWorkflow}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: '#007bff',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                Start New Classification
-              </button>
-            </div>
+              {workflowState === 'feedback' && (
+                <div style={{
+                  maxWidth: '800px',
+                  margin: '20px auto',
+                  padding: '20px',
+                  textAlign: 'center'
+                }}>
+                  <button
+                    onClick={resetWorkflow}
+                    style={{
+                      padding: '12px 24px',
+                      backgroundColor: '#007bff',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Start New Classification
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -373,6 +445,7 @@ function App() {
           onLoadVersions={() => apiService.getDecisionMatrixVersions()}
           onLoadVersion={(version) => apiService.getDecisionMatrixVersion(version)}
           onUpdateMatrix={(matrix) => apiService.updateDecisionMatrix(matrix)}
+          onGenerateMatrix={() => apiService.generateDecisionMatrix()}
         />
       )}
 
@@ -399,7 +472,7 @@ function App() {
         />
       )}
 
-      {showVoiceRecorder && (
+      {showVoiceRecorder && hasApiKey && (
         <VoiceRecorder
           onTranscription={handleVoiceRecordComplete}
           onCancel={() => setShowVoiceRecorder(false)}

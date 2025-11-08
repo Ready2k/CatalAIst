@@ -6,6 +6,7 @@ import { ClarificationService } from '../services/clarification.service';
 import { DecisionMatrixEvaluatorService } from '../services/decision-matrix-evaluator.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { PIIService } from '../services/pii.service';
+import { OpenAIService } from '../services/openai.service';
 import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
 import { Session, Conversation, Classification, Feedback, UserRating } from '../../../shared/types';
@@ -22,6 +23,44 @@ const clarificationService = new ClarificationService(versionedStorage);
 const evaluatorService = new DecisionMatrixEvaluatorService();
 const auditLogService = new AuditLogService(dataDir);
 const piiService = new PIIService(dataDir);
+const openaiService = new OpenAIService();
+
+/**
+ * GET /api/sessions/models
+ * List available OpenAI models
+ * Requirements: 9.2
+ */
+router.get('/models', async (req: Request, res: Response) => {
+  try {
+    const apiKey = req.headers['x-api-key'] as string;
+
+    if (!apiKey) {
+      return res.status(400).json({
+        error: 'Missing API key',
+        message: 'OpenAI API key is required'
+      });
+    }
+
+    const models = await openaiService.listModels(apiKey);
+    
+    // Filter to only show relevant models for classification
+    const relevantModels = models.filter(model => 
+      model.id.includes('gpt-4') || 
+      model.id.includes('gpt-3.5') ||
+      model.id.includes('o1')
+    );
+
+    res.json({
+      models: relevantModels
+    });
+  } catch (error) {
+    console.error('Error listing models:', error);
+    res.status(500).json({
+      error: 'Failed to list models',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
 /**
  * POST /api/sessions
@@ -30,7 +69,7 @@ const piiService = new PIIService(dataDir);
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { apiKey, userId = 'anonymous' } = req.body;
+    const { apiKey, model = 'gpt-4', userId = 'anonymous' } = req.body;
 
     if (!apiKey) {
       return res.status(400).json({
@@ -54,7 +93,7 @@ router.post('/', async (req: Request, res: Response) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'active',
-      modelUsed: 'gpt-4',
+      modelUsed: model,
       conversations: []
     };
 
@@ -64,6 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
     // In a real implementation, this would be stored in a secure session store
     res.json({
       sessionId,
+      model,
       message: 'Session created successfully'
     });
   } catch (error) {

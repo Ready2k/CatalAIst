@@ -96,11 +96,11 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
     
     const startTime = Date.now();
 
-    // Read audio file
-    const audioBuffer = await fs.readFile(audioFilePath);
+    // Create a read stream for OpenAI (more efficient than loading entire file into memory)
+    const fileStream = require('fs').createReadStream(audioFilePath);
 
     // Transcribe using OpenAI Whisper
-    const transcriptionResult = await openaiService.transcribe(audioBuffer, apiKey);
+    const transcriptionResult = await openaiService.transcribe(fileStream, apiKey);
 
     const latencyMs = Date.now() - startTime;
 

@@ -5,6 +5,24 @@ All notable changes to CatalAIst will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-11-08
+
+### Added
+- **Decision Matrix Auto-Initialization**: 
+  - New "Generate Decision Matrix" button in Decision Matrix admin interface
+  - Automatic detection when decision matrix hasn't been initialized
+  - User-friendly initialization screen with clear explanation of what will be generated
+  - AI-powered generation of initial decision matrix with attributes, rules, and decision logic
+  - Seamless integration with existing edit and version control features
+
+### Changed
+- Decision Matrix admin now shows initialization screen instead of error when matrix doesn't exist
+- Improved user experience for first-time setup with clear guidance
+
+### Fixed
+- Decision Matrix navigation button no longer shows error message when matrix hasn't been initialized
+- Better error handling for 404 responses from decision matrix endpoints
+
 ## [1.0.0] - 2025-11-07
 
 ### Added
@@ -106,7 +124,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File-based storage (not suitable for high-volume production without modifications)
 - Voice features require OpenAI API access
 - No built-in user authentication (API key per session)
-- Decision matrix auto-generation requires manual trigger
 
 ### Future Enhancements
 - Multi-user authentication and authorization
@@ -118,4 +135,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom transformation categories
 - Integration with external systems
 
+[1.1.0]: https://github.com/yourusername/CatalAIst/releases/tag/v1.1.0
 [1.0.0]: https://github.com/yourusername/CatalAIst/releases/tag/v1.0.0

@@ -115,9 +115,10 @@ export class ClassificationService {
    * @returns Recommended action
    */
   determineAction(confidence: number): ConfidenceAction {
-    if (confidence > 0.85) {
+    // Made more conservative - require higher confidence for auto-classification
+    if (confidence > 0.90) {
       return 'auto_classify';
-    } else if (confidence >= 0.6) {
+    } else if (confidence >= 0.5) {
       return 'clarify';
     } else {
       return 'manual_review';
@@ -425,9 +426,22 @@ Provide your response as a JSON object with the following structure:
 }
 
 **Confidence Scoring:**
-- 0.85-1.0: High confidence, clear classification
-- 0.6-0.85: Medium confidence, may need clarification
-- 0.0-0.6: Low confidence, requires manual review
+- 0.90-1.0: High confidence - ONLY when you have explicit, detailed information about ALL of these:
+  * Current state (manual/paper-based/digital/automated) - explicitly stated, not assumed
+  * Process frequency and volume - specific numbers provided
+  * Number of users/stakeholders involved - explicitly stated
+  * Complexity (steps, systems, decision points) - clearly described
+  * Business value and impact - explicitly mentioned
+  * Pain points and inefficiencies - clearly articulated
+- 0.5-0.90: Medium confidence - Use this when ANY key information is missing, vague, or assumed. Clarification questions MUST be asked.
+- 0.0-0.5: Low confidence - Very vague, contradictory, or insufficient information, requires manual review
+
+**CRITICAL RULES:**
+1. NEVER assume the current state - if they don't explicitly say "it's currently manual" or "we have a digital system", you MUST ask
+2. NEVER assume complexity, frequency, or user count - these must be explicitly stated
+3. If you're making ANY assumptions to reach your classification, your confidence MUST be 0.6-0.85 or lower
+4. Default to asking questions rather than making assumptions
+5. The goal is DISCOVERY first, classification second
 
 Respond ONLY with the JSON object, no additional text.`;
   }

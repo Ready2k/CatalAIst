@@ -31,8 +31,8 @@ export class ClarificationService {
   private readonly DEFAULT_MODEL = 'gpt-4';
   private readonly CLARIFICATION_PROMPT_ID = 'clarification';
   private readonly MAX_QUESTIONS_PER_SESSION = 5;
-  private readonly MIN_QUESTIONS = 1;
-  private readonly MAX_QUESTIONS = 2;
+  private readonly MIN_QUESTIONS = 2;
+  private readonly MAX_QUESTIONS = 3;
 
   constructor(versionedStorage?: VersionedStorageService) {
     this.openAIService = new OpenAIService();
@@ -59,19 +59,19 @@ export class ClarificationService {
       // Check confidence level to determine if clarification is needed
       const confidence = request.classification.confidence;
       
-      if (confidence > 0.85) {
+      if (confidence > 0.90) {
         return {
           questions: [],
           shouldClarify: false,
-          reason: 'High confidence classification (>0.85), no clarification needed'
+          reason: 'High confidence classification (>0.90), no clarification needed'
         };
       }
 
-      if (confidence < 0.6) {
+      if (confidence < 0.5) {
         return {
           questions: [],
           shouldClarify: false,
-          reason: 'Low confidence classification (<0.6), flagged for manual review'
+          reason: 'Low confidence classification (<0.5), flagged for manual review'
         };
       }
 
@@ -156,7 +156,13 @@ export class ClarificationService {
 
     const remainingQuestions = this.getRemainingQuestionCount(conversationHistory);
     context += `\nRemaining questions allowed: ${remainingQuestions}\n`;
-    context += `Generate ${this.MIN_QUESTIONS}-${this.MAX_QUESTIONS} clarifying questions.`;
+    
+    // Adjust number of questions based on how many have been asked
+    const questionsToGenerate = conversationHistory.length === 0 
+      ? this.MAX_QUESTIONS  // First round: ask more questions
+      : Math.min(this.MAX_QUESTIONS - 1, remainingQuestions); // Subsequent rounds: fewer questions
+    
+    context += `Generate ${questionsToGenerate} clarifying questions.`;
 
     const userPrompt = isO1Model
       ? `${systemPrompt}\n\n${context}`
@@ -185,7 +191,7 @@ export class ClarificationService {
     }
 
     // Fallback to default prompt
-    return `You are an expert in business transformation and process analysis. Your task is to generate clarifying questions that will help improve the confidence of a business process classification.
+    return `You are a business transformation consultant conducting a discovery interview. Your role is to gather facts and understand the current state before making any recommendations.
 
 **Context:**
 You will be provided with:
@@ -194,11 +200,13 @@ You will be provided with:
 3. Previous questions and answers (if any)
 
 **Your Goal:**
-Generate 1-2 targeted clarifying questions that will:
-- Help increase classification confidence
-- Extract missing business attributes needed for decision matrix evaluation
-- Avoid redundancy with previous questions
-- Be specific and actionable
+Generate 2-3 discovery questions that will:
+- Uncover the CURRENT STATE of the process (manual, paper-based, digital, partially automated, etc.)
+- Understand what EXISTS today vs. what they WANT to achieve
+- Extract concrete facts about frequency, volume, users, complexity, and pain points
+- Avoid making assumptions - ask about anything not explicitly stated
+- Feel like a natural consultant interview, not an interrogation
+- Build on previous answers to dig deeper
 
 **Business Attributes to Consider:**
 When generating questions, consider extracting information about:
@@ -210,12 +218,14 @@ When generating questions, consider extracting information about:
 - **Data Sensitivity**: Level of data sensitivity (public, internal, confidential, restricted)
 
 **Question Guidelines:**
-1. Ask about specific aspects that are unclear or missing
-2. Focus on attributes that would help distinguish between transformation categories
-3. Avoid yes/no questions - ask for details and context
-4. Don't repeat information already provided in previous answers
-5. Keep questions concise and easy to understand
-6. Prioritize questions that address the classification uncertainty
+1. **First Priority**: Understand the CURRENT STATE - How is this done today? Is it manual, digital, automated?
+2. **Second Priority**: Understand SCALE - How often? How many people? How many transactions?
+3. **Third Priority**: Understand PAIN POINTS - What's broken? What takes too long? What's error-prone?
+4. Ask open-ended questions that encourage detailed responses
+5. Don't repeat information already provided in previous answers
+6. Build on previous answers - if they mention something interesting, dig deeper
+7. Keep questions conversational and natural
+8. Never assume - if it's not explicitly stated, ask about it
 
 **Response Format:**
 Provide your response as a JSON array of question objects:
@@ -226,7 +236,7 @@ Provide your response as a JSON array of question objects:
   }
 ]
 
-Generate 1-2 questions maximum. Respond ONLY with the JSON array, no additional text.`;
+Generate 2-3 questions maximum. Respond ONLY with the JSON array, no additional text.`;
   }
 
   /**
