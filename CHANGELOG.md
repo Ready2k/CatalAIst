@@ -14,14 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - User-friendly initialization screen with clear explanation of what will be generated
   - AI-powered generation of initial decision matrix with attributes, rules, and decision logic
   - Seamless integration with existing edit and version control features
+- **Description Quality Assessment**:
+  - New quality assessment logic that evaluates process descriptions before classification
+  - Analyzes word count and key information indicators (frequency, volume, current state, complexity, pain points)
+  - Comprehensive test suite with 10 test cases validating quality assessment behavior
 
 ### Changed
 - Decision Matrix admin now shows initialization screen instead of error when matrix doesn't exist
 - Improved user experience for first-time setup with clear guidance
+- **Enhanced Clarification Logic**: Classification routing now considers both confidence score AND description quality
+  - Brief descriptions (< 20 words) trigger clarification even with high confidence
+  - Marginal descriptions (20-50 words) with medium-high confidence trigger clarification
+  - Only detailed descriptions (> 50 words) with very high confidence auto-classify
+  - Prevents premature classification of vague or incomplete descriptions
 
 ### Fixed
 - Decision Matrix navigation button no longer shows error message when matrix hasn't been initialized
 - Better error handling for 404 responses from decision matrix endpoints
+- **Clarification Bypass Issue**: Fixed issue where brief/vague descriptions with high confidence scores (>0.9) would skip clarification questions entirely (Session 801ab993)
+  - System now asks clarifying questions for insufficient descriptions regardless of confidence
+  - Improves classification accuracy by gathering more context before making recommendations
 
 ## [1.0.0] - 2025-11-07
 

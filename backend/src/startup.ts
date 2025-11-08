@@ -100,6 +100,77 @@ Extract the following attributes:
 - **dataSensitivity**: Data sensitivity level (low, medium, high)
 
 Respond in JSON format with these attributes. Use "unknown" if information is not available.`
+    },
+    {
+      filename: 'decision-matrix-generation-v1.0.txt',
+      content: `Generate a comprehensive decision matrix for classifying business initiatives into six transformation categories:
+1. Eliminate - Remove unnecessary processes
+2. Simplify - Streamline and reduce complexity
+3. Digitise - Convert manual/offline to digital
+4. RPA - Robotic Process Automation for repetitive tasks
+5. AI Agent - AI-powered assistance with human oversight
+6. Agentic AI - Autonomous AI decision-making
+
+The decision matrix should include:
+
+1. **Attributes** - Key characteristics to evaluate (with weights 0-1):
+   - frequency: How often the process runs (categorical: daily, weekly, monthly, quarterly, yearly)
+   - business_value: Impact on business outcomes (categorical: low, medium, high, critical)
+   - complexity: Process complexity level (categorical: low, medium, high, very_high)
+   - risk: Risk level if automated (categorical: low, medium, high, critical)
+   - user_count: Number of users affected (numeric)
+   - data_sensitivity: Sensitivity of data handled (categorical: public, internal, confidential, restricted)
+
+2. **Rules** - Condition-based logic to guide classification:
+   - Each rule should have conditions (attribute + operator + value)
+   - Actions can be: override (force category), adjust_confidence (+/- adjustment), flag_review
+   - Include priority (higher = evaluated first)
+   - Provide clear rationale for each rule
+
+Generate rules that follow transformation best practices:
+- High-risk or critical data sensitivity should flag for review
+- High-frequency + low-complexity + low-risk favors RPA
+- High-complexity + high-value favors AI Agent or Agentic AI
+- Low-value processes should be considered for Eliminate or Simplify
+- Manual processes with no automation potential should be Digitise
+
+Return ONLY a valid JSON object with this structure:
+{
+  "description": "Brief description of the matrix",
+  "attributes": [
+    {
+      "name": "attribute_name",
+      "type": "categorical|numeric|boolean",
+      "possibleValues": ["value1", "value2"] (only for categorical),
+      "weight": 0.0-1.0,
+      "description": "What this attribute measures"
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "uuid",
+      "name": "Rule name",
+      "description": "What this rule does",
+      "conditions": [
+        {
+          "attribute": "attribute_name",
+          "operator": "==|!=|>|<|>=|<=|in|not_in",
+          "value": "value or array for in/not_in"
+        }
+      ],
+      "action": {
+        "type": "override|adjust_confidence|flag_review",
+        "targetCategory": "category name" (only for override),
+        "confidenceAdjustment": +/- number (only for adjust_confidence),
+        "rationale": "Why this action is taken"
+      },
+      "priority": number (0-100, higher = first),
+      "active": true
+    }
+  ]
+}
+
+Generate at least 6 attributes and 10-15 rules covering various scenarios.`
     }
   ];
 

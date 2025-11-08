@@ -9,6 +9,7 @@ import { DecisionMatrix, Attribute, Rule, TransformationCategory } from '../../.
 export class DecisionMatrixService {
   private openAIService: OpenAIService;
   private versionedStorage: VersionedStorageService;
+  private readonly DECISION_MATRIX_GENERATION_PROMPT_ID = 'decision-matrix-generation';
 
   constructor(openAIService: OpenAIService, versionedStorage: VersionedStorageService) {
     this.openAIService = openAIService;
@@ -20,7 +21,7 @@ export class DecisionMatrixService {
    * Creates a baseline decision matrix with default attributes and rules
    */
   async generateInitialMatrix(apiKey: string, model: string = 'gpt-4'): Promise<DecisionMatrix> {
-    const prompt = this.buildGenerationPrompt();
+    const prompt = await this.getDecisionMatrixGenerationPrompt();
     
     const response = await this.openAIService.chat(
       [
@@ -58,9 +59,20 @@ export class DecisionMatrixService {
   }
 
   /**
-   * Build the prompt for generating the decision matrix
+   * Get the decision matrix generation prompt
+   * Loads from versioned storage, falls back to default if not found
    */
-  private buildGenerationPrompt(): string {
+  private async getDecisionMatrixGenerationPrompt(): Promise<string> {
+    try {
+      const prompt = await this.versionedStorage.getPrompt(this.DECISION_MATRIX_GENERATION_PROMPT_ID);
+      if (prompt) {
+        return prompt;
+      }
+    } catch (error) {
+      console.warn('Failed to load decision matrix generation prompt from storage, using default:', error);
+    }
+
+    // Fallback to default prompt (should not happen after initialization)
     return `Generate a comprehensive decision matrix for classifying business initiatives into six transformation categories:
 1. Eliminate - Remove unnecessary processes
 2. Simplify - Streamline and reduce complexity

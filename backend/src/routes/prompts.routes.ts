@@ -16,7 +16,7 @@ const versionedStorage = new VersionedStorageService(jsonStorage);
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const promptTypes = ['classification', 'clarification', 'attribute-extraction'];
+    const promptTypes = ['classification', 'clarification', 'attribute-extraction', 'decision-matrix-generation'];
     const prompts = [];
 
     for (const type of promptTypes) {
@@ -246,6 +246,16 @@ function validatePromptContent(promptId: string, content: string): { valid: bool
         return {
           valid: false,
           message: 'Attribute extraction prompt should reference extracting attributes'
+        };
+      }
+      break;
+
+    case 'decision-matrix-generation':
+      // Should mention decision matrix and rules
+      if (!content.toLowerCase().includes('decision matrix') && !content.toLowerCase().includes('rules')) {
+        return {
+          valid: false,
+          message: 'Decision matrix generation prompt should reference decision matrix and rules'
         };
       }
       break;

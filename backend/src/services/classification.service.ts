@@ -101,7 +101,11 @@ export class ClassificationService {
    */
   async classifyWithRouting(request: ClassificationRequest): Promise<ClassificationWithAction> {
     const result = await this.classify(request);
-    const action = this.determineAction(result.confidence);
+    const action = this.determineAction(
+      result.confidence,
+      request.processDescription,
+      request.conversationHistory || []
+    );
     
     return {
       result,
@@ -110,19 +114,88 @@ export class ClassificationService {
   }
 
   /**
-   * Determine action based on confidence score
+   * Determine action based on confidence score and description quality
    * @param confidence - Confidence score (0-1)
+   * @param processDescription - The process description
+   * @param conversationHistory - Previous Q&A exchanges
    * @returns Recommended action
    */
-  determineAction(confidence: number): ConfidenceAction {
-    // Made more conservative - require higher confidence for auto-classification
-    if (confidence > 0.90) {
-      return 'auto_classify';
-    } else if (confidence >= 0.5) {
-      return 'clarify';
-    } else {
+  determineAction(
+    confidence: number,
+    processDescription: string,
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): ConfidenceAction {
+    // Low confidence always goes to manual review
+    if (confidence < 0.5) {
       return 'manual_review';
     }
+    
+    // Medium confidence (0.5-0.90) always triggers clarification
+    if (confidence <= 0.90) {
+      return 'clarify';
+    }
+    
+    // High confidence (>0.90): Check description quality
+    const descriptionQuality = this.assessDescriptionQuality(processDescription, conversationHistory);
+    
+    // If description is poor quality, clarify even with high confidence (unless already asked questions)
+    if (descriptionQuality === 'poor' && conversationHistory.length === 0) {
+      return 'clarify';
+    }
+    
+    // If description is marginal and confidence isn't very high, clarify
+    if (descriptionQuality === 'marginal' && confidence <= 0.92 && conversationHistory.length === 0) {
+      return 'clarify';
+    }
+    
+    // High confidence with good/adequate description quality
+    return 'auto_classify';
+  }
+
+  /**
+   * Assess the quality of a process description
+   * @param description - Process description
+   * @param conversationHistory - Previous Q&A exchanges
+   * @returns Quality assessment: 'good', 'marginal', or 'poor'
+   */
+  private assessDescriptionQuality(
+    description: string,
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): 'good' | 'marginal' | 'poor' {
+    // If we've already had a conversation, consider quality improved
+    if (conversationHistory.length > 0) {
+      return 'good';
+    }
+    
+    const wordCount = description.trim().split(/\s+/).length;
+    
+    // Check for key information indicators
+    const hasFrequencyInfo = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(description);
+    const hasVolumeInfo = /\b(\d+|many|few|several|multiple|hundreds?|thousands?)\b/i.test(description);
+    const hasCurrentStateInfo = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel)\b/i.test(description);
+    const hasComplexityInfo = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?)\b/i.test(description);
+    const hasPainPointInfo = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating)\b/i.test(description);
+    
+    const infoScore = [
+      hasFrequencyInfo,
+      hasVolumeInfo,
+      hasCurrentStateInfo,
+      hasComplexityInfo,
+      hasPainPointInfo
+    ].filter(Boolean).length;
+    
+    // Poor: Very brief (< 20 words) OR lacks most key information (< 2 indicators)
+    if (wordCount < 20 || infoScore < 2) {
+      return 'poor';
+    }
+    
+    // Good: Detailed (> 50 words) AND has most key information (>= 3 indicators)
+    if (wordCount > 50 && infoScore >= 3) {
+      return 'good';
+    }
+    
+    // Marginal: Everything in between
+    return 'marginal';
   }
 
   /**
