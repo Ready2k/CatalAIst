@@ -85,6 +85,17 @@ const extractActionForRule = (
 };
 
 /**
+ * Generate a UUID v4
+ */
+const generateUUID = (): string => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+/**
  * Extract rules from rule nodes
  */
 const extractRules = (nodes: FlowNode[]): Rule[] => {
@@ -105,8 +116,14 @@ const extractRules = (nodes: FlowNode[]): Rule[] => {
       // If no action found, use the original action from rule data
       const finalAction = action || ruleData.action;
       
+      // Ensure ruleId is a valid UUID
+      const validRuleId = ruleData.ruleId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+        ? ruleData.ruleId
+        : generateUUID();
+      
       return {
         ...ruleData,
+        ruleId: validRuleId,
         conditions,
         action: finalAction
       };

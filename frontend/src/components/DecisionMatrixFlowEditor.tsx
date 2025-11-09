@@ -97,7 +97,19 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   // Initialize nodes and edges from decision matrix
   const initialFlow = useMemo(() => {
     performanceMonitor.startMeasure('initial-render');
-    const flow = matrixToFlow(matrix);
+    
+    // Auto-fix invalid categories in the matrix before converting to flow
+    const fixedMatrix = {
+      ...matrix,
+      rules: matrix.rules.map(rule => ({
+        ...rule,
+        action: rule.action.type === 'override' && (rule.action.targetCategory as string) === 'Eliminate or Simplify'
+          ? { ...rule.action, targetCategory: 'Eliminate' as any }
+          : rule.action
+      }))
+    };
+    
+    const flow = matrixToFlow(fixedMatrix);
     performanceMonitor.endMeasure('initial-render');
     return flow;
   }, [matrix]);
@@ -423,6 +435,27 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
       return;
     }
 
+    // Check for invalid categories
+    const validCategories = ['Eliminate', 'Simplify', 'Digitise', 'RPA', 'AI Agent', 'Agentic AI'];
+    const invalidCategories: string[] = [];
+    
+    allNodes.forEach(node => {
+      if (node.type === 'action') {
+        const action = (node.data as any).action;
+        if (action.type === 'override' && action.targetCategory) {
+          if (!validCategories.includes(action.targetCategory)) {
+            invalidCategories.push(action.targetCategory);
+          }
+        }
+      }
+    });
+    
+    if (invalidCategories.length > 0) {
+      const uniqueInvalid = [...new Set(invalidCategories)];
+      alert(`Cannot save: The following categories are not valid: ${uniqueInvalid.join(', ')}\n\nValid categories are: ${validCategories.join(', ')}\n\nPlease edit the action nodes to use valid categories.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Convert flow back to decision matrix with performance tracking
@@ -438,7 +471,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
     } finally {
       setIsSaving(false);
     }
-  }, [nodes, edges, matrix, validationErrors, onSave]);
+  }, [allNodes, edges, matrix, validationErrors, onSave]);
 
   // Handle cancel operation
   const handleCancel = useCallback(() => {
