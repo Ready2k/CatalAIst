@@ -214,12 +214,31 @@ router.post('/analyze', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
   try {
-    const { apiKey, startDate, endDate, userId = 'admin' } = req.body;
+    const { 
+      provider = 'openai',
+      model,
+      apiKey, 
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      startDate, 
+      endDate, 
+      userId = 'admin' 
+    } = req.body;
     
-    if (!apiKey) {
+    // Validate credentials based on provider
+    if (provider === 'openai' && !apiKey) {
       return res.status(400).json({
         error: 'API key is required',
         message: 'Please provide an OpenAI API key to generate suggestions'
+      });
+    }
+    
+    if (provider === 'bedrock' && (!awsAccessKeyId || !awsSecretAccessKey)) {
+      return res.status(400).json({
+        error: 'AWS credentials are required',
+        message: 'Please provide AWS credentials to generate suggestions with Bedrock'
       });
     }
     
@@ -231,9 +250,19 @@ router.post('/analyze', async (req: Request, res: Response) => {
     const analysis = await learningAnalysisService.analyzeFeedback('manual', start, end);
     
     // Generate suggestions using LLM
+    const llmConfig = {
+      provider,
+      model,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
+    };
+    
     const suggestions = await learningSuggestionService.generateSuggestions(
       analysis,
-      apiKey
+      llmConfig
     );
 
     // Log learning analysis

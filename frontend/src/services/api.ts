@@ -353,9 +353,35 @@ class ApiService {
   }
 
   async triggerAnalysis(): Promise<any> {
-    return this.request('/api/learning/analyze', {
+    if (!this.llmConfig) {
+      throw { message: 'No LLM configuration set. Please configure your provider in the Configuration tab.', status: 400 } as ApiError;
+    }
+
+    const body: any = {
+      provider: this.llmConfig.provider,
+      model: this.llmConfig.model,
+    };
+
+    if (this.llmConfig.provider === 'openai') {
+      if (!this.llmConfig.apiKey) {
+        throw { message: 'OpenAI API key not found. Please reconfigure in the Configuration tab.', status: 400 } as ApiError;
+      }
+      body.apiKey = this.llmConfig.apiKey;
+    } else if (this.llmConfig.provider === 'bedrock') {
+      body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+      body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+      body.awsSessionToken = this.llmConfig.awsSessionToken;
+      body.awsRegion = this.llmConfig.awsRegion;
+    }
+
+    const response = await this.request<any>('/api/learning/analyze', {
       method: 'POST',
+      body: JSON.stringify(body),
     });
+    
+    // Backend returns { message, analysis, suggestions, suggestionCount }
+    // Return just the analysis object
+    return response.analysis;
   }
 
   // Prompt endpoints

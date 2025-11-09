@@ -39,7 +39,15 @@ export class LearningSuggestionService {
    */
   async generateSuggestions(
     analysis: LearningAnalysis,
-    apiKey: string
+    llmConfig: {
+      provider: 'openai' | 'bedrock';
+      model?: string;
+      apiKey?: string;
+      awsAccessKeyId?: string;
+      awsSecretAccessKey?: string;
+      awsSessionToken?: string;
+      awsRegion?: string;
+    }
   ): Promise<LearningSuggestion[]> {
     // Get current decision matrix
     const currentMatrix = await this.versionedStorage.getLatestDecisionMatrix();
@@ -54,6 +62,18 @@ export class LearningSuggestionService {
     // Build prompt for LLM
     const prompt = this.buildSuggestionPrompt(analysis, currentMatrix, exampleSessions);
 
+    // Prepare LLM credentials
+    const credentials: any = { provider: llmConfig.provider };
+    
+    if (llmConfig.provider === 'openai') {
+      credentials.apiKey = llmConfig.apiKey;
+    } else {
+      credentials.awsAccessKeyId = llmConfig.awsAccessKeyId;
+      credentials.awsSecretAccessKey = llmConfig.awsSecretAccessKey;
+      credentials.awsSessionToken = llmConfig.awsSessionToken;
+      credentials.awsRegion = llmConfig.awsRegion;
+    }
+
     // Call LLM
     const response = await this.openaiService.chat(
       [
@@ -66,8 +86,8 @@ export class LearningSuggestionService {
           content: prompt
         }
       ],
-      'gpt-4',
-      { provider: 'openai', apiKey }
+      llmConfig.model || 'gpt-4',
+      credentials
     );
 
     // Parse LLM response into suggestions
