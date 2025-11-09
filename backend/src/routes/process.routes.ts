@@ -555,14 +555,6 @@ router.post('/clarify', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if we've exceeded the question limit
-    if (latestConversation.clarificationQA.length >= 5) {
-      return res.status(400).json({
-        error: 'Question limit exceeded',
-        message: 'Maximum of 5 clarification questions per session'
-      });
-    }
-
     // Scrub PII from answers
     const scrubbedAnswers = await Promise.all(
       answers.map(a => piiService.scrubAndStore(a, sessionId, userId))

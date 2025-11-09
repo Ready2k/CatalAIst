@@ -30,8 +30,9 @@ export class ClarificationService {
   private versionedStorage: VersionedStorageService;
   private readonly DEFAULT_MODEL = 'gpt-4';
   private readonly CLARIFICATION_PROMPT_ID = 'clarification';
-  private readonly MAX_QUESTIONS_PER_SESSION = 5;
-  private readonly MIN_QUESTIONS = 2;
+  private readonly SOFT_LIMIT_QUESTIONS = 8; // Soft limit - warn but allow
+  private readonly HARD_LIMIT_QUESTIONS = 15; // Hard limit - stop interview
+  private readonly MIN_QUESTIONS = 1;
   private readonly MAX_QUESTIONS = 3;
 
   constructor(versionedStorage?: VersionedStorageService) {
@@ -40,42 +41,61 @@ export class ClarificationService {
   }
 
   /**
-   * Generate clarifying questions based on classification confidence
+   * Generate clarifying questions based on classification confidence and conversation quality
    * @param request - Clarification request with process description and classification
    * @returns Clarification response with questions or skip signal
    */
   async generateQuestions(request: ClarificationRequest): Promise<ClarificationResponse> {
     try {
-      // Check if we've reached the question limit
       const questionCount = request.conversationHistory.length;
-      if (questionCount >= this.MAX_QUESTIONS_PER_SESSION) {
-        return {
-          questions: [],
-          shouldClarify: false,
-          reason: `Maximum question limit (${this.MAX_QUESTIONS_PER_SESSION}) reached`
-        };
-      }
-
-      // Check confidence level to determine if clarification is needed
       const confidence = request.classification.confidence;
       
-      if (confidence > 0.90) {
+      // Hard limit - stop the interview
+      if (questionCount >= this.HARD_LIMIT_QUESTIONS) {
         return {
           questions: [],
           shouldClarify: false,
-          reason: 'High confidence classification (>0.90), no clarification needed'
+          reason: `Interview limit reached (${this.HARD_LIMIT_QUESTIONS} questions). Proceeding with available information.`
         };
       }
 
-      if (confidence < 0.5) {
+      // Check if we have enough information to proceed
+      const hasEnoughInfo = this.assessInformationCompleteness(
+        request.processDescription,
+        request.conversationHistory
+      );
+
+      // If we have high confidence AND enough information, stop asking
+      if (confidence > 0.90 && hasEnoughInfo) {
         return {
           questions: [],
           shouldClarify: false,
-          reason: 'Low confidence classification (<0.5), flagged for manual review'
+          reason: 'High confidence classification with sufficient information'
         };
       }
 
-      // Generate clarification questions for medium confidence (0.6-0.85)
+      // If confidence is very low, flag for manual review instead of asking more questions
+      if (confidence < 0.5 && questionCount >= 3) {
+        return {
+          questions: [],
+          shouldClarify: false,
+          reason: 'Low confidence after multiple questions - flagged for manual review'
+        };
+      }
+
+      // Check for "I don't know" patterns in recent answers
+      const hasUnknownAnswers = this.detectUnknownAnswers(request.conversationHistory);
+      
+      // If user doesn't know and we've asked enough, proceed with what we have
+      if (hasUnknownAnswers && questionCount >= 5) {
+        return {
+          questions: [],
+          shouldClarify: false,
+          reason: 'User unable to provide more information - proceeding with available data'
+        };
+      }
+
+      // Generate clarification questions
       const model = request.model || this.DEFAULT_MODEL;
       const messages = await this.buildClarificationMessages(
         request.processDescription,
@@ -92,10 +112,25 @@ export class ClarificationService {
 
       const questions = this.parseClarificationResponse(response.content);
 
+      // If no questions generated, we're done
+      if (questions.length === 0) {
+        return {
+          questions: [],
+          shouldClarify: false,
+          reason: 'No additional clarification needed'
+        };
+      }
+
+      // Soft limit warning
+      let reason = `Confidence: ${confidence.toFixed(2)}, generating ${questions.length} question(s)`;
+      if (questionCount >= this.SOFT_LIMIT_QUESTIONS) {
+        reason += ` (${questionCount + questions.length}/${this.HARD_LIMIT_QUESTIONS} questions asked)`;
+      }
+
       return {
         questions,
-        shouldClarify: questions.length > 0,
-        reason: `Medium confidence (${confidence.toFixed(2)}), generating ${questions.length} clarifying question(s)`
+        shouldClarify: true,
+        reason
       };
     } catch (error) {
       throw new Error(
@@ -110,7 +145,7 @@ export class ClarificationService {
    * @returns True if more questions can be asked
    */
   canAskMoreQuestions(conversationHistory: Array<{ question: string; answer: string }>): boolean {
-    return conversationHistory.length < this.MAX_QUESTIONS_PER_SESSION;
+    return conversationHistory.length < this.HARD_LIMIT_QUESTIONS;
   }
 
   /**
@@ -119,7 +154,74 @@ export class ClarificationService {
    * @returns Number of questions remaining
    */
   getRemainingQuestionCount(conversationHistory: Array<{ question: string; answer: string }>): number {
-    return Math.max(0, this.MAX_QUESTIONS_PER_SESSION - conversationHistory.length);
+    return Math.max(0, this.HARD_LIMIT_QUESTIONS - conversationHistory.length);
+  }
+
+  /**
+   * Assess if we have enough information to make a confident classification
+   * @param processDescription - Original process description
+   * @param conversationHistory - Q&A history
+   * @returns True if we have sufficient information
+   */
+  private assessInformationCompleteness(
+    processDescription: string,
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): boolean {
+    // Combine all text
+    const allText = processDescription + ' ' + 
+      conversationHistory.map(qa => qa.answer).join(' ');
+    
+    // Check for key information indicators
+    const hasFrequency = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(allText);
+    const hasVolume = /\b(\d+|many|few|several|multiple|hundreds?|thousands?)\b/i.test(allText);
+    const hasCurrentState = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel)\b/i.test(allText);
+    const hasComplexity = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?|complex|simple)\b/i.test(allText);
+    const hasPainPoints = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating)\b/i.test(allText);
+    const hasDataSource = /\b(data|information|observ|record|capture|collect|generat|automat)\b/i.test(allText);
+    
+    const infoScore = [
+      hasFrequency,
+      hasVolume,
+      hasCurrentState,
+      hasComplexity,
+      hasPainPoints,
+      hasDataSource
+    ].filter(Boolean).length;
+    
+    // Need at least 4 out of 6 key indicators
+    return infoScore >= 4;
+  }
+
+  /**
+   * Detect if user is giving "I don't know" type answers
+   * @param conversationHistory - Q&A history
+   * @returns True if recent answers indicate lack of knowledge
+   */
+  private detectUnknownAnswers(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): boolean {
+    if (conversationHistory.length === 0) {
+      return false;
+    }
+    
+    // Check last 3 answers
+    const recentAnswers = conversationHistory.slice(-3);
+    const unknownPatterns = [
+      /\b(don'?t know|not sure|unsure|no idea|can'?t say|unclear|uncertain)\b/i,
+      /\b(i don'?t|we don'?t|don'?t have|no information)\b/i,
+      /^(no|nope|n\/a|na|unknown|idk)$/i
+    ];
+    
+    let unknownCount = 0;
+    for (const qa of recentAnswers) {
+      const answer = qa.answer.toLowerCase().trim();
+      if (unknownPatterns.some(pattern => pattern.test(answer))) {
+        unknownCount++;
+      }
+    }
+    
+    // If 2 out of last 3 answers are "don't know", user likely can't provide more info
+    return unknownCount >= 2;
   }
 
   /**
@@ -155,14 +257,29 @@ export class ClarificationService {
     }
 
     const remainingQuestions = this.getRemainingQuestionCount(conversationHistory);
-    context += `\nRemaining questions allowed: ${remainingQuestions}\n`;
+    const questionCount = conversationHistory.length;
     
-    // Adjust number of questions based on how many have been asked
-    const questionsToGenerate = conversationHistory.length === 0 
-      ? this.MAX_QUESTIONS  // First round: ask more questions
-      : Math.min(this.MAX_QUESTIONS - 1, remainingQuestions); // Subsequent rounds: fewer questions
+    context += `\nQuestions asked so far: ${questionCount}\n`;
     
-    context += `Generate ${questionsToGenerate} clarifying questions.`;
+    // Adjust number of questions based on conversation progress
+    let questionsToGenerate: number;
+    if (questionCount === 0) {
+      questionsToGenerate = this.MAX_QUESTIONS; // First round: 2-3 questions
+    } else if (questionCount < 5) {
+      questionsToGenerate = 2; // Early rounds: 2 questions
+    } else if (questionCount < 8) {
+      questionsToGenerate = 1; // Later rounds: 1 question at a time
+    } else {
+      questionsToGenerate = 1; // Final rounds: 1 question only
+    }
+    
+    context += `\n**IMPORTANT INSTRUCTIONS:**\n`;
+    context += `- You have asked ${questionCount} questions so far\n`;
+    context += `- Generate ${questionsToGenerate} question(s) ONLY if you need critical missing information\n`;
+    context += `- If the user has said "I don't know" or similar, try rephrasing or move on\n`;
+    context += `- If you have enough information to classify confidently, return an empty array []\n`;
+    context += `- Focus on the MOST CRITICAL missing information only\n`;
+    context += `- After ${this.SOFT_LIMIT_QUESTIONS} questions, only ask if absolutely necessary\n`;
 
     const userPrompt = isO1Model
       ? `${systemPrompt}\n\n${context}`
