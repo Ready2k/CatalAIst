@@ -40,6 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clarification Bypass Issue**: Fixed issue where brief/vague descriptions with high confidence scores (>0.9) would skip clarification questions entirely (Session 801ab993)
   - System now asks clarifying questions for insufficient descriptions regardless of confidence
   - Improves classification accuracy by gathering more context before making recommendations
+- **Question Limit Enforcement**: Fixed issue where system could ask more than 5 clarification questions (Session 04bf87cd)
+  - Added API-level check to enforce MAX_QUESTIONS_PER_SESSION limit
+  - Returns clear error message when limit would be exceeded
+  - Prevents overwhelming users with too many questions
+- **Question Storage**: Fixed issue where actual clarification questions weren't being stored
+  - Questions were stored as placeholders ("Clarification 1", "Clarification 2", etc.)
+  - Now accepts and stores actual question text from frontend
+  - Improves audit trail and enables question effectiveness analysis
+- **Attribute Extraction Resilience**: Fixed issue where attribute extraction would fail completely if any attribute was missing
+  - Now fills missing attributes with "unknown" instead of failing
+  - Provides graceful degradation for incomplete data
+  - Allows decision matrix evaluation with partial attribute data
 
 ## [1.0.0] - 2025-11-07
 

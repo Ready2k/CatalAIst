@@ -375,7 +375,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
       const parsed = JSON.parse(jsonMatch[0]);
 
-      // Validate required fields
+      // Required attributes with defaults
       const requiredAttributes = [
         'frequency',
         'business_value',
@@ -385,13 +385,21 @@ Respond ONLY with the JSON object, no additional text.`;
         'data_sensitivity'
       ];
 
+      // Fill in missing attributes with "unknown"
+      const result: any = {};
       for (const attr of requiredAttributes) {
-        if (!parsed[attr] || !parsed[attr].value) {
-          throw new Error(`Missing required attribute: ${attr}`);
+        if (parsed[attr] && parsed[attr].value) {
+          result[attr] = parsed[attr];
+        } else {
+          console.warn(`Missing attribute ${attr}, using unknown`);
+          result[attr] = {
+            value: 'unknown',
+            explanation: 'Insufficient information provided'
+          };
         }
       }
 
-      return parsed as ExtractedAttributes;
+      return result as ExtractedAttributes;
     } catch (error) {
       throw new Error(
         `Failed to parse attribute extraction response: ${error instanceof Error ? error.message : 'Unknown error'}`

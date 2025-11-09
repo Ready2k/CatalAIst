@@ -510,6 +510,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     const {
       sessionId,
       answers,
+      questions,
       apiKey,
       userId = 'anonymous',
       model = 'gpt-4'
@@ -554,6 +555,14 @@ router.post('/clarify', async (req: Request, res: Response) => {
       });
     }
 
+    // Check if we've exceeded the question limit
+    if (latestConversation.clarificationQA.length >= 5) {
+      return res.status(400).json({
+        error: 'Question limit exceeded',
+        message: 'Maximum of 5 clarification questions per session'
+      });
+    }
+
     // Scrub PII from answers
     const scrubbedAnswers = await Promise.all(
       answers.map(a => piiService.scrubAndStore(a, sessionId, userId))
@@ -561,8 +570,11 @@ router.post('/clarify', async (req: Request, res: Response) => {
 
     // Add Q&A to conversation
     for (let i = 0; i < answers.length; i++) {
+      // Use provided questions if available, otherwise use placeholder
+      const question = questions && questions[i] ? questions[i] : `Clarification ${latestConversation.clarificationQA.length + 1}`;
+      
       latestConversation.clarificationQA.push({
-        question: `Clarification ${i + 1}`,
+        question,
         answer: scrubbedAnswers[i].scrubbedText
       });
     }
