@@ -36,6 +36,11 @@ router.post('/submit', async (req: Request, res: Response) => {
       description, 
       sessionId, 
       apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      provider,
       userId = 'anonymous',
       model = 'gpt-4'
     } = req.body;
@@ -48,7 +53,15 @@ router.post('/submit', async (req: Request, res: Response) => {
       });
     }
 
-    if (!apiKey) {
+    // Validate credentials based on provider
+    if (provider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+    } else if (!apiKey) {
       return res.status(400).json({
         error: 'Missing API key',
         message: 'OpenAI API key is required'
@@ -94,6 +107,9 @@ router.post('/submit', async (req: Request, res: Response) => {
     };
     session.conversations.push(conversation);
 
+    // Determine LLM provider
+    const llmProvider = provider || (model.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+
     // Log user input
     await auditLogService.logUserInput(
       session.sessionId,
@@ -103,7 +119,7 @@ router.post('/submit', async (req: Request, res: Response) => {
       scrubbedInput.hasPII,
       {
         modelVersion: model,
-        llmProvider: 'openai',
+        llmProvider,
         latencyMs: Date.now() - startTime
       }
     );
@@ -117,7 +133,12 @@ router.post('/submit', async (req: Request, res: Response) => {
       processDescription: scrubbedInput.scrubbedText,
       conversationHistory: [],
       model,
-      apiKey
+      provider: llmProvider,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
     });
 
     const classificationLatency = Date.now() - classificationStartTime;
@@ -129,7 +150,12 @@ router.post('/submit', async (req: Request, res: Response) => {
         processDescription: scrubbedInput.scrubbedText,
         classification: classificationResult.result,
         conversationHistory: [],
+        provider: llmProvider,
         apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion,
         model
       });
 
@@ -158,7 +184,7 @@ router.post('/submit', async (req: Request, res: Response) => {
           undefined,
           {
             modelVersion: model,
-            llmProvider: 'openai',
+            llmProvider,
             latencyMs: classificationLatency,
             action: 'clarify'
           }
@@ -197,8 +223,17 @@ router.post('/submit', async (req: Request, res: Response) => {
       extractedAttributes = await classificationService.extractAttributes(
         scrubbedInput.scrubbedText,
         [],
-        apiKey,
-        model
+        {
+          processDescription: scrubbedInput.scrubbedText,
+          conversationHistory: [],
+          model,
+          provider: llmProvider,
+          apiKey,
+          awsAccessKeyId,
+          awsSecretAccessKey,
+          awsSessionToken,
+          awsRegion
+        }
       );
 
       // Convert extracted attributes to simple key-value format
@@ -217,7 +252,7 @@ router.post('/submit', async (req: Request, res: Response) => {
             ...classificationResult.result,
             timestamp: new Date().toISOString(),
             modelUsed: model,
-            llmProvider: 'openai'
+            llmProvider
           },
           attributeValues
         );
@@ -238,7 +273,7 @@ router.post('/submit', async (req: Request, res: Response) => {
       futureOpportunities: finalClassification.futureOpportunities,
       timestamp: new Date().toISOString(),
       modelUsed: model,
-      llmProvider: 'openai',
+      llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
     
@@ -259,7 +294,7 @@ router.post('/submit', async (req: Request, res: Response) => {
       false,
       {
         modelVersion: model,
-        llmProvider: 'openai',
+        llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
         action: 'auto_classify'
@@ -294,6 +329,11 @@ router.post('/classify', async (req: Request, res: Response) => {
     const {
       sessionId,
       apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      provider,
       userId = 'anonymous',
       model = 'gpt-4'
     } = req.body;
@@ -305,7 +345,16 @@ router.post('/classify', async (req: Request, res: Response) => {
       });
     }
 
-    if (!apiKey) {
+    // Validate credentials based on provider
+    const llmProvider = provider || (model.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+    if (llmProvider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+    } else if (!apiKey) {
       return res.status(400).json({
         error: 'Missing API key',
         message: 'OpenAI API key is required'
@@ -339,7 +388,12 @@ router.post('/classify', async (req: Request, res: Response) => {
       processDescription: latestConversation.processDescription,
       conversationHistory,
       model,
-      apiKey
+      provider: llmProvider,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
     });
 
     const classificationLatency = Date.now() - classificationStartTime;
@@ -351,7 +405,12 @@ router.post('/classify', async (req: Request, res: Response) => {
         processDescription: latestConversation.processDescription,
         classification: classificationResult.result,
         conversationHistory,
+        provider: llmProvider,
         apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion,
         model
       });
 
@@ -375,7 +434,7 @@ router.post('/classify', async (req: Request, res: Response) => {
         undefined,
         {
           modelVersion: model,
-          llmProvider: 'openai',
+          llmProvider,
           latencyMs: classificationLatency,
           action: 'clarify'
         }
@@ -412,8 +471,17 @@ router.post('/classify', async (req: Request, res: Response) => {
       extractedAttributes = await classificationService.extractAttributes(
         latestConversation.processDescription,
         conversationHistory,
-        apiKey,
-        model
+        {
+          processDescription: latestConversation.processDescription,
+          conversationHistory,
+          model,
+          provider: llmProvider,
+          apiKey,
+          awsAccessKeyId,
+          awsSecretAccessKey,
+          awsSessionToken,
+          awsRegion
+        }
       );
 
       // Convert extracted attributes to simple key-value format
@@ -432,7 +500,7 @@ router.post('/classify', async (req: Request, res: Response) => {
             ...classificationResult.result,
             timestamp: new Date().toISOString(),
             modelUsed: model,
-            llmProvider: 'openai'
+            llmProvider
           },
           attributeValues
         );
@@ -453,7 +521,7 @@ router.post('/classify', async (req: Request, res: Response) => {
       futureOpportunities: finalClassification.futureOpportunities,
       timestamp: new Date().toISOString(),
       modelUsed: model,
-      llmProvider: 'openai',
+      llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
     
@@ -474,7 +542,7 @@ router.post('/classify', async (req: Request, res: Response) => {
       false, // PII already scrubbed in input
       {
         modelVersion: model,
-        llmProvider: 'openai',
+        llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
         action: 'auto_classify'
@@ -512,6 +580,11 @@ router.post('/clarify', async (req: Request, res: Response) => {
       answers,
       questions,
       apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      provider,
       userId = 'anonymous',
       model = 'gpt-4'
     } = req.body;
@@ -530,7 +603,16 @@ router.post('/clarify', async (req: Request, res: Response) => {
       });
     }
 
-    if (!apiKey) {
+    // Validate credentials based on provider
+    const llmProvider = provider || (model.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+    if (llmProvider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+    } else if (!apiKey) {
       return res.status(400).json({
         error: 'Missing API key',
         message: 'OpenAI API key is required'
@@ -596,7 +678,12 @@ router.post('/clarify', async (req: Request, res: Response) => {
       processDescription: latestConversation.processDescription,
       conversationHistory: latestConversation.clarificationQA,
       model,
-      apiKey
+      provider: llmProvider,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
     });
 
     const classificationLatency = Date.now() - classificationStartTime;
@@ -607,7 +694,12 @@ router.post('/clarify', async (req: Request, res: Response) => {
         processDescription: latestConversation.processDescription,
         classification: classificationResult.result,
         conversationHistory: latestConversation.clarificationQA,
+        provider: llmProvider,
         apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion,
         model
       });
 
@@ -628,7 +720,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
         undefined,
         {
           modelVersion: model,
-          llmProvider: 'openai',
+          llmProvider,
           latencyMs: classificationLatency,
           action: 'clarify'
         }
@@ -658,8 +750,17 @@ router.post('/clarify', async (req: Request, res: Response) => {
     const extractedAttributes = await classificationService.extractAttributes(
       latestConversation.processDescription,
       latestConversation.clarificationQA,
-      apiKey,
-      model
+      {
+        processDescription: latestConversation.processDescription,
+        conversationHistory: latestConversation.clarificationQA,
+        model,
+        provider: llmProvider,
+        apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion
+      }
     );
 
     const attributeValues: { [key: string]: any } = {};
@@ -678,7 +779,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
           ...classificationResult.result,
           timestamp: new Date().toISOString(),
           modelUsed: model,
-          llmProvider: 'openai'
+          llmProvider
         },
         attributeValues
       );
@@ -694,7 +795,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
       futureOpportunities: finalClassification.futureOpportunities,
       timestamp: new Date().toISOString(),
       modelUsed: model,
-      llmProvider: 'openai',
+      llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
     
@@ -714,7 +815,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
       false,
       {
         modelVersion: model,
-        llmProvider: 'openai',
+        llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
         action: 'auto_classify'

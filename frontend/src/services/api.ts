@@ -8,9 +8,22 @@ export interface ApiError {
   status: number;
 }
 
+export interface LLMConfig {
+  provider: 'openai' | 'bedrock';
+  model: string;
+  // OpenAI
+  apiKey?: string;
+  // AWS Bedrock
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  awsRegion?: string;
+}
+
 class ApiService {
   private apiKey: string | null = null;
   private sessionId: string | null = null;
+  private llmConfig: LLMConfig | null = null;
 
   setApiKey(key: string) {
     this.apiKey = key;
@@ -28,9 +41,21 @@ class ApiService {
     return this.sessionId;
   }
 
+  setLLMConfig(config: LLMConfig) {
+    this.llmConfig = config;
+    if (config.apiKey) {
+      this.apiKey = config.apiKey;
+    }
+  }
+
+  getLLMConfig(): LLMConfig | null {
+    return this.llmConfig;
+  }
+
   clearSession() {
     this.apiKey = null;
     this.sessionId = null;
+    this.llmConfig = null;
   }
 
   private async request<T>(
@@ -120,16 +145,29 @@ class ApiService {
     if (!this.sessionId) {
       throw { message: 'No active session', status: 400 } as ApiError;
     }
-    if (!this.apiKey) {
-      throw { message: 'No API key set', status: 401 } as ApiError;
+    if (!this.llmConfig) {
+      throw { message: 'No LLM configuration set', status: 401 } as ApiError;
     }
+
+    const body: any = {
+      description,
+      sessionId: this.sessionId,
+      model: this.llmConfig.model,
+      provider: this.llmConfig.provider,
+    };
+
+    if (this.llmConfig.provider === 'openai') {
+      body.apiKey = this.llmConfig.apiKey;
+    } else {
+      body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+      body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+      body.awsSessionToken = this.llmConfig.awsSessionToken;
+      body.awsRegion = this.llmConfig.awsRegion;
+    }
+
     return this.request('/api/process/submit', {
       method: 'POST',
-      body: JSON.stringify({
-        description,
-        sessionId: this.sessionId,
-        apiKey: this.apiKey,
-      }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -138,16 +176,29 @@ class ApiService {
     if (!this.sessionId) {
       throw { message: 'No active session', status: 400 } as ApiError;
     }
-    if (!this.apiKey) {
-      throw { message: 'No API key set', status: 401 } as ApiError;
+    if (!this.llmConfig) {
+      throw { message: 'No LLM configuration set', status: 401 } as ApiError;
     }
+
+    const body: any = {
+      sessionId: this.sessionId,
+      answers: [response],
+      model: this.llmConfig.model,
+      provider: this.llmConfig.provider,
+    };
+
+    if (this.llmConfig.provider === 'openai') {
+      body.apiKey = this.llmConfig.apiKey;
+    } else {
+      body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+      body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+      body.awsSessionToken = this.llmConfig.awsSessionToken;
+      body.awsRegion = this.llmConfig.awsRegion;
+    }
+
     return this.request('/api/process/clarify', {
       method: 'POST',
-      body: JSON.stringify({ 
-        sessionId: this.sessionId,
-        answers: [response],
-        apiKey: this.apiKey
-      }),
+      body: JSON.stringify(body),
     });
   }
 

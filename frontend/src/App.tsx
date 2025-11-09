@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ApiKeyInput from './components/ApiKeyInput';
+import LLMConfiguration, { LLMConfig } from './components/LLMConfiguration';
 import ChatInterface from './components/ChatInterface';
 import VoiceRecorder from './components/VoiceRecorder';
 import ClarificationQuestions from './components/ClarificationQuestions';
@@ -17,8 +18,8 @@ type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts'
 type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback';
 
 function App() {
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-4');
+  const [hasConfig, setHasConfig] = useState(false);
+  const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('main');
   const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
@@ -31,18 +32,34 @@ function App() {
   const [questionCount, setQuestionCount] = useState(0);
   const [classification, setClassification] = useState<Classification | null>(null);
 
-  const handleApiKeySubmit = async (apiKey: string, model: string) => {
+  const handleConfigSubmit = async (config: LLMConfig) => {
     setError('');
     setIsProcessing(true);
     try {
-      await apiService.createSession(apiKey, model);
-      setHasApiKey(true);
-      setSelectedModel(model);
+      // For OpenAI, create session with API key
+      if (config.provider === 'openai' && config.apiKey) {
+        await apiService.createSession(config.apiKey, config.model);
+      } else {
+        // For Bedrock, just create a session without API key
+        await apiService.createSession('', config.model);
+      }
+      apiService.setLLMConfig(config);
+      setLLMConfig(config);
+      setHasConfig(true);
     } catch (err: any) {
       setError(err.message || 'Failed to create session');
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Legacy support for old ApiKeyInput component
+  const handleApiKeySubmit = async (apiKey: string, model: string) => {
+    await handleConfigSubmit({
+      provider: 'openai',
+      model,
+      apiKey,
+    });
   };
 
   const handleProcessSubmit = async (description: string) => {
@@ -95,8 +112,11 @@ function App() {
   };
 
   const handleVoiceTranscribe = async (audioBlob: Blob): Promise<string> => {
-    if (!hasApiKey) {
-      throw new Error('Please configure your API key in the Configuration tab before using voice input.');
+    if (!hasConfig) {
+      throw new Error('Please configure your LLM provider in the Configuration tab before using voice input.');
+    }
+    if (llmConfig?.provider !== 'openai') {
+      throw new Error('Voice transcription is only available with OpenAI provider.');
     }
     const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
     const response = await apiService.transcribeAudio(audioFile);
@@ -104,6 +124,9 @@ function App() {
   };
 
   const handleVoiceSynthesize = async (text: string): Promise<Blob> => {
+    if (llmConfig?.provider !== 'openai') {
+      throw new Error('Voice synthesis is only available with OpenAI provider.');
+    }
     return await apiService.synthesizeSpeech(text);
   };
 
@@ -294,25 +317,32 @@ function App() {
 
       {currentView === 'configuration' && (
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <ApiKeyInput onApiKeySubmit={handleApiKeySubmit} />
-          {hasApiKey && (
+          <LLMConfiguration onConfigSubmit={handleConfigSubmit} />
+          {hasConfig && llmConfig && (
             <div style={{
-              maxWidth: '500px',
+              maxWidth: '600px',
               margin: '20px auto',
-              padding: '15px',
+              padding: '20px',
               backgroundColor: '#d4edda',
               color: '#155724',
               borderRadius: '4px',
-              textAlign: 'center'
             }}>
-              <div style={{ marginBottom: '8px' }}>
-                ✓ API Key configured successfully!
+              <div style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 'bold' }}>
+                ✓ Configuration saved successfully!
               </div>
-              <div style={{ fontSize: '14px' }}>
-                Using model: <strong>{selectedModel}</strong>
+              <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                <strong>Provider:</strong> {llmConfig.provider === 'openai' ? 'OpenAI' : 'AWS Bedrock'}
               </div>
-              <div style={{ fontSize: '12px', marginTop: '8px', color: '#0c5460' }}>
-                You can now use the Classifier. To change the model, enter your API key again.
+              <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                <strong>Model:</strong> {llmConfig.model}
+              </div>
+              {llmConfig.provider === 'bedrock' && llmConfig.awsRegion && (
+                <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                  <strong>Region:</strong> {llmConfig.awsRegion}
+                </div>
+              )}
+              <div style={{ fontSize: '12px', marginTop: '12px', color: '#0c5460', paddingTop: '12px', borderTop: '1px solid #c3e6cb' }}>
+                You can now use the Classifier. To change the configuration, update the form above.
               </div>
             </div>
           )}
@@ -321,7 +351,7 @@ function App() {
 
       {currentView === 'main' && (
         <>
-          {!hasApiKey ? (
+          {!hasConfig ? (
             <div style={{
               maxWidth: '800px',
               margin: '50px auto',
@@ -342,7 +372,7 @@ function App() {
                 marginBottom: '20px'
               }}>
                 <p style={{ margin: 0, color: '#856404' }}>
-                  ⚠️ To get started, please configure your OpenAI API key in the Configuration tab.
+                  ⚠️ To get started, please configure your LLM provider (OpenAI or AWS Bedrock) in the Configuration tab.
                 </p>
               </div>
               <button
@@ -472,7 +502,7 @@ function App() {
         />
       )}
 
-      {showVoiceRecorder && hasApiKey && (
+      {showVoiceRecorder && hasConfig && (
         <VoiceRecorder
           onTranscription={handleVoiceRecordComplete}
           onCancel={() => setShowVoiceRecorder(false)}

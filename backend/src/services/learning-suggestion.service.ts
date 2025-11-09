@@ -67,7 +67,7 @@ export class LearningSuggestionService {
         }
       ],
       'gpt-4',
-      apiKey
+      { provider: 'openai', apiKey }
     );
 
     // Parse LLM response into suggestions

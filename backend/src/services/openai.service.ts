@@ -1,48 +1,47 @@
 import OpenAI from 'openai';
+import {
+  ILLMProvider,
+  ChatMessage,
+  ChatCompletionResponse,
+  TranscriptionResponse,
+  ModelInfo,
+  LLMProviderConfig,
+} from './llm-provider.interface';
 
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+// Re-export for backward compatibility
+export { ChatMessage, ChatCompletionResponse, TranscriptionResponse, ModelInfo };
 
-export interface ChatCompletionResponse {
-  content: string;
-  model: string;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
-
-export interface TranscriptionResponse {
-  transcription: string;
-  duration: number;
-}
-
-export interface ModelInfo {
-  id: string;
-  created: number;
-  ownedBy: string;
-}
-
-export class OpenAIService {
+export class OpenAIService implements ILLMProvider {
   private readonly TIMEOUT_MS = 30000; // 30 seconds
   private readonly MAX_RETRIES = 3;
   private readonly INITIAL_RETRY_DELAY_MS = 1000; // 1 second
+
+  // Supported OpenAI models
+  private readonly SUPPORTED_MODELS = [
+    'gpt-3.5-turbo',
+    'gpt-4',
+    'gpt-4-turbo',
+    'gpt-4o',
+    'o1-preview',
+    'o1-mini',
+  ];
 
   /**
    * Create a chat completion with retry logic and timeout handling
    * @param messages - Array of chat messages
    * @param model - Model to use (e.g., 'gpt-4', 'gpt-3.5-turbo')
-   * @param apiKey - User-provided OpenAI API key
+   * @param config - LLM provider configuration
    * @returns Chat completion response
    */
   async chat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string
+    config: LLMProviderConfig
   ): Promise<ChatCompletionResponse> {
+    const apiKey = config.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required');
+    }
     return this.withRetry(async () => {
       const client = new OpenAI({ apiKey });
       
@@ -73,13 +72,17 @@ export class OpenAIService {
   /**
    * Transcribe audio using OpenAI Whisper
    * @param audioFile - Audio file buffer, blob, or stream
-   * @param apiKey - User-provided OpenAI API key
+   * @param config - LLM provider configuration
    * @returns Transcription response
    */
   async transcribe(
     audioFile: any,
-    apiKey: string
+    config: LLMProviderConfig
   ): Promise<TranscriptionResponse> {
+    const apiKey = config.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required');
+    }
     return this.withRetry(async () => {
       const client = new OpenAI({ apiKey });
 
@@ -103,14 +106,18 @@ export class OpenAIService {
    * Synthesize speech from text using OpenAI TTS
    * @param text - Text to synthesize
    * @param voice - Voice to use
-   * @param apiKey - User-provided OpenAI API key
+   * @param config - LLM provider configuration
    * @returns Audio stream
    */
   async synthesize(
     text: string,
-    voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer',
-    apiKey: string
+    voice: string,
+    config: LLMProviderConfig
   ): Promise<Buffer> {
+    const apiKey = config.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required');
+    }
     return this.withRetry(async () => {
       const client = new OpenAI({ apiKey });
 
@@ -131,10 +138,14 @@ export class OpenAIService {
 
   /**
    * List available models from OpenAI
-   * @param apiKey - User-provided OpenAI API key
+   * @param config - LLM provider configuration
    * @returns Array of model information
    */
-  async listModels(apiKey: string): Promise<ModelInfo[]> {
+  async listModels(config: LLMProviderConfig): Promise<ModelInfo[]> {
+    const apiKey = config.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenAI API key is required');
+    }
     return this.withRetry(async () => {
       const client = new OpenAI({ apiKey });
 
@@ -214,6 +225,16 @@ export class OpenAIService {
     }
 
     return false;
+  }
+
+  /**
+   * Check if a model is supported by OpenAI
+   */
+  isModelSupported(model: string): boolean {
+    return this.SUPPORTED_MODELS.some(
+      (supportedModel) =>
+        model === supportedModel || model.startsWith(supportedModel)
+    );
   }
 
   /**

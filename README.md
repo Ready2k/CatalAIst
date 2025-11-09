@@ -1,6 +1,6 @@
 # CatalAIst
 
-AI-powered business process transformation classifier that helps organizations determine the optimal transformation approach for their processes using OpenAI's GPT models.
+AI-powered business process transformation classifier that helps organizations determine the optimal transformation approach for their processes using OpenAI GPT models or AWS Bedrock (Claude models).
 
 ## Features
 
@@ -32,6 +32,15 @@ AI-powered business process transformation classifier that helps organizations d
 - **Pattern detection**: Identifies common misclassifications and improvement opportunities
 - **Suggestion engine**: Generates recommendations for prompt and decision matrix improvements
 - **Version control**: All prompts and decision matrices are versioned with full history
+
+### 🔌 Multiple LLM Providers
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-4o, GPT-3.5 Turbo, O1 models
+- **AWS Bedrock**: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku
+- **Automatic detection**: Provider auto-detected based on model name
+- **Flexible credentials**: Support for API keys (OpenAI) and AWS credentials (Bedrock)
+- **Feature parity**: Classification, clarification, and attribute extraction work with both providers
+
+See [AWS Bedrock Setup Guide](backend/AWS_BEDROCK_SETUP.md) for detailed configuration and [Examples](backend/BEDROCK_EXAMPLES.md) for usage patterns.
 
 ## Project Structure
 
@@ -92,7 +101,10 @@ docker-compose up -d --build
 - Backend API: http://localhost:8080
 - Health check: http://localhost:8080/health
 
-4. **Enter your OpenAI API key** when prompted in the web interface
+4. **Configure your LLM provider**:
+   - **OpenAI**: Enter your OpenAI API key when prompted
+   - **AWS Bedrock**: Provide AWS credentials (Access Key ID, Secret Access Key, Region)
+   - See [AWS Bedrock Setup Guide](backend/AWS_BEDROCK_SETUP.md) for detailed instructions
 
 5. **Start classifying!** Describe your business process and let the AI guide you through the classification.
 

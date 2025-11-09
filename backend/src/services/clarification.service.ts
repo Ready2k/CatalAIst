@@ -1,4 +1,4 @@
-import { OpenAIService, ChatMessage } from './openai.service';
+import { LLMService, ChatMessage, LLMProviderConfig } from './llm.service';
 import { VersionedStorageService } from './versioned-storage.service';
 import { JsonStorageService } from './storage.service';
 import { ClassificationResult } from './classification.service';
@@ -12,7 +12,13 @@ export interface ClarificationRequest {
   processDescription: string;
   classification: ClassificationResult;
   conversationHistory: Array<{ question: string; answer: string }>;
-  apiKey: string;
+  // LLM Provider config
+  provider?: 'openai' | 'bedrock';
+  apiKey?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  awsRegion?: string;
   model?: string;
 }
 
@@ -26,7 +32,7 @@ export interface ClarificationResponse {
  * Service for generating and managing clarification questions
  */
 export class ClarificationService {
-  private openAIService: OpenAIService;
+  private llmService: LLMService;
   private versionedStorage: VersionedStorageService;
   private readonly DEFAULT_MODEL = 'gpt-4';
   private readonly CLARIFICATION_PROMPT_ID = 'clarification';
@@ -36,7 +42,7 @@ export class ClarificationService {
   private readonly MAX_QUESTIONS = 3;
 
   constructor(versionedStorage?: VersionedStorageService) {
-    this.openAIService = new OpenAIService();
+    this.llmService = new LLMService();
     this.versionedStorage = versionedStorage || new VersionedStorageService(new JsonStorageService());
   }
 
@@ -97,6 +103,18 @@ export class ClarificationService {
 
       // Generate clarification questions
       const model = request.model || this.DEFAULT_MODEL;
+      
+      // Build LLM config
+      const config = this.llmService.buildConfig({
+        provider: request.provider,
+        model,
+        apiKey: request.apiKey,
+        awsAccessKeyId: request.awsAccessKeyId,
+        awsSecretAccessKey: request.awsSecretAccessKey,
+        awsSessionToken: request.awsSessionToken,
+        awsRegion: request.awsRegion,
+      });
+
       const messages = await this.buildClarificationMessages(
         request.processDescription,
         request.classification,
@@ -104,11 +122,7 @@ export class ClarificationService {
         model
       );
 
-      const response = await this.openAIService.chat(
-        messages,
-        model,
-        request.apiKey
-      );
+      const response = await this.llmService.chat(messages, model, config);
 
       const questions = this.parseClarificationResponse(response.content);
 

@@ -5,6 +5,62 @@ All notable changes to CatalAIst will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-11-09
+
+### Added
+- **AWS Bedrock Integration**: Full support for AWS Bedrock as an alternative LLM provider
+  - Support for Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus, and other Claude models
+  - Automatic provider detection based on model name
+  - AWS credential support (Access Key ID, Secret Access Key, Session Token, Region)
+  - Clean provider abstraction layer for easy addition of future LLM providers
+  - Comprehensive documentation: AWS_BEDROCK_SETUP.md, BEDROCK_EXAMPLES.md, BEDROCK_QUICK_START.md
+  - Usage examples in Bash, JavaScript, TypeScript, and Python
+- **LLM Provider Abstraction**: New architecture for multi-provider support
+  - `ILLMProvider` interface for consistent provider implementation
+  - `LLMService` factory for provider selection and routing
+  - `BedrockService` implementation for AWS Bedrock
+  - Refactored `OpenAIService` to implement common interface
+- **Enhanced API Endpoints**: All classification endpoints now support both OpenAI and Bedrock
+  - `/api/process/submit` - Accept AWS credentials
+  - `/api/process/classify` - Accept AWS credentials
+  - `/api/process/clarify` - Accept AWS credentials
+
+### Changed
+- **Classification Service**: Updated to use LLM provider abstraction
+  - `ClassificationRequest` now includes AWS credential parameters
+  - Automatic provider detection and configuration
+  - Backward compatible with existing OpenAI usage
+- **Clarification Service**: Updated to use LLM provider abstraction
+  - `ClarificationRequest` now includes AWS credential parameters
+  - Seamless provider switching
+- **Frontend Configuration**: Replaced ApiKeyInput with LLMConfiguration component
+  - Tab-based interface for selecting OpenAI or AWS Bedrock
+  - Provider-specific credential forms
+  - Model selection based on provider
+  - Advanced options for AWS temporary credentials
+- **API Service**: Enhanced to support multiple LLM providers
+  - Stores complete LLM configuration (provider, model, credentials)
+  - Automatically includes correct credentials in API requests
+  - Backward compatible with existing OpenAI-only code
+- **Docker Configuration**: Added AWS environment variables to docker-compose.yml
+  - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`
+- **Dependencies**: Added `@aws-sdk/client-bedrock-runtime` for Bedrock support
+
+### Documentation
+- Added comprehensive AWS Bedrock setup guide
+- Added usage examples for multiple programming languages
+- Added quick start guide for 5-minute setup
+- Updated README with LLM provider information
+- Added architecture diagrams and troubleshooting guides
+
+### Technical
+- Zero breaking changes - fully backward compatible
+- Type-safe implementation with TypeScript
+- Comprehensive error handling for both providers
+- Retry logic with exponential backoff for both providers
+- Timeout handling (30 seconds for chat completions)
+- Model validation for each provider
+
 ## [1.1.0] - 2025-11-08
 
 ### Added

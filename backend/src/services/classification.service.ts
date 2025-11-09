@@ -1,4 +1,4 @@
-import { OpenAIService, ChatMessage } from './openai.service';
+import { LLMService, ChatMessage, LLMProviderConfig } from './llm.service';
 import { VersionedStorageService } from './versioned-storage.service';
 import { JsonStorageService } from './storage.service';
 
@@ -35,28 +35,24 @@ export interface ClassificationRequest {
   processDescription: string;
   conversationHistory?: Array<{ question: string; answer: string }>;
   model?: string;
-  apiKey: string;
+  // LLM Provider config
+  provider?: 'openai' | 'bedrock';
+  apiKey?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  awsRegion?: string;
 }
 
 export class ClassificationService {
-  private openAIService: OpenAIService;
+  private llmService: LLMService;
   private versionedStorage: VersionedStorageService;
   private readonly DEFAULT_MODEL = 'gpt-4';
   private readonly CLASSIFICATION_PROMPT_ID = 'classification';
   private readonly ATTRIBUTE_EXTRACTION_PROMPT_ID = 'attribute-extraction';
-  
-  // Supported models for classification
-  private readonly SUPPORTED_MODELS = [
-    'gpt-3.5-turbo',
-    'gpt-4',
-    'gpt-4-turbo',
-    'gpt-4o',
-    'o1-preview',
-    'o1-mini',
-  ];
 
   constructor(versionedStorage?: VersionedStorageService) {
-    this.openAIService = new OpenAIService();
+    this.llmService = new LLMService();
     this.versionedStorage = versionedStorage || new VersionedStorageService(new JsonStorageService());
   }
 
@@ -69,11 +65,20 @@ export class ClassificationService {
     try {
       const model = request.model || this.DEFAULT_MODEL;
       
+      // Build LLM config
+      const config = this.llmService.buildConfig({
+        provider: request.provider,
+        model,
+        apiKey: request.apiKey,
+        awsAccessKeyId: request.awsAccessKeyId,
+        awsSecretAccessKey: request.awsSecretAccessKey,
+        awsSessionToken: request.awsSessionToken,
+        awsRegion: request.awsRegion,
+      });
+
       // Validate model is supported
-      if (!this.isModelSupported(model)) {
-        throw new Error(
-          `Unsupported model: ${model}. Supported models: ${this.SUPPORTED_MODELS.join(', ')}`
-        );
+      if (!this.llmService.isModelSupported(model, config)) {
+        throw new Error(`Unsupported model: ${model} for provider: ${config.provider}`);
       }
 
       const messages = await this.buildClassificationMessages(
@@ -82,11 +87,7 @@ export class ClassificationService {
         model
       );
 
-      const response = await this.openAIService.chat(
-        messages,
-        model,
-        request.apiKey
-      );
+      const response = await this.llmService.chat(messages, model, config);
 
       return this.parseClassificationResponse(response.content);
     } catch (error) {
@@ -202,24 +203,31 @@ export class ClassificationService {
    * Extract business attributes from conversation
    * @param processDescription - Process description
    * @param conversationHistory - Conversation history with Q&A
-   * @param apiKey - OpenAI API key
-   * @param model - Model to use (optional)
+   * @param request - Classification request with LLM config
    * @returns Extracted attributes
    */
   async extractAttributes(
     processDescription: string,
     conversationHistory: Array<{ question: string; answer: string }>,
-    apiKey: string,
-    model?: string
+    request: ClassificationRequest
   ): Promise<ExtractedAttributes> {
     try {
-      const modelToUse = model || this.DEFAULT_MODEL;
+      const modelToUse = request.model || this.DEFAULT_MODEL;
       
+      // Build LLM config
+      const config = this.llmService.buildConfig({
+        provider: request.provider,
+        model: modelToUse,
+        apiKey: request.apiKey,
+        awsAccessKeyId: request.awsAccessKeyId,
+        awsSecretAccessKey: request.awsSecretAccessKey,
+        awsSessionToken: request.awsSessionToken,
+        awsRegion: request.awsRegion,
+      });
+
       // Validate model is supported
-      if (!this.isModelSupported(modelToUse)) {
-        throw new Error(
-          `Unsupported model: ${modelToUse}. Supported models: ${this.SUPPORTED_MODELS.join(', ')}`
-        );
+      if (!this.llmService.isModelSupported(modelToUse, config)) {
+        throw new Error(`Unsupported model: ${modelToUse} for provider: ${config.provider}`);
       }
 
       const messages = await this.buildAttributeExtractionMessages(
@@ -228,11 +236,7 @@ export class ClassificationService {
         modelToUse
       );
 
-      const response = await this.openAIService.chat(
-        messages,
-        modelToUse,
-        apiKey
-      );
+      const response = await this.llmService.chat(messages, modelToUse, config);
 
       return this.parseAttributeExtractionResponse(response.content);
     } catch (error) {
@@ -407,15 +411,7 @@ Respond ONLY with the JSON object, no additional text.`;
     }
   }
 
-  /**
-   * Check if a model is supported for classification
-   */
-  private isModelSupported(model: string): boolean {
-    return this.SUPPORTED_MODELS.some(
-      (supportedModel) =>
-        model === supportedModel || model.startsWith(supportedModel)
-    );
-  }
+
 
   /**
    * Build chat messages for classification

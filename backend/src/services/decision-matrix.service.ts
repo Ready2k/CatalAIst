@@ -35,7 +35,7 @@ export class DecisionMatrixService {
         }
       ],
       model,
-      apiKey
+      { provider: 'openai', apiKey }
     );
 
     // Parse the LLM response to extract the decision matrix structure

@@ -41,7 +41,7 @@ router.get('/models', async (req: Request, res: Response) => {
       });
     }
 
-    const models = await openaiService.listModels(apiKey);
+    const models = await openaiService.listModels({ provider: 'openai', apiKey });
     
     // Filter to only show relevant models for classification
     const relevantModels = models.filter(model => 

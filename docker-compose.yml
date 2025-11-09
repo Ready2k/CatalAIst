@@ -15,6 +15,11 @@ services:
       - DEFAULT_VOICE=alloy
       - DATA_DIR=/data
       - LOG_LEVEL=info
+      # AWS Bedrock credentials (optional - only needed if using Bedrock)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
