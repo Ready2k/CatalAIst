@@ -13,11 +13,12 @@ RUN npm ci --only=production
 # Copy built application and shared types
 COPY backend/dist ./dist
 
-# Create data directory
-RUN mkdir -p /data && chown -R 1001:0 /data /app
+# Create data directory with proper permissions
+RUN mkdir -p /data && chown -R 1001:0 /data /app && chmod -R g+w /data
 
-# Switch to non-root user
-USER 1001
+# Copy entrypoint script
+COPY backend/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose port
 EXPOSE 8080
@@ -26,5 +27,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-# Start application
+# Use entrypoint to fix permissions then switch to non-root user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "dist/backend/src/index.js"]

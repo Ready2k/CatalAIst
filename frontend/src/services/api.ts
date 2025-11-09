@@ -1,6 +1,7 @@
 // API service for backend communication
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+// Use empty string for relative URLs - nginx will proxy /api to backend
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 export interface ApiError {
   message: string;
