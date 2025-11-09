@@ -102,7 +102,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
     return flow;
   }, [matrix]);
   
-  const [nodes, setNodes] = useState<FlowNode[]>(initialFlow.nodes);
+  const [allNodes, setAllNodes] = useState<FlowNode[]>(initialFlow.nodes);
   const [edges, setEdges] = useState<CustomEdge[]>(initialFlow.edges);
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -112,6 +112,26 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   const [showLegend, setShowLegend] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [screenReaderAnnouncement, setScreenReaderAnnouncement] = useState('');
+  const [showUnusedNodes, setShowUnusedNodes] = useState(false);
+  
+  // Filter nodes based on showUnusedNodes toggle
+  const nodes = useMemo(() => {
+    if (showUnusedNodes) {
+      return allNodes;
+    }
+    
+    // Filter out unused nodes
+    const usedNodeIds = new Set<string>();
+    
+    // All edges reference used nodes
+    edges.forEach(edge => {
+      usedNodeIds.add(edge.source);
+      usedNodeIds.add(edge.target);
+    });
+    
+    // Filter nodes to only show used ones
+    return allNodes.filter(node => usedNodeIds.has(node.id));
+  }, [allNodes, edges, showUnusedNodes]);
 
   // Debounced validation (200ms delay)
   const debouncedValidate = useDebounce((currentNodes: FlowNode[], currentEdges: CustomEdge[]) => {
@@ -132,8 +152,8 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
 
   // Validate matrix whenever nodes change
   useEffect(() => {
-    debouncedValidate(nodes, edges);
-  }, [nodes, edges, debouncedValidate]);
+    debouncedValidate(allNodes, edges);
+  }, [allNodes, edges, debouncedValidate]);
 
   // Fit view on initial load
   useEffect(() => {
@@ -164,7 +184,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   // Handle node changes (position, selection, etc.)
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      setNodes((nds) => applyNodeChanges(changes, nds) as FlowNode[]);
+      setAllNodes((nds) => applyNodeChanges(changes, nds) as FlowNode[]);
       setIsDirty(true);
     },
     []
@@ -228,7 +248,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   // Handle node mouse enter for hover effects
   const onNodeMouseEnter = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      setNodes((nds) =>
+      setAllNodes((nds) =>
         nds.map((n) =>
           n.id === node.id
             ? ({ ...n, data: { ...n.data, isHighlighted: true } } as FlowNode)
@@ -242,7 +262,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   // Handle node mouse leave to remove hover effects
   const onNodeMouseLeave = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      setNodes((nds) =>
+      setAllNodes((nds) =>
         nds.map((n) =>
           n.id === node.id
             ? ({ ...n, data: { ...n.data, isHighlighted: false } } as FlowNode)
@@ -259,7 +279,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
       if (!selectedNode) return;
       measureInteraction('property-update', () => {
         // @ts-ignore - Type assertion needed for complex union types
-        setNodes((nds) =>
+        setAllNodes((nds) =>
           nds.map((node) =>
             node.id === selectedNode.id
               ? { ...node, data: { ...node.data, attribute: updatedAttribute } }
@@ -279,7 +299,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
       if (!selectedNode) return;
       measureInteraction('property-update', () => {
         // @ts-ignore - Type assertion needed for complex union types
-        setNodes((nds) =>
+        setAllNodes((nds) =>
           nds.map((node) =>
             node.id === selectedNode.id
               ? { ...node, data: { ...node.data, rule: updatedRule } }
@@ -299,7 +319,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
       if (!selectedNode) return;
       measureInteraction('property-update', () => {
         // @ts-ignore - Type assertion needed for complex union types
-        setNodes((nds) =>
+        setAllNodes((nds) =>
           nds.map((node) =>
             node.id === selectedNode.id
               ? { ...node, data: { ...node.data, action: updatedAction } }
@@ -407,7 +427,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
     try {
       // Convert flow back to decision matrix with performance tracking
       await performanceMonitor.measureAsync('save-operation', async () => {
-        const updatedMatrix = flowToMatrix(nodes, edges, matrix);
+        const updatedMatrix = flowToMatrix(allNodes, edges, matrix);
         await onSave(updatedMatrix);
       });
       
@@ -606,6 +626,25 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
         >
           {isMobile ? 'Reset' : 'Reset View'}
         </button>
+
+        <button
+          onClick={() => setShowUnusedNodes(!showUnusedNodes)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: showUnusedNodes ? '#3b82f6' : '#f1f5f9',
+            color: showUnusedNodes ? 'white' : '#1e293b',
+            border: '1px solid #e2e8f0',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 500,
+          }}
+          title={showUnusedNodes ? 'Hide unused nodes' : 'Show unused nodes'}
+          aria-label={showUnusedNodes ? 'Hide unused attributes and categories' : 'Show all attributes and categories including unused ones'}
+          aria-pressed={showUnusedNodes}
+        >
+          {isMobile ? (showUnusedNodes ? '👁️' : '👁️‍🗨️') : (showUnusedNodes ? 'Hide Unused' : 'Show All')}
+        </button>
         </div>
 
         {!readOnly && (
@@ -692,7 +731,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
         <ValidationSummary
           validationErrors={validationErrors}
           onNodeClick={(nodeId: string) => {
-            const node = nodes.find((n) => n.id === nodeId);
+            const node = allNodes.find((n) => n.id === nodeId);
             if (node) {
               setSelectedNode(node);
             }
@@ -736,7 +775,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           }}
           onHighlightNodes={(nodeType: string | null) => {
             // Highlight nodes of this type
-            setNodes((nds) =>
+            setAllNodes((nds) =>
               nds.map((n) =>
                 nodeType && n.type === nodeType
                   ? ({ ...n, data: { ...n.data, isHighlighted: true } } as FlowNode)

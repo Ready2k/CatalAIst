@@ -223,12 +223,14 @@ export const matrixToFlow = (matrix: DecisionMatrix): MatrixToFlowResult => {
   const edges: CustomEdge[] = [];
   
   // 1. Create attribute nodes (left column)
+  // Show all attributes so users can see what's available
   matrix.attributes.forEach((attr, index) => {
     nodes.push(createAttributeNode(attr, index));
   });
   
   // 2. Create category nodes (right column)
-  const categories: TransformationCategory[] = [
+  // Always show all 6 standard categories, plus any custom ones referenced in actions
+  const standardCategories: TransformationCategory[] = [
     'Eliminate',
     'Simplify',
     'Digitise',
@@ -237,6 +239,16 @@ export const matrixToFlow = (matrix: DecisionMatrix): MatrixToFlowResult => {
     'Agentic AI'
   ];
   
+  const referencedCategories = new Set<TransformationCategory>(standardCategories);
+  
+  // Add any custom categories referenced in actions
+  matrix.rules.forEach(rule => {
+    if (rule.action.type === 'override' && rule.action.targetCategory) {
+      referencedCategories.add(rule.action.targetCategory);
+    }
+  });
+  
+  const categories = Array.from(referencedCategories).sort();
   categories.forEach((cat, index) => {
     nodes.push(createCategoryNode(cat, index));
   });

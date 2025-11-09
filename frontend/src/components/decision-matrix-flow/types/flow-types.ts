@@ -118,13 +118,14 @@ export interface MatrixToFlowResult {
 }
 
 // Category Descriptions
-export const CATEGORY_DESCRIPTIONS: Record<TransformationCategory, string> = {
+export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   'Eliminate': 'Remove unnecessary processes',
   'Simplify': 'Streamline complexity',
   'Digitise': 'Convert to digital',
   'RPA': 'Robotic Process Automation',
   'AI Agent': 'AI with human oversight',
-  'Agentic AI': 'Autonomous AI systems'
+  'Agentic AI': 'Autonomous AI systems',
+  'Eliminate or Simplify': 'Low-value processes can be considered for elimination or simplification'
 };
 
 // Node Colors by Type
@@ -150,8 +151,9 @@ export const NODE_COLORS = {
     'Digitise': '#eab308',       // yellow
     'RPA': '#10b981',            // green
     'AI Agent': '#3b82f6',       // blue
-    'Agentic AI': '#8b5cf6'      // purple
-  }
+    'Agentic AI': '#8b5cf6',     // purple
+    'Eliminate or Simplify': '#f59e0b'  // amber (combination category)
+  } as Record<string, string>
 };
 
 // Node Dimensions

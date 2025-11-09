@@ -5,7 +5,7 @@ import { ContextualTooltip } from '../help/ContextualTooltip';
 
 const CategoryNode: React.FC<NodeProps> = ({ data, selected }) => {
   const { category, isHighlighted } = data as CategoryNodeData;
-  const description = CATEGORY_DESCRIPTIONS[category];
+  const description = CATEGORY_DESCRIPTIONS[category] || 'Classification category';
 
   // Get icon based on category
   const getCategoryIcon = () => {
@@ -27,8 +27,8 @@ const CategoryNode: React.FC<NodeProps> = ({ data, selected }) => {
     }
   };
 
-  // Get color based on category
-  const nodeColor = NODE_COLORS.category[category];
+  // Get color based on category (with fallback for custom categories)
+  const nodeColor = NODE_COLORS.category[category] || '#94a3b8'; // gray fallback
 
   // Generate tooltip content
   const tooltipContent = `Category: ${category}
