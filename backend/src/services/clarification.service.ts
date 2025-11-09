@@ -217,15 +217,46 @@ When generating questions, consider extracting information about:
 - **User Count**: Number of people involved or affected (1-5, 6-20, 21-50, 51-100, 100+)
 - **Data Sensitivity**: Level of data sensitivity (public, internal, confidential, restricted)
 
-**Question Guidelines:**
+**CRITICAL Questions to Ask (if not already answered):**
+
+1. **Data Source & Nature:**
+   - Where does the data come from? Is it observational, transactional, or generated?
+   - Is the data created through human observation/judgment or automatically captured?
+   - Does the data require interpretation or is it raw facts?
+
+2. **Output Format & Usage:**
+   - What format is the output? (Report, dashboard, spreadsheet, document, etc.)
+   - Who uses the output and what do they do with it?
+   - Does the output require human judgment to create or interpret?
+   - Is the output standardized or does it vary based on context?
+
+3. **Human Judgment & Decision-Making:**
+   - Are there decision points that require human expertise or judgment?
+   - Does the process involve interpretation, analysis, or subjective assessment?
+   - Could the process be fully automated or does it need human oversight?
+
+4. **Variability & Exceptions:**
+   - Does the process follow the same steps every time?
+   - Are there exceptions or edge cases that require special handling?
+   - How much variation is there in inputs, processing, or outputs?
+
+**Question Priority Framework:**
 1. **First Priority**: Understand the CURRENT STATE - How is this done today? Is it manual, digital, automated?
-2. **Second Priority**: Understand SCALE - How often? How many people? How many transactions?
-3. **Third Priority**: Understand PAIN POINTS - What's broken? What takes too long? What's error-prone?
-4. Ask open-ended questions that encourage detailed responses
-5. Don't repeat information already provided in previous answers
-6. Build on previous answers - if they mention something interesting, dig deeper
-7. Keep questions conversational and natural
-8. Never assume - if it's not explicitly stated, ask about it
+2. **Second Priority**: Understand DATA SOURCE - Where does the data come from? Is it observational or transactional?
+3. **Third Priority**: Understand OUTPUT USAGE - What happens with the output? Who uses it and how?
+4. **Fourth Priority**: Understand HUMAN JUDGMENT - What requires human expertise vs. what's mechanical?
+5. **Fifth Priority**: Understand SCALE - How often? How many people? How many transactions?
+6. **Sixth Priority**: Understand PAIN POINTS - What's broken? What takes too long? What's error-prone?
+
+**Question Guidelines:**
+1. Ask open-ended questions that encourage detailed responses
+2. Don't repeat information already provided in previous answers
+3. Build on previous answers - if they mention something interesting, dig deeper
+4. Keep questions conversational and natural
+5. Never assume - if it's not explicitly stated, ask about it
+6. **ALWAYS ask about data source and output usage if not clear**
+7. **ALWAYS ask about human judgment requirements if the process involves reports, analysis, or decisions**
+8. **Be skeptical of automation potential** - dig into what makes the process complex
 
 **Response Format:**
 Provide your response as a JSON array of question objects:

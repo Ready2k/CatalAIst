@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Marginal descriptions (20-50 words) with medium-high confidence trigger clarification
   - Only detailed descriptions (> 50 words) with very high confidence auto-classify
   - Prevents premature classification of vague or incomplete descriptions
+- **Enhanced Clarification Prompt (v1.1)**: More aggressive questioning about critical automation factors
+  - New priority framework emphasizing data source, output usage, and human judgment requirements
+  - Added critical questions about observational vs. transactional data
+  - Questions now probe whether processes require human interpretation or expertise
+  - Better detection of processes that appear automatable but require human judgment
+  - Prevents misclassification of observational/analytical work as RPA-suitable
 
 ### Fixed
 - Decision Matrix navigation button no longer shows error message when matrix hasn't been initialized
