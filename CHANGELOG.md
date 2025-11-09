@@ -5,6 +5,111 @@ All notable changes to CatalAIst will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-11-09
+
+### Added - Decision Matrix Flow Visualization
+- **Interactive Flow Diagram**: Visual representation of decision matrix logic
+  - ReactFlow-based graph visualization with custom node types
+  - 5 node types: Attributes, Rules, Conditions, Actions, Categories
+  - Color-coded nodes by type and state (active/inactive rules)
+  - Visual connections showing data flow from attributes through rules to categories
+  - Automatic layout engine with column-based positioning
+  - Priority-based rule sorting (highest priority at top)
+  
+- **Full Accessibility Support**:
+  - Complete keyboard navigation (Tab, Arrow keys, Enter, Escape)
+  - Arrow Left/Right navigates between connected nodes
+  - Arrow Up/Down navigates between nodes of same type
+  - Enter key selects/edits focused nodes
+  - Escape key deselects nodes and closes panels
+  - Comprehensive ARIA labels on all interactive elements
+  - Screen reader announcements for node selection
+  - WCAG AA compliant color contrast
+  - Visible focus indicators (3px outline with 2px offset)
+  - Minimum font sizes increased to 11-12px
+  
+- **Responsive Design**:
+  - Mobile-first responsive layout (< 768px, 768-1024px, > 1024px breakpoints)
+  - Property panel adapts: 100% width on mobile, 350px on tablet, 400px on desktop
+  - Toolbar stacks vertically on mobile
+  - Touch-optimized interactions (pinch-to-zoom, disabled drag on mobile)
+  - Minimap hidden on mobile to save screen space
+  - Reduced edge stroke width on mobile (1.5px vs 2px)
+  
+- **Interactive Property Panels**:
+  - Edit attributes (name, type, weight, description, possible values)
+  - Edit rules (name, priority, active status, conditions)
+  - Edit actions (type, target category, confidence adjustment, rationale)
+  - Real-time validation with error messages
+  - Dirty state tracking with unsaved changes indicator
+  - Keyboard shortcuts (Escape to close)
+  
+- **Help System**:
+  - Welcome tour for first-time users
+  - Node legend with type descriptions
+  - Contextual tooltips on all nodes
+  - Comprehensive help panel with usage guide
+  - Interactive node highlighting from legend
+  
+- **Validation System**:
+  - Real-time validation of decision matrix structure
+  - Validation summary panel with error/warning counts
+  - Click-to-navigate from validation errors to nodes
+  - Attribute validation (weight range, required fields)
+  - Rule validation (priority, conditions, actions)
+  - Condition validation (operator compatibility, value types)
+  - Action validation (target category, confidence range)
+  
+- **Performance Monitoring**:
+  - Built-in performance measurement utilities
+  - Interaction timing tracking
+  - Performance budget checking
+  - Debounced validation (200ms delay)
+  - Optimized re-rendering with React.memo
+  
+### Changed
+- **Decision Matrix Admin**: Replaced table view with interactive flow visualization
+  - More intuitive understanding of decision logic
+  - Visual representation of rule priorities and connections
+  - Easier identification of gaps and overlaps in rules
+  - Better understanding of attribute influence on classifications
+  
+### Fixed
+- **Validation Error**: Fixed runtime error where `validateMatrix` was receiving wrong data structure
+  - Now correctly extracts attributes and rules from flow nodes before validation
+  - Prevents "Cannot read properties of undefined (reading 'forEach')" error
+  
+- **Layout Issue**: Fixed blank screen on initial load
+  - Removed extra wrapper div that broke ReactFlow layout
+  - ReactFlow now renders directly in container with proper dimensions
+  - Applied automatic layout algorithm to position nodes correctly
+  
+### Technical Details
+- **New Dependencies**:
+  - `@xyflow/react` v12.0.0 - Flow diagram library
+  - `dagre` v0.8.5 - Graph layout algorithm
+  
+- **New Components**:
+  - `DecisionMatrixFlowEditor` - Main flow editor component
+  - `AttributeNode`, `RuleNode`, `ConditionNode`, `ActionNode`, `CategoryNode` - Custom node types
+  - `AttributePropertyPanel`, `RulePropertyPanel`, `ActionPropertyPanel` - Property editors
+  - `ValidationSummary` - Validation error display
+  - `WelcomeTour`, `NodeLegend`, `HelpPanel`, `ContextualTooltip` - Help system
+  
+- **New Utilities**:
+  - `matrixToFlow` - Convert decision matrix to flow graph
+  - `flowToMatrix` - Convert flow graph back to decision matrix
+  - `layoutEngine` - Automatic node positioning with dagre
+  - `validation` - Comprehensive validation logic
+  - `nodeValidation` - Node-specific validation rules
+  - `performanceMonitor` - Performance tracking utilities
+  - `debounce` - Debounced function execution
+  
+### Breaking Changes
+- Decision Matrix admin interface completely redesigned
+- Previous table-based editing replaced with visual flow editor
+- API endpoints remain unchanged (backward compatible)
+
 ## [1.2.0] - 2025-11-09
 
 ### Added

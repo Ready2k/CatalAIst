@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DecisionMatrix, Rule, Attribute } from '../../../shared/types';
+import DecisionMatrixFlowEditor from './DecisionMatrixFlowEditor';
 
 interface DecisionMatrixAdminProps {
   onLoadMatrix: () => Promise<DecisionMatrix>;
@@ -25,6 +26,11 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [generating, setGenerating] = useState(false);
   const [needsInitialization, setNeedsInitialization] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
+  const [showTour, setShowTour] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -90,16 +96,43 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
 
     setSaving(true);
     setError('');
+    setSuccessMessage('');
     try {
       const updatedMatrix = await onUpdateMatrix(matrix);
       setMatrix(updatedMatrix);
       setEditMode(false);
+      setSuccessMessage(`Decision matrix saved successfully! New version: ${updatedMatrix.version}`);
       await loadData(); // Reload to get new version list
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       setError(err.message || 'Failed to save decision matrix');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleFlowSave = async (updatedMatrix: DecisionMatrix) => {
+    setSaving(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      const savedMatrix = await onUpdateMatrix(updatedMatrix);
+      setMatrix(savedMatrix);
+      setSuccessMessage(`Decision matrix saved successfully! New version: ${savedMatrix.version}`);
+      await loadData(); // Reload to get new version list
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save decision matrix');
+      throw err; // Re-throw so flow editor can handle it
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFlowCancel = () => {
+    setViewMode('list');
   };
 
   const toggleRuleActive = (ruleId: string) => {
@@ -225,7 +258,53 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
     );
   }
 
-  return (
+  return viewMode === 'flow' ? (
+    <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, zIndex: 1000, backgroundColor: '#fff' }}>
+      <DecisionMatrixFlowEditor
+        matrix={matrix}
+        onSave={handleFlowSave}
+        onCancel={handleFlowCancel}
+      />
+      {/* Success Message for Flow View */}
+      {successMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '12px 24px',
+          backgroundColor: '#10b981',
+          color: '#fff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          fontSize: '14px',
+          fontWeight: 500
+        }}>
+          ✓ {successMessage}
+        </div>
+      )}
+      {/* Error Message for Flow View */}
+      {error && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '12px 24px',
+          backgroundColor: '#ef4444',
+          color: '#fff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          fontSize: '14px',
+          fontWeight: 500
+        }}>
+          ✗ {error}
+        </div>
+      )}
+    </div>
+  ) : (
     <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
       <div style={{
         display: 'flex',
@@ -234,7 +313,69 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
         marginBottom: '20px'
       }}>
         <h2 style={{ margin: 0 }}>Decision Matrix Admin</h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* View Mode Toggle */}
+          <div style={{
+            display: 'flex',
+            gap: '4px',
+            backgroundColor: '#f1f5f9',
+            padding: '4px',
+            borderRadius: '6px',
+            border: '1px solid #e2e8f0'
+          }}>
+            <button
+              onClick={() => setViewMode('list')}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#fff',
+                color: '#1e293b',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              📋 List View
+            </button>
+            <button
+              onClick={() => setViewMode('flow')}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: 'transparent',
+                color: '#64748b',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '400',
+                boxShadow: 'none'
+              }}
+            >
+              🔀 Flow View
+            </button>
+          </div>
+
+          {/* Help Menu Button */}
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#fff',
+              color: '#64748b',
+              border: '1px solid #e2e8f0',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Help & Documentation"
+          >
+            ❓ Help
+          </button>
+
+          {/* Edit/Save/Cancel Buttons */}
           {!editMode ? (
             <button
               onClick={() => setEditMode(true)}
@@ -287,15 +428,205 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
         </div>
       </div>
 
+      {/* Success Message */}
+      {successMessage && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#d1fae5',
+          color: '#065f46',
+          borderRadius: '4px',
+          marginBottom: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>✓</span>
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Error Message */}
       {error && (
         <div style={{
           padding: '15px',
           backgroundColor: '#f8d7da',
           color: '#721c24',
           borderRadius: '4px',
-          marginBottom: '15px'
+          marginBottom: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          {error}
+          <span>✗</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Help Menu Dropdown */}
+      {showHelp && (
+        <div style={{
+          position: 'absolute',
+          top: '80px',
+          right: '20px',
+          backgroundColor: '#fff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          padding: '8px',
+          minWidth: '220px',
+          zIndex: 100
+        }}>
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              setShowTour(true);
+              setViewMode('flow');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            🎓 Start Welcome Tour
+          </button>
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              setShowLegend(true);
+              setViewMode('flow');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            📖 Show Legend
+          </button>
+          <div style={{
+            height: '1px',
+            backgroundColor: '#e2e8f0',
+            margin: '4px 0'
+          }} />
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              alert('Help documentation coming soon!');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            📚 Open Help Guide
+          </button>
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              alert('Interactive tutorial coming soon!');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            🎯 Interactive Tutorial
+          </button>
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              alert('Keyboard shortcuts:\n\n• Tab: Navigate nodes\n• Arrow keys: Move between connected nodes\n• Enter: Select/edit node\n• Escape: Deselect/close panels');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            ⌨️ Keyboard Shortcuts
+          </button>
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              alert('Tips & Best Practices:\n\n• Use higher priorities (80-100) for critical business rules\n• Keep rule conditions simple and focused\n• Document rationale for all override actions\n• Test rules with sample data before deploying');
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            💡 Tips & Best Practices
+          </button>
         </div>
       )}
 

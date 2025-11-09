@@ -295,7 +295,7 @@ Health checks run every 30 seconds with a 10-second timeout.
 
 ## Version
 
-**v1.1.0** - Auto-initialization for Decision Matrix
+**v2.0.0** - Decision Matrix Flow Visualization with Full Accessibility
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
