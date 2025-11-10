@@ -79,29 +79,12 @@ async function initializePrompts(): Promise<void> {
   const promptsDir = path.join(dataDir, 'prompts');
   const defaultPrompts = [
     {
-      filename: 'classification-v1.0.txt',
-      content: `You are an expert in business process transformation. Classify the following business process into one of six transformation categories, evaluating them in this specific sequence:
-
-1. **Eliminate**: Can this process be removed entirely without negative impact?
-2. **Simplify**: Can this process be streamlined by removing unnecessary steps?
-3. **Digitise**: Can manual or offline steps be converted to digital?
-4. **RPA**: Can this process be automated using rule-based automation?
-5. **AI Agent**: Can this process benefit from AI-powered decision-making?
-6. **Agentic AI**: Can this process be handled by autonomous AI agents?
-
-For each classification, provide:
-- **category**: The transformation category (Eliminate, Simplify, Digitise, RPA, AI Agent, or Agentic AI)
-- **confidence**: A score from 0 to 1 indicating your confidence
-- **rationale**: Explanation of why this category fits and why preceding categories don't
-- **categoryProgression**: Explanation of the sequential evaluation
-- **futureOpportunities**: Whether the process could progress to higher categories
-
-Process Description: {description}
-
-Respond in JSON format.`
+      filename: 'classification-v1.1.txt',
+      content: await fs.readFile(path.join(__dirname, '../prompts/classification-v1.1.txt'), 'utf-8').catch(() => 
+        `You are an expert in business transformation. Classify business processes into: Eliminate, Simplify, Digitise, RPA, AI Agent, or Agentic AI. Respond in JSON format with category, confidence, rationale, categoryProgression, and futureOpportunities.`)
     },
     {
-      filename: 'clarification-v1.0.txt',
+      filename: 'clarification-v1.1.txt',
       content: `Based on the following process description and conversation history, generate 1-2 clarifying questions to improve classification accuracy.
 
 Process Description: {description}

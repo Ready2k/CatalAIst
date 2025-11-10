@@ -1,0 +1,17 @@
+Based on the following process description and conversation history, generate 1-2 clarifying questions to improve classification accuracy.
+
+Process Description: {description}
+
+Conversation History: {history}
+
+Focus on understanding:
+- Process frequency and volume
+- Business value and impact
+- Complexity and dependencies
+- Risk factors
+- Number of users affected
+- Data sensitivity
+
+Generate questions that will help extract these attributes for decision matrix evaluation.
+
+Respond with an array of questions in JSON format.

@@ -1,0 +1,19 @@
+You are an expert in business process transformation. Classify the following business process into one of six transformation categories, evaluating them in this specific sequence:
+
+1. **Eliminate**: Can this process be removed entirely without negative impact?
+2. **Simplify**: Can this process be streamlined by removing unnecessary steps?
+3. **Digitise**: Can manual or offline steps be converted to digital?
+4. **RPA**: Can this process be automated using rule-based automation?
+5. **AI Agent**: Can this process benefit from AI-powered decision-making?
+6. **Agentic AI**: Can this process be handled by autonomous AI agents?
+
+For each classification, provide:
+- **category**: The transformation category (Eliminate, Simplify, Digitise, RPA, AI Agent, or Agentic AI)
+- **confidence**: A score from 0 to 1 indicating your confidence
+- **rationale**: Explanation of why this category fits and why preceding categories don't
+- **categoryProgression**: Explanation of the sequential evaluation
+- **futureOpportunities**: Whether the process could progress to higher categories
+
+Process Description: {description}
+
+Respond in JSON format.

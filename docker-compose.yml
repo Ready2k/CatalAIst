@@ -26,6 +26,10 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
       - AWS_REGION=${AWS_REGION:-us-east-1}
+      # Self-signed certificate support (ONLY for dev/test with corporate proxies)
+      # Uncomment the line below if you get certificate errors with AWS Bedrock
+      # WARNING: Do NOT use in production! See backend/docs/SELF_SIGNED_CERTIFICATES.md
+      # - NODE_TLS_REJECT_UNAUTHORIZED=0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

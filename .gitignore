@@ -16,7 +16,12 @@ frontend/build/
 .env.production.local
 
 # Data directory (contains user data)
-data/
+# Keep default prompts but exclude everything else
+data/*
+!data/prompts/
+data/prompts/*
+!data/prompts/.gitkeep
+!data/prompts/*-v1.*.txt
 
 # IDE
 .vscode/

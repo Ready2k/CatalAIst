@@ -413,6 +413,17 @@ docker-compose restart backend
 docker-compose exec backend npm run create-admin
 ```
 
+**Self-signed certificate errors (AWS Bedrock)**
+
+If you're behind a corporate proxy/firewall with self-signed certificates:
+
+```bash
+# Add to docker-compose.yml or .env
+NODE_TLS_REJECT_UNAUTHORIZED=0
+```
+
+⚠️ **Only use in development/testing!** See [backend/docs/SELF_SIGNED_CERTIFICATES.md](backend/docs/SELF_SIGNED_CERTIFICATES.md) for production solutions.
+
 ### Getting Help
 
 1. Check documentation in root directory

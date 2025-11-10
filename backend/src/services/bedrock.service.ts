@@ -3,6 +3,8 @@ import {
   InvokeModelCommand,
   InvokeModelCommandInput,
 } from '@aws-sdk/client-bedrock-runtime';
+import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
+import https from 'https';
 import {
   ILLMProvider,
   ChatMessage,
@@ -143,6 +145,27 @@ export class BedrockService implements ILLMProvider {
 
     if (config.awsSessionToken) {
       clientConfig.credentials.sessionToken = config.awsSessionToken;
+    }
+
+    // Handle self-signed certificates (common in corporate environments)
+    // Check if we should disable certificate validation
+    const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+    
+    if (!rejectUnauthorized) {
+      console.warn('WARNING: TLS certificate validation is disabled. This should only be used in development/testing with trusted networks.');
+      
+      // Create custom HTTPS agent that accepts self-signed certificates
+      const httpsAgent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+      });
+
+      // Configure the client to use the custom agent
+      clientConfig.requestHandler = new NodeHttpHandler({
+        httpsAgent,
+        connectionTimeout: 30000,
+        socketTimeout: 30000,
+      });
     }
 
     return new BedrockRuntimeClient(clientConfig);
