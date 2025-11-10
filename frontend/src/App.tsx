@@ -12,10 +12,11 @@ import DecisionMatrixAdmin from './components/DecisionMatrixAdmin';
 import LearningAdmin from './components/LearningAdmin';
 import PromptAdmin from './components/PromptAdmin';
 import AuditTrail from './components/AuditTrail';
+import UserManagement from './components/UserManagement';
 import { apiService } from './services/api';
 import { Classification, TransformationCategory } from '../../shared/types';
 
-type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration';
+type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration' | 'users';
 type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback';
 
 function App() {
@@ -352,6 +353,22 @@ function App() {
           >
             Audit Trail
           </button>
+          {userRole === 'admin' && (
+            <button
+              onClick={() => setCurrentView('users')}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: currentView === 'users' ? '#007bff' : 'transparent',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Users
+            </button>
+          )}
           <div style={{ 
             width: '1px', 
             height: '30px', 
@@ -581,6 +598,16 @@ function App() {
       {currentView === 'audit' && (
         <AuditTrail
           onLoadAuditLogs={(date) => apiService.getAuditLogs(date)}
+        />
+      )}
+
+      {currentView === 'users' && userRole === 'admin' && (
+        <UserManagement
+          onLoadUsers={() => apiService.getUsers()}
+          onDeleteUser={(userId) => apiService.deleteUser(userId)}
+          onChangeRole={(userId, newRole) => apiService.changeUserRole(userId, newRole)}
+          onResetPassword={(userId, newPassword) => apiService.resetUserPassword(userId, newPassword)}
+          currentUserId={sessionStorage.getItem('userId') || ''}
         />
       )}
 

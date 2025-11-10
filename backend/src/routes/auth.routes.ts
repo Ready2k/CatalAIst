@@ -261,4 +261,185 @@ router.put('/password', authenticateToken, async (req: AuthRequest, res: Respons
   }
 });
 
+/**
+ * GET /api/auth/users
+ * List all users (admin only)
+ */
+router.get('/users', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Not authenticated'
+      });
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required'
+      });
+    }
+
+    const users = await userService.listUsers();
+
+    res.json({
+      users
+    });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({
+      error: 'Failed to list users',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * PUT /api/auth/users/:userId/role
+ * Change user role (admin only)
+ */
+router.put('/users/:userId/role', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Not authenticated'
+      });
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required'
+      });
+    }
+
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    if (!role || !['admin', 'user'].includes(role)) {
+      return res.status(400).json({
+        error: 'Invalid role',
+        message: 'Role must be either "admin" or "user"'
+      });
+    }
+
+    // Prevent changing own role
+    if (userId === req.user.userId) {
+      return res.status(400).json({
+        error: 'Invalid operation',
+        message: 'Cannot change your own role'
+      });
+    }
+
+    await userService.changeUserRole(userId, role);
+
+    res.json({
+      message: 'User role updated successfully'
+    });
+  } catch (error) {
+    console.error('Change role error:', error);
+    res.status(500).json({
+      error: 'Failed to change user role',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * PUT /api/auth/users/:userId/password
+ * Reset user password (admin only)
+ */
+router.put('/users/:userId/password', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Not authenticated'
+      });
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required'
+      });
+    }
+
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({
+        error: 'Missing password',
+        message: 'New password is required'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: 'Invalid password',
+        message: 'Password must be at least 8 characters'
+      });
+    }
+
+    await userService.resetUserPassword(userId, newPassword);
+
+    res.json({
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      error: 'Failed to reset password',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * DELETE /api/auth/users/:userId
+ * Delete user (admin only)
+ */
+router.delete('/users/:userId', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Not authenticated'
+      });
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required'
+      });
+    }
+
+    const { userId } = req.params;
+
+    // Prevent deleting own account
+    if (userId === req.user.userId) {
+      return res.status(400).json({
+        error: 'Invalid operation',
+        message: 'Cannot delete your own account'
+      });
+    }
+
+    await userService.deleteUser(userId);
+
+    res.json({
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      error: 'Failed to delete user',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

@@ -506,6 +506,32 @@ class ApiService {
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   }
+
+  // User Management endpoints
+  async getUsers(): Promise<any[]> {
+    const response = await this.request<any>('/api/auth/users');
+    return response.users || [];
+  }
+
+  async changeUserRole(userId: string, newRole: 'admin' | 'user'): Promise<void> {
+    await this.request(`/api/auth/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role: newRole })
+    });
+  }
+
+  async resetUserPassword(userId: string, newPassword: string): Promise<void> {
+    await this.request(`/api/auth/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword })
+    });
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await this.request(`/api/auth/users/${userId}`, {
+      method: 'DELETE'
+    });
+  }
 }
 
 export const apiService = new ApiService();

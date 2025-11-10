@@ -82,6 +82,7 @@ This will:
 - ✅ JWT-based authentication
 - ✅ Password hashing (bcrypt)
 - ✅ Role-based access control
+- ✅ User management (admin GUI)
 - ✅ Rate limiting (3-tier system)
 - ✅ CORS protection
 - ✅ Security headers (CSP, HSTS, etc.)
@@ -523,6 +524,14 @@ Contributions are welcome! Please:
 ---
 
 ## 📈 Version History
+
+### v2.1.0 (2025-11-09) - User Management
+
+- ✅ User management GUI (admin only)
+- ✅ Role management (admin/user)
+- ✅ Password reset (admin can reset any user)
+- ✅ User deletion with safety checks
+- ✅ User statistics and monitoring
 
 ### v2.0.0 (2025-11-09) - Security & Authentication
 

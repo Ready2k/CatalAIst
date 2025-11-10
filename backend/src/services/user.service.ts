@@ -257,6 +257,32 @@ export class UserService {
   }
 
   /**
+   * Change user role (admin only)
+   */
+  async changeUserRole(userId: string, newRole: 'admin' | 'user'): Promise<void> {
+    const user = await this.getUserById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    user.role = newRole;
+    await this.storage.writeJson(`users/${userId}.json`, user);
+  }
+
+  /**
+   * Reset user password (admin only)
+   */
+  async resetUserPassword(userId: string, newPassword: string): Promise<void> {
+    const user = await this.getUserById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.storage.writeJson(`users/${userId}.json`, user);
+  }
+
+  /**
    * Delete user
    */
   async deleteUser(userId: string): Promise<void> {
