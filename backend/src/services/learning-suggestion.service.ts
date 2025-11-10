@@ -8,6 +8,7 @@ import {
   Attribute
 } from '../../../shared/types';
 import { OpenAIService } from './openai.service';
+import { LLMService } from './llm.service';
 import { JsonStorageService } from './storage.service';
 import { SessionStorageService } from './session-storage.service';
 import { VersionedStorageService } from './versioned-storage.service';
@@ -18,6 +19,7 @@ import { VersionedStorageService } from './versioned-storage.service';
  */
 export class LearningSuggestionService {
   private openaiService: OpenAIService;
+  private llmService: LLMService;
   private jsonStorage: JsonStorageService;
   private sessionStorage: SessionStorageService;
   private versionedStorage: VersionedStorageService;
@@ -29,6 +31,7 @@ export class LearningSuggestionService {
     versionedStorage: VersionedStorageService
   ) {
     this.openaiService = openaiService;
+    this.llmService = new LLMService();
     this.jsonStorage = jsonStorage;
     this.sessionStorage = sessionStorage;
     this.versionedStorage = versionedStorage;
@@ -75,7 +78,7 @@ export class LearningSuggestionService {
     }
 
     // Call LLM
-    const response = await this.openaiService.chat(
+    const response = await this.llmService.chat(
       [
         {
           role: 'system',
