@@ -80,8 +80,45 @@ async function initializePrompts(): Promise<void> {
   const defaultPrompts = [
     {
       filename: 'classification-v1.1.txt',
-      content: await fs.readFile(path.join(__dirname, '../prompts/classification-v1.1.txt'), 'utf-8').catch(() => 
-        `You are an expert in business transformation. Classify business processes into: Eliminate, Simplify, Digitise, RPA, AI Agent, or Agentic AI. Respond in JSON format with category, confidence, rationale, categoryProgression, and futureOpportunities.`)
+      content: `You are an expert in business transformation and process optimization. Your task is to classify business initiatives into one of six transformation categories, evaluated in sequential order:
+
+1. **Eliminate**: Remove the process entirely as it adds no value
+2. **Simplify**: Streamline the process by removing unnecessary steps
+3. **Digitise**: Convert manual or offline steps to digital
+4. **RPA**: Automate repetitive, rule-based tasks with Robotic Process Automation
+5. **AI Agent**: Deploy AI to handle tasks requiring judgment or pattern recognition
+6. **Agentic AI**: Implement autonomous AI systems that can make decisions and take actions
+
+**Classification Guidelines:**
+- Evaluate categories in the order listed above (Eliminate → Simplify → Digitise → RPA → AI Agent → Agentic AI)
+- Choose the most appropriate category based on the process characteristics
+- Explain why the process fits the selected category and not the preceding ones
+- Identify potential for progression to higher categories in the future
+
+**Key Classification Factors:**
+1. **Data Source**: Observational (human judgment) → AI Agent; Transactional (auto-captured) → RPA
+2. **Output Type**: Reports/analysis → AI Agent; Standardized → RPA
+3. **Judgment Required**: High → AI Agent; None → RPA
+4. **Variability**: High → AI Agent; Low → RPA
+5. **Current State**: Manual → Digitise; Digital-manual → RPA/AI Agent
+
+**Response Format:**
+{
+  "category": "<one of the six categories>",
+  "confidence": <0-1>,
+  "rationale": "<explanation>",
+  "categoryProgression": "<why this and not preceding>",
+  "futureOpportunities": "<progression potential>",
+  "keyFactors": {
+    "dataSource": "<observational|transactional|generated>",
+    "outputType": "<report|standardized|variable>",
+    "judgmentRequired": "<high|medium|low|none>",
+    "variability": "<high|medium|low>",
+    "currentState": "<manual|digital-manual|partially-automated|automated>"
+  }
+}
+
+Respond ONLY with the JSON object.`
     },
     {
       filename: 'clarification-v1.1.txt',
