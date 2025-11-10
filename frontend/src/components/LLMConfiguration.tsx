@@ -117,9 +117,15 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       console.log('[Frontend] Received models:', response.models?.length || 0, response.models);
       
       if (response.models && response.models.length > 0) {
-        setModels(response.models);
+        // Filter out any models that might have slipped through (like haiku-4-5)
+        const filteredModels = response.models.filter(m => 
+          !m.id.includes('haiku-4-5') && !m.id.includes('4-5')
+        );
+        console.log('[Frontend] After filtering:', filteredModels.length, 'models');
+        
+        setModels(filteredModels.length > 0 ? filteredModels : response.models);
         setModelsFetched(true); // Mark that we've fetched models
-        console.log('[Frontend] Set models state to:', response.models.length, 'models');
+        console.log('[Frontend] Set models state to:', filteredModels.length, 'models');
         
         // Set first model as default if current model is not in the list
         if (!response.models.find(m => m.id === model)) {
@@ -137,18 +143,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     }
   };
 
-  const handleModelDropdownClick = () => {
-    // Fetch models when dropdown is clicked
-    if (provider === 'openai') {
-      if (apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
-        loadOpenAIModels(apiKey);
-      }
-    } else if (provider === 'bedrock') {
-      if (awsAccessKeyId && awsSecretAccessKey) {
-        loadBedrockModels();
-      }
-    }
-  };
+
 
   const validateOpenAI = (): boolean => {
     if (!apiKey.trim()) {
@@ -274,6 +269,34 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI Platform</a>
         </div>
       </div>
+
+      {provider === 'openai' && apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20 && (
+        <div style={{ marginBottom: '15px' }}>
+          <button
+            type="button"
+            onClick={() => loadOpenAIModels(apiKey)}
+            disabled={loadingModels}
+            style={{
+              width: '100%',
+              padding: '10px',
+              backgroundColor: loadingModels ? '#6c757d' : '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: loadingModels ? 'wait' : 'pointer',
+            }}
+            onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
+            onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
+          >
+            {loadingModels ? '⏳ Fetching Models...' : '🔄 Fetch Available Models'}
+          </button>
+          <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+            Click to fetch models from your OpenAI account
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -319,10 +342,35 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             boxSizing: 'border-box'
           }}
         />
-        <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-          Models will be fetched when you click the Model dropdown below
-        </div>
       </div>
+
+      {provider === 'bedrock' && awsAccessKeyId && awsSecretAccessKey && (
+        <div style={{ marginBottom: '15px' }}>
+          <button
+            type="button"
+            onClick={loadBedrockModels}
+            disabled={loadingModels}
+            style={{
+              width: '100%',
+              padding: '10px',
+              backgroundColor: loadingModels ? '#6c757d' : '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: loadingModels ? 'wait' : 'pointer',
+            }}
+            onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
+            onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
+          >
+            {loadingModels ? '⏳ Fetching Models...' : '🔄 Fetch Available Models'}
+          </button>
+          <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+            Click to fetch models available in {awsRegion}
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: '15px' }}>
         <label htmlFor="awsSessionToken" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
@@ -460,7 +508,6 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
               console.log('[Frontend] Model selection changed to:', e.target.value);
               setModel(e.target.value);
             }}
-            onFocus={handleModelDropdownClick}
             disabled={loadingModels}
             style={{
               width: '100%',
@@ -473,14 +520,11 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
               cursor: loadingModels ? 'wait' : 'pointer'
             }}
           >
-            {models.map((m) => {
-              console.log('[Frontend] Rendering option:', m.id);
-              return (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                </option>
-              );
-            })}
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id}
+              </option>
+            ))}
           </select>
           {loadingModels && (
             <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
@@ -490,8 +534,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           {!loadingModels && (
             <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
               {provider === 'openai' 
-                ? 'GPT-4 is recommended for best results. Click to fetch models from your OpenAI account.'
-                : 'Claude 3.5 Sonnet is recommended for production use. Click to fetch models from your AWS Bedrock region.'}
+                ? 'GPT-4 is recommended for best results.'
+                : modelsFetched 
+                  ? `Showing ${models.length} models available in ${awsRegion}`
+                  : 'Click "Fetch Available Models" button above to load models from AWS Bedrock'}
             </div>
           )}
         </div>

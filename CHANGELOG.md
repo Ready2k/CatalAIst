@@ -63,11 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clear error message if user tries to use a Provisioned Throughput model
 
 #### Model Fetching Behavior
-- **On-demand model fetching**: Models are now fetched only when the model dropdown is clicked
-  - Prevents unnecessary API calls during credential entry
-  - Avoids authentication errors before user is ready
-  - Improves user experience with explicit action
-- **Updated UI hints**: Changed text to indicate "Click to fetch models"
+- **Explicit "Fetch Models" button**: Added dedicated button to fetch models
+  - Clear, explicit action - no automatic fetching
+  - Button appears after credentials are entered
+  - Shows loading state while fetching
+  - Displays model count after successful fetch
+  - Prevents accidental re-fetching when using dropdown
+  - Better UX - user controls when to fetch
 
 ### Fixed
 
