@@ -71,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Frontend Model Dropdown Issue
+- **Fixed Bedrock models not appearing**: useEffect was resetting models to default list
+  - Removed model lists from useEffect dependency array
+  - Only resets models when provider changes, not when models are fetched
+  - Added frontend console logging for debugging
+  - Models now persist after being fetched from API
+
 #### TypeScript Build Errors
 - **Fixed DecisionMatrixFlowEditor type errors**: Added proper type casting for ReactFlow node updates
 - **Removed invalid connectionMode prop**: Removed unsupported `connectionMode="loose"` from ReactFlow configuration

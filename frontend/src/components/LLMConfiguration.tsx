@@ -63,14 +63,17 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   ];
 
   useEffect(() => {
+    // Set default models when provider changes
     if (provider === 'openai') {
       setModels(openAIModels);
       setModel('gpt-4');
     } else {
+      // For Bedrock, use fallback models (will be replaced when user clicks dropdown)
       setModels(bedrockModels);
       setModel('anthropic.claude-3-5-sonnet-20241022-v2:0');
     }
-  }, [provider, openAIModels, bedrockModels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]); // Only run when provider changes, not when model lists change
 
   const loadOpenAIModels = async (key: string) => {
     if (!key || !key.startsWith('sk-')) return;
@@ -92,22 +95,31 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     if (!awsAccessKeyId || !awsSecretAccessKey) return;
     
     setLoadingModels(true);
+    setError(''); // Clear any previous errors
     try {
+      console.log('[Frontend] Fetching Bedrock models for region:', awsRegion);
       const response = await apiService.listModels('bedrock', {
         awsAccessKeyId,
         awsSecretAccessKey,
         awsSessionToken: awsSessionToken || undefined,
         awsRegion
       });
+      console.log('[Frontend] Received models:', response.models?.length || 0, response.models);
+      
       if (response.models && response.models.length > 0) {
         setModels(response.models);
+        console.log('[Frontend] Set models state to:', response.models.length, 'models');
+        
         // Set first model as default if current model is not in the list
         if (!response.models.find(m => m.id === model)) {
           setModel(response.models[0].id);
+          console.log('[Frontend] Set default model to:', response.models[0].id);
         }
+      } else {
+        console.warn('[Frontend] No models returned from API');
       }
     } catch (err) {
-      console.warn('Failed to load Bedrock models, using defaults:', err);
+      console.error('[Frontend] Failed to load Bedrock models:', err);
       setError('Failed to fetch models. Using default list. Check your credentials and permissions.');
     } finally {
       setLoadingModels(false);
