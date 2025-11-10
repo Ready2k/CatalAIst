@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
+import { resolve } from 'path';
 import decisionMatrixRoutes from './routes/decision-matrix.routes';
 import learningRoutes from './routes/learning.routes';
 import sessionRoutes from './routes/session.routes';
@@ -16,10 +17,37 @@ import authRoutes from './routes/auth.routes';
 import { authenticateToken } from './middleware/auth.middleware';
 import { initializeApplication } from './startup';
 
-config();
+// Load environment variables from project root
+// Try multiple paths to handle different execution contexts
+const envPaths = [
+  resolve(__dirname, '../../../.env'),  // From dist/backend/src/
+  resolve(__dirname, '../../.env'),     // From backend/src/
+  resolve(process.cwd(), '.env'),       // From project root
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const result = config({ path: envPath });
+  if (!result.error) {
+    console.log(`Loaded environment from: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.warn('Warning: No .env file found, using environment variables or defaults');
+}
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = parseInt(process.env.PORT || '8080', 10);
+
+// Log configuration on startup
+console.log('Server Configuration:');
+console.log(`- Port: ${PORT}`);
+console.log(`- Node Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`- Data Directory: ${process.env.DATA_DIR || './data'}`);
+console.log(`- Allowed Origins: ${process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:80'}`);
 
 // Security headers
 app.use(helmet({
@@ -201,7 +229,15 @@ app.use('/api/audit', authenticateToken, auditRoutes);
 initializeApplication()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Backend server running on port ${PORT}`);
+      console.log('='.repeat(60));
+      console.log(`✅ Backend server running on port ${PORT}`);
+      console.log(`   Health check: http://localhost:${PORT}/health`);
+      console.log(`   API endpoint: http://localhost:${PORT}/api`);
+      if (PORT !== 8080) {
+        console.log(`⚠️  WARNING: Running on port ${PORT} instead of default 8080`);
+        console.log(`   Check your .env file or PORT environment variable`);
+      }
+      console.log('='.repeat(60));
     });
   })
   .catch((error) => {
