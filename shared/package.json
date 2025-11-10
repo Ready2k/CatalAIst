@@ -2,8 +2,8 @@
   "name": "@catalai/shared-types",
   "version": "1.0.0",
   "description": "Shared TypeScript types and validation for CatalAIst",
-  "main": "types/index.ts",
-  "types": "types/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc"
   },

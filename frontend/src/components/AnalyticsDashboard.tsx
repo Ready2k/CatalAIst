@@ -5,7 +5,7 @@ import {
   SessionListItem, 
   FilterOptions,
   FilteredMetrics
-} from '../../../shared/types';
+} from '../../../shared/dist';
 import { apiService } from '../services/api';
 import SessionFilters from './SessionFilters';
 import FilteredMetricsSummary from './FilteredMetricsSummary';

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LearningSuggestion, LearningAnalysis } from '../../../shared/types';
+import { LearningSuggestion, LearningAnalysis } from '../../../shared/dist';
 
 interface LearningAdminProps {
   onLoadSuggestions: () => Promise<LearningSuggestion[]>;

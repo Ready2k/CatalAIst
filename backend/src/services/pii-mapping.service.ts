@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { JsonStorageService } from './storage.service';
-import { PIIMapping } from '../../../shared/types';
+import { PIIMapping } from '../../../shared/dist';
 import { PIIMatch } from './pii-detection.service';
 
 /**

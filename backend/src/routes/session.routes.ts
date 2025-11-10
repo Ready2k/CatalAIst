@@ -10,7 +10,7 @@ import { OpenAIService } from '../services/openai.service';
 import { BedrockService } from '../services/bedrock.service';
 import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
-import { Session, Conversation, Classification, Feedback, UserRating } from '../../../shared/types';
+import { Session, Conversation, Classification, Feedback, UserRating } from '../../../shared/dist';
 
 const router = Router();
 

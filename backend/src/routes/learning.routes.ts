@@ -6,7 +6,7 @@ import { VersionedStorageService } from '../services/versioned-storage.service';
 import { LearningAnalysisService } from '../services/learning-analysis.service';
 import { LearningSuggestionService } from '../services/learning-suggestion.service';
 import { AuditLogService } from '../services/audit-log.service';
-import { DecisionMatrix } from '../../../shared/types';
+import { DecisionMatrix } from '../../../shared/dist';
 
 const router = Router();
 

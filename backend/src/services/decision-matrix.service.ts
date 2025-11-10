@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { OpenAIService } from './openai.service';
 import { LLMService, LLMProviderConfig } from './llm.service';
 import { VersionedStorageService } from './versioned-storage.service';
-import { DecisionMatrix, Attribute, Rule, TransformationCategory } from '../../../shared/types';
+import { DecisionMatrix, Attribute, Rule, TransformationCategory } from '../../../shared/dist';
 
 /**
  * Service for managing decision matrix generation and operations

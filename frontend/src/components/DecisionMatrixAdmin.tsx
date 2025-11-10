@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { DecisionMatrix } from '../../../shared/types';
+import { DecisionMatrix } from '../../../shared/dist';
 import DecisionMatrixFlowEditor from './DecisionMatrixFlowEditor';
 
 interface DecisionMatrixAdminProps {

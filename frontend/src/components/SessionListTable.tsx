@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react';
-import { SessionListItem } from '../../../shared/types';
+import { SessionListItem } from '../../../shared/dist';
 
 interface SessionListTableProps {
   sessions: SessionListItem[];

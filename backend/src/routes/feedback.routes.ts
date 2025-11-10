@@ -3,7 +3,7 @@ import { SessionStorageService } from '../services/session-storage.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { PIIService } from '../services/pii.service';
 import { JsonStorageService } from '../services/storage.service';
-import { Feedback, UserRating } from '../../../shared/types';
+import { Feedback, UserRating } from '../../../shared/dist';
 import { analyticsService } from './analytics.routes';
 
 const router = Router();

@@ -7,7 +7,7 @@ import { OpenAIService } from '../services/openai.service';
 import { SessionStorageService } from '../services/session-storage.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { JsonStorageService } from '../services/storage.service';
-import { AudioTranscription } from '../../../shared/types';
+import { AudioTranscription } from '../../../shared/dist';
 
 const router = Router();
 

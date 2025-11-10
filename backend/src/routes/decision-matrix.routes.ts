@@ -5,7 +5,7 @@ import { OpenAIService } from '../services/openai.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
 import { JsonStorageService } from '../services/storage.service';
 import { AuditLogService } from '../services/audit-log.service';
-import { DecisionMatrix, DecisionMatrixSchema } from '../../../shared/types';
+import { DecisionMatrix, DecisionMatrixSchema } from '../../../shared/dist';
 
 const router = Router();
 

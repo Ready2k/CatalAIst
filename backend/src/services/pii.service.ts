@@ -1,6 +1,6 @@
 import { PIIDetectionService, PIIDetectionResult } from './pii-detection.service';
 import { PIIMappingService } from './pii-mapping.service';
-import { PIIMapping } from '../../../shared/types';
+import { PIIMapping } from '../../../shared/dist';
 
 /**
  * Combined PII Service

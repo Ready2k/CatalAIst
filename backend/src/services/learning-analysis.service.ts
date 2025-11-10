@@ -3,7 +3,7 @@ import {
   Session, 
   LearningAnalysis, 
   TransformationCategory 
-} from '../../../shared/types';
+} from '../../../shared/dist';
 import { SessionStorageService } from './session-storage.service';
 import { JsonStorageService } from './storage.service';
 

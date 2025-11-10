@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { JsonStorageService } from './storage.service';
-import { Session, SessionSchema, Conversation } from '../../../shared/types';
+import { Session, SessionSchema, Conversation } from '../../../shared/dist';
 
 /**
  * Session storage service with ID generation and error handling

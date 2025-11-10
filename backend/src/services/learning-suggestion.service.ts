@@ -6,7 +6,7 @@ import {
   DecisionMatrix,
   Rule,
   Attribute
-} from '../../../shared/types';
+} from '../../../shared/dist';
 import { OpenAIService } from './openai.service';
 import { LLMService } from './llm.service';
 import { JsonStorageService } from './storage.service';

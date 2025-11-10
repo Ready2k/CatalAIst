@@ -1,5 +1,5 @@
 import { JsonStorageService } from './storage.service';
-import { DecisionMatrix } from '../../../shared/types';
+import { DecisionMatrix } from '../../../shared/dist';
 
 /**
  * Versioned storage service for prompts and decision matrices

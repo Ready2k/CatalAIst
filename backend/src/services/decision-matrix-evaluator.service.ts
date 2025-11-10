@@ -6,7 +6,7 @@ import {
   DecisionMatrixEvaluation,
   TransformationCategory,
   Attribute
-} from '../../../shared/types';
+} from '../../../shared/dist';
 
 /**
  * Service for evaluating decision matrix rules against classifications

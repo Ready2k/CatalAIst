@@ -1,5 +1,5 @@
 import React from 'react';
-import { Classification, TransformationCategory } from '../../../shared/types';
+import { Classification, TransformationCategory } from '../../../shared/dist';
 import VoicePlayer from './VoicePlayer';
 
 interface ClassificationResultProps {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Session, TransformationCategory } from '../../../shared/types';
+import { Session, TransformationCategory } from '../../../shared/dist';
 
 interface SessionDetailModalProps {
   sessionId: string;

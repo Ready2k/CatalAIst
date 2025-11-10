@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { SessionFilters as SessionFiltersType, FilterOptions, TransformationCategory } from '../../../shared/types';
+import { SessionFilters as SessionFiltersType, FilterOptions, TransformationCategory } from '../../../shared/dist';
 
 interface SessionFiltersProps {
   filters: SessionFiltersType;

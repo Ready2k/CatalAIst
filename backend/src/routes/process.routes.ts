@@ -9,7 +9,7 @@ import { PIIService } from '../services/pii.service';
 import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
 import { SubjectExtractionService } from '../services/subject-extraction.service';
-import { Session, Conversation, Classification } from '../../../shared/types';
+import { Session, Conversation, Classification } from '../../../shared/dist';
 import { analyticsService } from './analytics.routes';
 
 const router = Router();

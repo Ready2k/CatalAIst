@@ -11,7 +11,7 @@ import {
   PaginationParams,
   PaginationParamsSchema,
   TransformationCategory 
-} from '../../../shared/types';
+} from '../../../shared/dist';
 
 // Defensive check for schema availability
 if (!SessionFiltersSchema || !PaginationParamsSchema) {

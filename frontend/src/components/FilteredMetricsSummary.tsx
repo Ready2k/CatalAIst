@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FilteredMetrics } from '../../../shared/types';
+import { FilteredMetrics } from '../../../shared/dist';
 
 interface FilteredMetricsSummaryProps {
   metrics: FilteredMetrics;

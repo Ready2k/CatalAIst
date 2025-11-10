@@ -14,7 +14,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { DecisionMatrix } from '../../../shared/types';
+import { DecisionMatrix } from '../../../shared/dist';
 import {
   AttributeNode,
   RuleNode,

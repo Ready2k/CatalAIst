@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { AuditLogEntry } from '../../../shared/types';
+import { AuditLogEntry } from '../../../shared/dist';
 
 /**
  * JSONL audit log service with append-only writes and daily rotation

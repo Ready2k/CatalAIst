@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TransformationCategory } from '../../../shared/types';
+import { TransformationCategory } from '../../../shared/dist';
 
 interface FeedbackCaptureProps {
   currentCategory: TransformationCategory;

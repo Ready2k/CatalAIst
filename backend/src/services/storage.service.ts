@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { DecisionMatrix, DecisionMatrixSchema } from '../../../shared/types';
+import { DecisionMatrix, DecisionMatrixSchema } from '../../../shared/dist';
 
 /**
  * Generic JSON storage service with file locking and versioning support
