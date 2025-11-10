@@ -1,304 +1,582 @@
-# CatalAIst
+# CatalAIst - AI-Powered Process Classification System
 
-AI-powered business process transformation classifier that helps organizations determine the optimal transformation approach for their processes using OpenAI GPT models or AWS Bedrock (Claude models).
+**Version 2.0.0** - Production-Ready with Enterprise Security
 
-## Features
+CatalAIst is an intelligent system that classifies business processes into transformation categories using AI, helping organizations identify the best approach for process improvement.
 
-### 🎯 Intelligent Classification
-- **6-tier transformation framework**: Eliminate → Simplify → Digitise → RPA → AI Agent → Agentic AI
-- **Confidence-based routing**: Auto-classify high confidence, ask clarifying questions for medium confidence, flag low confidence for manual review
-- **Sequential evaluation**: Ensures processes are evaluated in the correct order of transformation maturity
+---
 
-### 💬 Conversational Interface
-- **Natural language input**: Describe processes in plain English
-- **Clarification questions**: AI asks follow-up questions when needed for better accuracy
-- **Voice support**: Speech-to-text input and text-to-speech output (optional)
+## 🚀 Quick Start
 
-### 📊 Admin Dashboard
-- **Analytics**: Track classification accuracy, user satisfaction, and system performance
-- **Decision Matrix**: Configure and version business rules that influence classifications
-- **AI Learning**: Review AI-generated suggestions for improving classification accuracy
-- **Prompt Management**: Edit and version system prompts with full audit trail
-- **Audit Trail**: Complete session-based audit log with PII scrubbing indicators
+### One-Command Setup
 
-### 🔒 Security & Compliance
-- **PII Detection & Scrubbing**: Automatic detection and anonymization of sensitive data
-- **Audit Logging**: Comprehensive JSONL-based audit trail with daily rotation
-- **Session-based tracking**: Full traceability from input to classification to feedback
-- **Data persistence**: All data stored in Docker volumes, survives container restarts
-
-### 🤖 AI-Powered Learning
-- **Feedback loop**: Captures user feedback on classification accuracy
-- **Pattern detection**: Identifies common misclassifications and improvement opportunities
-- **Suggestion engine**: Generates recommendations for prompt and decision matrix improvements
-- **Version control**: All prompts and decision matrices are versioned with full history
-
-### 🔌 Multiple LLM Providers
-- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-4o, GPT-3.5 Turbo, O1 models
-- **AWS Bedrock**: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku
-- **Automatic detection**: Provider auto-detected based on model name
-- **Flexible credentials**: Support for API keys (OpenAI) and AWS credentials (Bedrock)
-- **Feature parity**: Classification, clarification, and attribute extraction work with both providers
-
-See [AWS Bedrock Setup Guide](backend/AWS_BEDROCK_SETUP.md) for detailed configuration and [Examples](backend/BEDROCK_EXAMPLES.md) for usage patterns.
-
-## Project Structure
-
-```
-catalai-classifier/
-├── backend/              # Node.js/TypeScript backend API
-│   ├── src/             # Source code
-│   ├── dist/            # Compiled JavaScript (generated)
-│   ├── Dockerfile       # Backend container definition
-│   ├── package.json     # Backend dependencies
-│   └── tsconfig.json    # TypeScript configuration
-├── frontend/            # React/TypeScript frontend
-│   ├── src/            # Source code
-│   ├── public/         # Static assets
-│   ├── build/          # Production build (generated)
-│   ├── Dockerfile      # Frontend container definition
-│   ├── nginx.conf      # Nginx configuration
-│   ├── package.json    # Frontend dependencies
-│   └── tsconfig.json   # TypeScript configuration
-├── shared/             # Shared TypeScript types
-│   └── types/
-│       └── index.ts    # Common type definitions
-├── data/               # Persistent data storage
-│   ├── sessions/       # Session data
-│   ├── audit-logs/     # Audit logs
-│   ├── prompts/        # Prompt templates
-│   ├── audio/          # Temporary audio files
-│   ├── analytics/      # Metrics data
-│   ├── pii-mappings/   # PII anonymization
-│   ├── decision-matrix/ # Decision rules
-│   └── learning/       # AI learning data
-└── docker-compose.yml  # Container orchestration
-
+```bash
+./setup-docker.sh
 ```
 
-## Getting Started
+This will:
+- Generate secure secrets
+- Build Docker images
+- Start all services
+- Create admin user
+- Run security tests
+
+**Time:** 3-5 minutes
+
+### Access the Application
+
+- **Frontend:** http://localhost:80
+- **Backend API:** http://localhost:8080
+- **Health Check:** http://localhost:8080/health
+
+---
+
+## ✨ What's New in v2.0
+
+### 🔐 Enterprise Security
+
+- **JWT Authentication** - Secure user authentication with role-based access
+- **Rate Limiting** - Protection against DoS and API abuse
+- **CORS Protection** - Restricted to configured origins
+- **Security Headers** - Comprehensive HTTP security (Helmet.js)
+- **Encrypted Storage** - PII and credentials encrypted with AES-256-GCM
+- **Audit Logging** - Complete audit trail of all actions
+
+### 🎨 Modern UI
+
+- **Login/Registration** - Beautiful authentication interface
+- **User Management** - Admin and user roles
+- **Session Management** - Secure JWT token handling
+- **Responsive Design** - Works on desktop, tablet, and mobile
+
+### 🐳 Production-Ready Deployment
+
+- **Docker Compose** - One-command deployment
+- **Health Checks** - Automatic container monitoring
+- **Data Persistence** - Docker volumes for data
+- **Non-root Containers** - Enhanced security
+- **HTTPS Ready** - Easy SSL/TLS configuration
+
+---
+
+## 📋 Features
+
+### Core Functionality
+
+- **AI Classification** - Classifies processes into 6 transformation categories:
+  - Eliminate - Remove unnecessary processes
+  - Simplify - Streamline and reduce complexity
+  - Digitise - Convert manual to digital
+  - RPA - Robotic Process Automation
+  - AI Agent - AI-powered assistance
+  - Agentic AI - Autonomous AI decision-making
+
+- **Intelligent Clarification** - Asks targeted questions to improve accuracy
+- **Decision Matrix** - Rule-based logic for consistent classification
+- **Learning System** - Improves over time from feedback
+- **Voice Interface** - Speech-to-text and text-to-speech support
+- **Analytics Dashboard** - Track classification patterns and accuracy
+
+### Security Features
+
+- ✅ JWT-based authentication
+- ✅ Password hashing (bcrypt)
+- ✅ Role-based access control
+- ✅ Rate limiting (3-tier system)
+- ✅ CORS protection
+- ✅ Security headers (CSP, HSTS, etc.)
+- ✅ PII detection and encryption
+- ✅ Audit logging
+- ✅ Request tracking
+
+### LLM Support
+
+- **OpenAI** - GPT-4, GPT-3.5-turbo, GPT-4o
+- **AWS Bedrock** - Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
+- **Configurable** - Easy to add new providers
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│              Docker Host                     │
+│                                              │
+│  ┌────────────────┐    ┌─────────────────┐ │
+│  │   Frontend     │    │    Backend      │ │
+│  │   (Port 80)    │◄───┤   (Port 8080)   │ │
+│  │   React + Nginx│    │   Node.js       │ │
+│  └────────────────┘    └─────────────────┘ │
+│                              │               │
+│                              ▼               │
+│                    ┌──────────────────┐     │
+│                    │  Data Volume     │     │
+│                    │  - Users         │     │
+│                    │  - Sessions      │     │
+│                    │  - Audit Logs    │     │
+│                    │  - PII Mappings  │     │
+│                    └──────────────────┘     │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 Installation
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- 2GB RAM minimum
+- 10GB disk space
 
-### Quick Start with Docker
+### Quick Install
 
-1. **Clone the repository**:
 ```bash
+# Clone repository
 git clone <repository-url>
 cd CatalAIst
+
+# Run setup
+./setup-docker.sh
 ```
 
-2. **Build and start the containers**:
+### Manual Install
+
 ```bash
-docker-compose up -d --build
+# 1. Create environment file
+cp .env.example .env
+
+# 2. Generate secrets
+openssl rand -base64 32  # Use for JWT_SECRET
+openssl rand -base64 32  # Use for PII_ENCRYPTION_KEY
+openssl rand -base64 32  # Use for CREDENTIALS_ENCRYPTION_KEY
+
+# 3. Edit .env with your secrets
+nano .env
+
+# 4. Build and start
+docker-compose build
+docker-compose up -d
+
+# 5. Create admin user
+docker-compose exec backend npm run create-admin
+
+# 6. Verify
+curl http://localhost:8080/health
 ```
 
-3. **Access the application**:
-- Frontend: http://localhost
-- Backend API: http://localhost:8080
-- Health check: http://localhost:8080/health
+---
 
-4. **Configure your LLM provider**:
-   - **OpenAI**: Enter your OpenAI API key when prompted
-   - **AWS Bedrock**: Provide AWS credentials (Access Key ID, Secret Access Key, Region)
-   - See [AWS Bedrock Setup Guide](backend/AWS_BEDROCK_SETUP.md) for detailed instructions
+## 🔧 Configuration
 
-5. **Start classifying!** Describe your business process and let the AI guide you through the classification.
+### Environment Variables
 
-For detailed deployment instructions, backup procedures, and troubleshooting, see [DEPLOYMENT.md](DEPLOYMENT.md).
+#### Required
 
-### First Time Setup
+```bash
+JWT_SECRET=<32+ random bytes>
+```
 
-On first launch, the system will:
-1. Create required data directories
-2. Initialize default prompts for classification, clarification, and attribute extraction
-3. Set up the audit logging system
-4. Prepare the analytics engine
+#### Recommended
 
-**Decision Matrix Initialization:**
-- Navigate to the "Decision Matrix" tab in the admin interface
-- Click "Generate Decision Matrix" to auto-generate the initial matrix using AI
-- The matrix includes business process attributes, classification rules, and decision logic
-- You can edit the matrix afterwards or let it evolve through the AI Learning system
+```bash
+PII_ENCRYPTION_KEY=<32+ random bytes>
+CREDENTIALS_ENCRYPTION_KEY=<32+ random bytes>
+ALLOWED_ORIGINS=https://your-domain.com
+```
 
-No additional configuration is required - just provide your OpenAI API key and start using the system!
+#### Optional
+
+```bash
+NODE_ENV=production
+PORT=8080
+DATA_DIR=/data
+LOG_LEVEL=info
+DEFAULT_MODEL=gpt-4
+DEFAULT_VOICE=alloy
+```
+
+### LLM Configuration
+
+Users can configure their own LLM credentials:
+
+**OpenAI:**
+- API Key
+- Model selection (GPT-4, GPT-3.5-turbo, etc.)
+
+**AWS Bedrock:**
+- AWS Access Key ID
+- AWS Secret Access Key
+- AWS Region
+- Model selection (Claude 3.5 Sonnet, etc.)
+
+---
+
+## 📖 Usage
+
+### 1. Login
+
+Visit http://localhost:80 and login with your admin credentials.
+
+### 2. Configure LLM
+
+Go to Configuration tab and enter your OpenAI API key or AWS credentials.
+
+### 3. Classify a Process
+
+1. Enter process description
+2. Answer clarification questions (if any)
+3. Review classification result
+4. Provide feedback
+
+### 4. View Analytics
+
+Check the Analytics dashboard to see:
+- Classification distribution
+- Confidence trends
+- Feedback patterns
+- Model performance
+
+---
+
+## 🔐 Security
+
+### Authentication
+
+- JWT tokens with 24-hour expiration
+- Bcrypt password hashing (10 rounds)
+- Role-based access control (admin/user)
+
+### Rate Limiting
+
+- General API: 100 requests / 15 minutes
+- LLM endpoints: 10 requests / minute
+- Auth endpoints: 5 attempts / 15 minutes
+
+### Data Protection
+
+- PII automatically detected and encrypted
+- User credentials encrypted (AES-256-GCM)
+- Audit logs for all actions
+- Secure session management
+
+### HTTPS
+
+For production, use nginx or Caddy for SSL termination:
+
+```bash
+# See DOCKER_SECURITY_SETUP.md for details
+```
+
+---
+
+## 📊 API Documentation
+
+### Authentication
+
+```bash
+# Register
+POST /api/auth/register
+{
+  "username": "john_doe",
+  "password": "SecurePassword123!"
+}
+
+# Login
+POST /api/auth/login
+{
+  "username": "john_doe",
+  "password": "SecurePassword123!"
+}
+
+# Get current user
+GET /api/auth/me
+Authorization: Bearer <token>
+```
+
+### Classification
+
+```bash
+# Submit process
+POST /api/process/submit
+Authorization: Bearer <token>
+{
+  "description": "Process description here"
+}
+
+# Answer clarification
+POST /api/process/clarify
+Authorization: Bearer <token>
+{
+  "sessionId": "uuid",
+  "answers": ["answer1", "answer2"]
+}
+```
+
+### Admin
+
+```bash
+# Get analytics
+GET /api/analytics
+Authorization: Bearer <token>
+
+# Update decision matrix
+PUT /api/decision-matrix
+Authorization: Bearer <token>
+
+# View audit logs
+GET /api/audit/logs?date=2025-11-09
+Authorization: Bearer <token>
+```
+
+---
+
+## 🛠️ Development
 
 ### Local Development
 
-For development without Docker:
-
-1. Install backend dependencies:
 ```bash
+# Backend
 cd backend
 npm install
 npm run dev
-```
 
-2. Install frontend dependencies:
-```bash
+# Frontend
 cd frontend
 npm install
 npm start
 ```
 
-### Environment Variables
+### Running Tests
 
-Backend environment variables:
-- `PORT` - Server port (default: 8080)
-- `DEFAULT_MODEL` - Default OpenAI model (default: gpt-4)
-- `DEFAULT_VOICE` - Default TTS voice (default: alloy)
-- `DATA_DIR` - Data directory path (default: /data)
-- `LOG_LEVEL` - Logging level (default: info)
-- `PII_ENCRYPTION_KEY` - Encryption key for PII mappings (auto-generated if not set)
-
-Frontend environment variables:
-- `REACT_APP_API_URL` - Backend API URL (default: http://localhost:8080)
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete environment variable documentation.
-
-## Usage
-
-### Classification Workflow
-
-1. **Describe your process**: Enter a description of the business process you want to classify
-2. **Answer clarification questions** (if needed): The AI may ask follow-up questions to better understand your process
-3. **Review classification**: See the recommended transformation category with detailed rationale
-4. **Provide feedback**: Confirm or correct the classification to help improve the system
-5. **Rate the experience**: Give a thumbs up/down to help track user satisfaction
-
-### Admin Features
-
-Navigate to the admin sections using the top navigation bar:
-
-- **Analytics**: View classification accuracy, user satisfaction rates, and performance metrics
-- **Decision Matrix**: Configure business rules that influence classification decisions
-- **AI Learning**: Review and approve AI-generated suggestions for system improvements
-- **Prompts**: Edit system prompts for classification, clarification, and attribute extraction
-- **Audit Trail**: View complete session history with all events and data transformations
-
-## Data Persistence
-
-All data is stored in the Docker volume `catalai-data` mounted at `/data` in the backend container.
-
-**Data survives container restarts** - your sessions, audit logs, and configurations are preserved.
-
-Directory structure:
-- `/data/sessions` - Session data with conversation history
-- `/data/audit-logs` - Audit logs in JSONL format (daily rotation)
-- `/data/prompts` - Prompt templates with versioning
-- `/data/audio` - Temporary audio files (auto-cleanup)
-- `/data/analytics` - Aggregated metrics and dashboards
-- `/data/pii-mappings` - PII anonymization mappings (encrypted)
-- `/data/decision-matrix` - Decision matrix versions with full history
-- `/data/learning` - AI learning analysis and suggestions
-
-### Backup
-
-To backup your data:
 ```bash
-docker run --rm -v catalai-data:/data -v $(pwd):/backup alpine tar czf /backup/catalai-backup.tar.gz /data
+# Backend tests
+cd backend
+npm test
+
+# Security tests
+docker-compose exec backend ./test-security.sh
 ```
 
-To restore from backup:
+### Building
+
 ```bash
-docker run --rm -v catalai-data:/data -v $(pwd):/backup alpine tar xzf /backup/catalai-backup.tar.gz -C /
+# Backend
+cd backend
+npm run build
+
+# Frontend
+cd frontend
+npm run build
 ```
 
-## API Documentation
+---
 
-The backend provides a RESTful API. Key endpoints:
+## 📚 Documentation
 
-- `POST /api/sessions` - Create a new session
-- `POST /api/process/submit` - Submit a process for classification
-- `POST /api/process/clarify` - Submit clarification answers
-- `POST /api/feedback/classification` - Submit classification feedback
-- `POST /api/feedback/rating` - Submit user rating
-- `GET /api/analytics/dashboard` - Get analytics metrics
-- `GET /api/audit/logs` - Get audit logs by date
-- `GET /api/prompts` - List all prompts
-- `GET /api/decision-matrix` - Get current decision matrix
+### Quick Start Guides
 
-For complete API documentation, see [backend/API-ENDPOINTS.md](backend/API-ENDPOINTS.md).
+- **CRITICAL_FIXES_SUMMARY.md** - 5-minute quick start
+- **DOCKER_README.md** - Complete Docker guide
+- **DOCKER_QUICK_REFERENCE.md** - Command reference
 
-## Architecture
+### Security
 
-### Technology Stack
+- **SECURITY_SETUP.md** - Security configuration
+- **SECURITY_AUDIT_REPORT.md** - Security audit results
+- **SECURITY_UPDATES.md** - Security changelog
 
-**Backend**:
-- Node.js 20 with TypeScript
-- Express.js for REST API
-- OpenAI API for GPT models
-- File-based storage (JSON/JSONL)
+### Deployment
 
-**Frontend**:
-- React 18 with TypeScript
-- Nginx for production serving
-- Responsive design with inline styles
+- **DEPLOYMENT_CHECKLIST.md** - Production deployment
+- **DOCKER_SECURITY_SETUP.md** - Docker security
+- **CORS_FIX.md** - CORS troubleshooting
 
-**Infrastructure**:
-- Docker & Docker Compose
-- Alpine Linux base images
-- Health checks and auto-restart
+### Features
 
-### Design Principles
+- **FRONTEND_AUTH_UPDATE.md** - Authentication guide
+- **decision-matrix-flow-visualization.md** - Decision matrix UI
+- **prompt-management-policy.md** - Prompt management
 
-1. **Stateless backend**: All state stored in files, easy to scale horizontally
-2. **Append-only audit logs**: JSONL format for reliable audit trail
-3. **Version control**: All prompts and decision matrices are versioned
-4. **PII protection**: Automatic detection and scrubbing with reversible mapping
-5. **Confidence-based routing**: Different workflows based on AI confidence
-6. **Feedback loop**: Continuous learning from user corrections
+---
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Frontend shows blank screen**:
-- Check browser console for errors
-- Verify backend is running: `docker logs catalai-backend`
-- Check nginx logs: `docker logs catalai-frontend`
+**"JWT_SECRET not configured"**
+```bash
+echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
+docker-compose restart backend
+```
 
-**"OpenAI API key is required" error**:
-- Ensure you entered a valid API key starting with `sk-`
-- Check backend logs for API errors: `docker logs catalai-backend`
+**"Not allowed by CORS"**
+```bash
+./fix-cors.sh
+```
 
-**No audit logs appearing**:
-- Logs are created on first classification
-- Check `/data/audit-logs` directory in backend container
-- Verify date filter in Audit Trail page
+**"ts-node: command not found"**
+```bash
+./fix-docker-admin.sh
+```
 
-**Data lost after restart**:
-- Ensure you're using `docker-compose down` (not `docker-compose down -v`)
-- Check volume exists: `docker volume ls | grep catalai`
+**Can't login**
+```bash
+docker-compose exec backend npm run create-admin
+```
 
-For more troubleshooting, see [DEPLOYMENT.md](DEPLOYMENT.md).
+### Getting Help
 
-## Contributing
+1. Check documentation in root directory
+2. View logs: `docker-compose logs -f backend`
+3. Run health check: `curl http://localhost:8080/health`
+4. Check issues on GitHub
+
+---
+
+## 🔄 Updating
+
+### Update to Latest Version
+
+```bash
+# Pull latest code
+git pull
+
+# Rebuild images
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f
+```
+
+### Backup Before Update
+
+```bash
+# Backup data
+docker run --rm \
+  -v catalai_catalai-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/backup-$(date +%Y%m%d).tar.gz /data
+
+# Backup .env
+cp .env .env.backup
+```
+
+---
+
+## 🤝 Contributing
 
 Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes with tests
-4. Submit a pull request
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-## Health Checks
+---
 
-Both containers include health check endpoints:
-- Backend: `GET /health`
-- Frontend: `GET /`
+## 📄 License
 
-Health checks run every 30 seconds with a 10-second timeout.
+[Your License Here]
 
-## Version
+---
 
-**v2.0.0** - Decision Matrix Flow Visualization with Full Accessibility
+## 🙏 Acknowledgments
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+- OpenAI for GPT models
+- AWS for Bedrock
+- React and Node.js communities
+- All contributors
 
-## License
+---
 
-See LICENSE file for details.
+## 📞 Support
+
+- **Documentation:** See docs in root directory
+- **Issues:** GitHub Issues
+- **Security:** Report privately to security@example.com
+
+---
+
+## 🗺️ Roadmap
+
+### v2.1 (Planned)
+
+- [ ] Password reset flow
+- [ ] 2FA support
+- [ ] User profile management
+- [ ] Advanced analytics
+- [ ] Export functionality
+
+### v2.2 (Planned)
+
+- [ ] Multi-language support
+- [ ] Custom themes
+- [ ] API webhooks
+- [ ] Batch processing
+- [ ] Advanced reporting
+
+---
+
+## 📈 Version History
+
+### v2.0.0 (2025-11-09) - Security & Authentication
+
+- ✅ JWT authentication system
+- ✅ Rate limiting
+- ✅ CORS protection
+- ✅ Security headers
+- ✅ Login/registration UI
+- ✅ User management
+- ✅ Encrypted credential storage
+- ✅ Complete audit logging
+
+### v1.2.0 - Decision Matrix & Learning
+
+- Decision matrix flow visualization
+- AI learning system
+- Prompt management
+- Analytics improvements
+
+### v1.0.0 - Initial Release
+
+- Core classification engine
+- OpenAI integration
+- Basic UI
+- Session management
+
+---
+
+## 🎯 Quick Commands
+
+```bash
+# Start everything
+./setup-docker.sh
+
+# Create admin
+docker-compose exec backend npm run create-admin
+
+# View logs
+docker-compose logs -f backend
+
+# Restart
+docker-compose restart
+
+# Stop
+docker-compose down
+
+# Backup
+docker run --rm -v catalai_catalai-data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/backup.tar.gz /data
+
+# Update
+git pull && docker-compose build && docker-compose up -d
+```
+
+---
+
+**Ready to get started?** Run `./setup-docker.sh` and you'll be up in 5 minutes! 🚀

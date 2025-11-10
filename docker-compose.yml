@@ -15,6 +15,12 @@ services:
       - DEFAULT_VOICE=alloy
       - DATA_DIR=/data
       - LOG_LEVEL=info
+      # Security Configuration (REQUIRED)
+      - JWT_SECRET=${JWT_SECRET}
+      - PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY}
+      - CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY:-${JWT_SECRET}}
+      # CORS Configuration
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:80}
       # AWS Bedrock credentials (optional - only needed if using Bedrock)
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}

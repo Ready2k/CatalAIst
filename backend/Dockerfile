@@ -13,6 +13,10 @@ RUN npm ci --only=production
 # Copy built application and shared types
 COPY backend/dist ./dist
 
+# Copy test script
+COPY backend/test-security.sh ./test-security.sh
+RUN chmod +x ./test-security.sh
+
 # Create data directory with proper permissions
 RUN mkdir -p /data && chown -R 1001:0 /data /app && chmod -R g+w /data
 

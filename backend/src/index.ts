@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import decisionMatrixRoutes from './routes/decision-matrix.routes';
 import learningRoutes from './routes/learning.routes';
@@ -10,6 +12,8 @@ import voiceRoutes from './routes/voice.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import promptsRoutes from './routes/prompts.routes';
 import auditRoutes from './routes/audit.routes';
+import authRoutes from './routes/auth.routes';
+import { authenticateToken } from './middleware/auth.middleware';
 import { initializeApplication } from './startup';
 
 config();
@@ -17,8 +21,109 @@ config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(cors());
-app.use(express.json());
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    }
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true
+}));
+
+// CORS configuration - restrict to specific origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000', 'http://localhost:80'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Request-ID']
+}));
+
+// Request ID middleware
+app.use((req, res, next) => {
+  const requestId = req.headers['x-request-id'] || require('crypto').randomUUID();
+  req.headers['x-request-id'] = requestId as string;
+  res.setHeader('X-Request-ID', requestId as string);
+  next();
+});
+
+// Body parser with size limits
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests',
+    message: 'Please try again later'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health' // Skip rate limiting for health checks
+});
+
+// Strict rate limiter for LLM endpoints (expensive operations)
+const llmLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: {
+    error: 'Too many LLM requests',
+    message: 'Please slow down your requests'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Auth rate limiter (prevent brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 login attempts per 15 minutes
+  message: {
+    error: 'Too many login attempts',
+    message: 'Please try again later'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true // Don't count successful logins
+});
+
+// Apply rate limiters
+app.use('/api', apiLimiter);
+app.use('/api/process', llmLimiter);
+app.use('/api/voice', llmLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -78,16 +183,19 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// API routes
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/process', processRoutes);
-app.use('/api/feedback', feedbackRoutes);
-app.use('/api/decision-matrix', decisionMatrixRoutes);
-app.use('/api/learning', learningRoutes);
-app.use('/api/voice', voiceRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/prompts', promptsRoutes);
-app.use('/api/audit', auditRoutes);
+// Public routes (no authentication required)
+app.use('/api/auth', authRoutes);
+
+// Protected routes (authentication required)
+app.use('/api/sessions', authenticateToken, sessionRoutes);
+app.use('/api/process', authenticateToken, processRoutes);
+app.use('/api/feedback', authenticateToken, feedbackRoutes);
+app.use('/api/decision-matrix', authenticateToken, decisionMatrixRoutes);
+app.use('/api/learning', authenticateToken, learningRoutes);
+app.use('/api/voice', authenticateToken, voiceRoutes);
+app.use('/api/analytics', authenticateToken, analyticsRoutes);
+app.use('/api/prompts', authenticateToken, promptsRoutes);
+app.use('/api/audit', authenticateToken, auditRoutes);
 
 // Initialize application on startup
 initializeApplication()

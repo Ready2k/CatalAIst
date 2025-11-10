@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Login from './components/Login';
 import ApiKeyInput from './components/ApiKeyInput';
 import LLMConfiguration, { LLMConfig } from './components/LLMConfiguration';
 import ChatInterface from './components/ChatInterface';
@@ -18,6 +19,11 @@ type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts'
 type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback';
 
 function App() {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
+  const [userRole, setUserRole] = useState('');
+
   const [hasConfig, setHasConfig] = useState(false);
   const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('main');
@@ -31,6 +37,41 @@ function App() {
   const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(0);
   const [classification, setClassification] = useState<Classification | null>(null);
+
+  // Check for existing auth token on mount
+  useEffect(() => {
+    const token = sessionStorage.getItem('authToken');
+    const storedUsername = sessionStorage.getItem('username');
+    const storedRole = sessionStorage.getItem('userRole');
+    
+    if (token && storedUsername) {
+      setIsAuthenticated(true);
+      setUsername(storedUsername);
+      setUserRole(storedRole || 'user');
+    }
+  }, []);
+
+  const handleLoginSuccess = (token: string, user: string) => {
+    setIsAuthenticated(true);
+    setUsername(user);
+    const role = sessionStorage.getItem('userRole') || 'user';
+    setUserRole(role);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.clear();
+    setIsAuthenticated(false);
+    setUsername('');
+    setUserRole('');
+    setHasConfig(false);
+    setLLMConfig(null);
+    apiService.clearSession();
+  };
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   const handleConfigSubmit = async (config: LLMConfig) => {
     setError('');
@@ -191,10 +232,28 @@ function App() {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <h1 style={{ margin: 0, color: '#fff', fontSize: '24px' }}>
-          CatalAIst
-        </h1>
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <h1 style={{ margin: 0, color: '#fff', fontSize: '24px' }}>
+            CatalAIst
+          </h1>
+          <div style={{ color: '#adb5bd', fontSize: '14px' }}>
+            Welcome, <strong style={{ color: '#fff' }}>{username}</strong>
+            {userRole === 'admin' && (
+              <span style={{ 
+                marginLeft: '8px', 
+                padding: '2px 8px', 
+                backgroundColor: '#ffc107', 
+                color: '#000', 
+                borderRadius: '3px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>
+                ADMIN
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <button
             onClick={() => setCurrentView('main')}
             style={{
@@ -292,6 +351,29 @@ function App() {
             }}
           >
             Audit Trail
+          </button>
+          <div style={{ 
+            width: '1px', 
+            height: '30px', 
+            backgroundColor: '#6c757d',
+            margin: '0 5px'
+          }} />
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#dc3545',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+          >
+            Logout
           </button>
         </div>
       </div>

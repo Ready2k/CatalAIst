@@ -25,6 +25,48 @@ class ApiService {
   private sessionId: string | null = null;
   private llmConfig: LLMConfig | null = null;
 
+  /**
+   * Get auth token from sessionStorage
+   */
+  private getAuthToken(): string | null {
+    return sessionStorage.getItem('authToken');
+  }
+
+  /**
+   * Get default headers including auth token
+   */
+  private getHeaders(): HeadersInit {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Handle API errors including auth failures
+   */
+  private async handleResponse(response: Response) {
+    if (response.status === 401 || response.status === 403) {
+      // Clear auth and redirect to login
+      sessionStorage.clear();
+      window.location.reload();
+      throw new Error('Authentication required. Please login again.');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   setApiKey(key: string) {
     this.apiKey = key;
   }
@@ -69,6 +111,13 @@ class ApiService {
       ...(options.headers as Record<string, string>),
     };
 
+    // Add auth token if available
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Legacy API key support (for backward compatibility)
     if (this.apiKey) {
       headers['X-API-Key'] = this.apiKey;
     }
@@ -78,6 +127,16 @@ class ApiService {
         ...options,
         headers,
       });
+
+      // Handle auth errors
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.clear();
+        window.location.reload();
+        throw {
+          message: 'Authentication required. Please login again.',
+          status: response.status,
+        } as ApiError;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Request failed' }));

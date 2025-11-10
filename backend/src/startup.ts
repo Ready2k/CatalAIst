@@ -4,6 +4,42 @@ import * as path from 'path';
 const dataDir = process.env.DATA_DIR || './data';
 
 /**
+ * Validate required environment variables
+ */
+function validateEnvironment(): void {
+  const required = ['JWT_SECRET'];
+  const missing: string[] = [];
+
+  for (const key of required) {
+    if (!process.env[key]) {
+      missing.push(key);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.error('\n❌ CRITICAL: Missing required environment variables:');
+    missing.forEach(key => console.error(`   - ${key}`));
+    console.error('\nPlease set these variables in your .env file or environment.');
+    console.error('See .env.example for reference.\n');
+    throw new Error('Missing required environment variables');
+  }
+
+  // Warn about default encryption keys
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.PII_ENCRYPTION_KEY) {
+      console.warn('⚠️  WARNING: PII_ENCRYPTION_KEY not set. Using JWT_SECRET as fallback.');
+      console.warn('   For better security, set a separate PII_ENCRYPTION_KEY.');
+    }
+    if (!process.env.CREDENTIALS_ENCRYPTION_KEY) {
+      console.warn('⚠️  WARNING: CREDENTIALS_ENCRYPTION_KEY not set. Using JWT_SECRET as fallback.');
+      console.warn('   For better security, set a separate CREDENTIALS_ENCRYPTION_KEY.');
+    }
+  }
+
+  console.log('✓ Environment variables validated');
+}
+
+/**
  * Initialize data directories
  */
 async function initializeDirectories(): Promise<void> {
@@ -16,7 +52,8 @@ async function initializeDirectories(): Promise<void> {
     'analytics',
     'pii-mappings',
     'decision-matrix',
-    'learning'
+    'learning',
+    'users'
   ];
 
   console.log('Initializing data directories...');
@@ -218,6 +255,9 @@ export async function initializeApplication(): Promise<void> {
   console.log('=== CatalAIst Startup Initialization ===\n');
   
   try {
+    validateEnvironment();
+    console.log('');
+    
     await initializeDirectories();
     console.log('');
     
