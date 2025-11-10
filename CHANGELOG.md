@@ -29,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New Dependencies**: Added `@aws-sdk/client-bedrock` package
 - **Test Script**: Added `test-bedrock-models.sh` for testing model listing
 
+### Fixed
+
+#### CORS Configuration for AWS Headers
+- **Added AWS credential headers** to CORS allowed headers list
+  - `x-aws-access-key-id`
+  - `x-aws-secret-access-key`
+  - `x-aws-session-token`
+  - `x-aws-region`
+- **Fixes CORS preflight errors** when fetching Bedrock models from frontend
+- **Updated security documentation** with complete CORS configuration
+
 ## [2.1.0] - 2025-11-10
 
 ### Added

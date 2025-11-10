@@ -93,7 +93,15 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-API-Key',
+    'x-aws-access-key-id',
+    'x-aws-secret-access-key',
+    'x-aws-session-token',
+    'x-aws-region'
+  ],
   exposedHeaders: ['X-Request-ID']
 }));
 

@@ -172,6 +172,7 @@ await auditLogService.log({
 2. **Use environment variables** for configuration
 3. **Support credentials**
 4. **Validate origin** on every request
+5. **Allow necessary headers** for authentication and AWS credentials
 
 ### Implementation
 
@@ -185,7 +186,17 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-API-Key',
+    'x-aws-access-key-id',
+    'x-aws-secret-access-key',
+    'x-aws-session-token',
+    'x-aws-region'
+  ]
 }));
 ```
 
