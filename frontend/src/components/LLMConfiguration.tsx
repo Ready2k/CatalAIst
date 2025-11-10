@@ -24,6 +24,11 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   // OpenAI
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState<Array<{ id: string; created: number; ownedBy: string }>>([]);
+  
+  // Debug: Log models state changes
+  useEffect(() => {
+    console.log('[Frontend] Models state changed:', models.length, 'models', models.map(m => m.id));
+  }, [models]);
   const [loadingModels, setLoadingModels] = useState(false);
   
   // AWS Bedrock
@@ -34,6 +39,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [modelsFetched, setModelsFetched] = useState(false);
 
   // Default models - defined outside useEffect to avoid dependency issues
   const openAIModels = React.useMemo(() => [
@@ -64,13 +70,17 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
 
   useEffect(() => {
     // Set default models when provider changes
+    // But don't override if models have been fetched
     if (provider === 'openai') {
       setModels(openAIModels);
       setModel('gpt-4');
+      setModelsFetched(false);
     } else {
-      // For Bedrock, use fallback models (will be replaced when user clicks dropdown)
-      setModels(bedrockModels);
-      setModel('anthropic.claude-3-5-sonnet-20241022-v2:0');
+      // For Bedrock, only set fallback if models haven't been fetched yet
+      if (!modelsFetched) {
+        setModels(bedrockModels);
+        setModel('anthropic.claude-3-5-sonnet-20241022-v2:0');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]); // Only run when provider changes, not when model lists change
@@ -108,6 +118,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       
       if (response.models && response.models.length > 0) {
         setModels(response.models);
+        setModelsFetched(true); // Mark that we've fetched models
         console.log('[Frontend] Set models state to:', response.models.length, 'models');
         
         // Set first model as default if current model is not in the list
@@ -445,7 +456,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           <select
             id="model"
             value={model}
-            onChange={(e) => setModel(e.target.value)}
+            onChange={(e) => {
+              console.log('[Frontend] Model selection changed to:', e.target.value);
+              setModel(e.target.value);
+            }}
             onFocus={handleModelDropdownClick}
             disabled={loadingModels}
             style={{
@@ -459,11 +473,14 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
               cursor: loadingModels ? 'wait' : 'pointer'
             }}
           >
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id}
-              </option>
-            ))}
+            {models.map((m) => {
+              console.log('[Frontend] Rendering option:', m.id);
+              return (
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                </option>
+              );
+            })}
           </select>
           {loadingModels && (
             <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
