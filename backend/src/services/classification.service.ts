@@ -528,12 +528,16 @@ Respond ONLY with the JSON object, no additional text.`;
    */
   private parseClassificationResponse(content: string): ClassificationResult {
     try {
+      console.log('[Classification] Raw LLM response:', content.substring(0, 500));
+      
       // Extract JSON from response (handle cases where model adds extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        console.error('[Classification] No JSON found in response. Full content:', content);
         throw new Error('No JSON found in response');
       }
 
+      console.log('[Classification] Extracted JSON:', jsonMatch[0].substring(0, 300));
       const parsed = JSON.parse(jsonMatch[0]);
 
       // Validate required fields
