@@ -680,6 +680,70 @@ class ApiService {
       method: 'DELETE'
     });
   }
+
+  // Enhanced Analytics endpoints
+  async getSessionsList(
+    filters: any,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<any> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters.category) params.append('category', filters.category);
+    if (filters.subject) params.append('subject', filters.subject);
+    if (filters.model) params.append('model', filters.model);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.searchText) params.append('searchText', filters.searchText);
+
+    return this.request(`/api/analytics/sessions?${params.toString()}`);
+  }
+
+  async getSessionDetail(sessionId: string): Promise<any> {
+    return this.request(`/api/analytics/sessions/${sessionId}`);
+  }
+
+  async getFilterOptions(): Promise<any> {
+    return this.request('/api/analytics/filters/options');
+  }
+
+  async exportSessionsCSV(filters: any): Promise<Blob> {
+    const params = new URLSearchParams();
+
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters.category) params.append('category', filters.category);
+    if (filters.subject) params.append('subject', filters.subject);
+    if (filters.model) params.append('model', filters.model);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.searchText) params.append('searchText', filters.searchText);
+
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/analytics/sessions/export?${params.toString()}`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Export failed' }));
+      const apiError: ApiError = {
+        message: errorData.message || 'Export failed',
+        status: response.status,
+      };
+      throw apiError;
+    }
+
+    return await response.blob();
+  }
 }
 
 export const apiService = new ApiService();

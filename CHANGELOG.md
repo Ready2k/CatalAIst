@@ -7,7 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-11-10
+
 ### Added
+
+#### Enhanced Analytics Dashboard - Accessibility Features
+- **WCAG 2.1 AA Compliance**: All analytics components now meet accessibility standards
+  - Comprehensive ARIA labels and roles on all interactive elements
+  - Full keyboard navigation support (Tab, Enter, Space, Escape, Arrow keys)
+  - Screen reader announcements for filter changes, page changes, and session count updates
+  - Visible focus indicators (3px solid blue outline) on all interactive elements
+  - Minimum 4.5:1 color contrast ratio on all text (exceeds requirement)
+  - Minimum 14px font size across all components (exceeds 12px requirement)
+  - Minimum 44x44px touch targets on mobile for all interactive elements
+- **SessionFilters Component**:
+  - `role="search"` with proper ARIA labels on all filter controls
+  - Real-time screen reader announcements for filter changes
+  - `aria-invalid` and `aria-describedby` for form validation
+  - Focus management with visible indicators
+- **SessionListTable Component**:
+  - Semantic table structure with `scope="col"` on headers
+  - Screen reader announcements for session count and page changes
+  - Keyboard-accessible table rows and pagination
+  - Mobile card layout with proper ARIA roles
+- **SessionDetailModal Component**:
+  - `role="dialog"` with `aria-modal="true"`
+  - Accessible tab navigation with proper ARIA attributes
+  - Focus trap within modal
+  - Escape key to close
+- **FilteredMetricsSummary Component**:
+  - `role="region"` with descriptive labels
+  - Collapsible behavior with `aria-expanded`
+  - Accessible metric displays
+- **Documentation**: Added `frontend/src/components/ACCESSIBILITY.md` with:
+  - Complete implementation details
+  - Testing checklist
+  - Browser and screen reader compatibility
+  - WCAG compliance verification
+
+### Changed
+- All interactive elements now have minimum 44x44px touch targets
+- All text now uses minimum 14px font size
+- Focus indicators are now consistently styled across all components
+
+### Fixed
+- Removed unused `useMemo` import from SessionListTable
+- Fixed TypeScript compilation warnings
+
+### Documentation
+- `frontend/src/components/ACCESSIBILITY.md` - Comprehensive accessibility documentation
+
+### Testing
+- Verified keyboard navigation across all components
+- Tested with NVDA, JAWS, and VoiceOver screen readers
+- Validated color contrast ratios
+- Confirmed touch target sizes on mobile devices
+
+---
 
 #### Dynamic Bedrock Model Fetching
 - **AWS Bedrock Model Discovery**: Models are now dynamically fetched from AWS Bedrock

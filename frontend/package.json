@@ -1,6 +1,6 @@
 {
   "name": "catalai-frontend",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "CatalAIst Frontend Application",
   "private": true,
   "dependencies": {

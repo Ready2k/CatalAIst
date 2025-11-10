@@ -218,6 +218,60 @@ export interface AnalyticsMetrics {
   alertTriggered: boolean;
 }
 
+// Enhanced Analytics Types for Session Listing and Filtering
+
+export interface SessionFilters {
+  dateFrom?: string;
+  dateTo?: string;
+  category?: TransformationCategory;
+  subject?: string;
+  model?: string;
+  status?: 'active' | 'completed' | 'manual_review';
+  searchText?: string;
+}
+
+export interface PaginationParams {
+  page: number;
+  limit: number;
+}
+
+export interface SessionListItem {
+  sessionId: string;
+  createdAt: string;
+  subject?: string;
+  category?: TransformationCategory;
+  confidence?: number;
+  status: string;
+  modelUsed: string;
+  feedbackConfirmed?: boolean;
+  userRating?: 'up' | 'down';
+  requiresAttention: boolean;
+  triggeredRulesCount?: number;
+  hasDecisionMatrix?: boolean;
+}
+
+export interface SessionListResponse {
+  sessions: SessionListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface FilterOptions {
+  subjects: string[];
+  models: string[];
+  categories: TransformationCategory[];
+  statuses: string[];
+}
+
+export interface FilteredMetrics {
+  totalCount: number;
+  averageConfidence: number;
+  agreementRate: number;
+  categoryDistribution: { [category: string]: number };
+}
+
 // Zod Validation Schemas
 
 export const TransformationCategorySchema = z.enum([
@@ -439,6 +493,60 @@ export const AnalyticsMetricsSchema = z.object({
   totalSessions: z.number().int().min(0),
   averageClassificationTimeMs: z.number().min(0),
   alertTriggered: z.boolean()
+});
+
+// Enhanced Analytics Schemas
+
+export const SessionFiltersSchema = z.object({
+  dateFrom: z.string().datetime().optional(),
+  dateTo: z.string().datetime().optional(),
+  category: TransformationCategorySchema.optional(),
+  subject: z.string().optional(),
+  model: z.string().optional(),
+  status: z.enum(['active', 'completed', 'manual_review']).optional(),
+  searchText: z.string().max(500).optional()
+});
+
+export const PaginationParamsSchema = z.object({
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1).max(100)
+});
+
+export const SessionListItemSchema = z.object({
+  sessionId: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  subject: z.string().optional(),
+  category: TransformationCategorySchema.optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  status: z.string(),
+  modelUsed: z.string(),
+  feedbackConfirmed: z.boolean().optional(),
+  userRating: z.enum(['up', 'down']).optional(),
+  requiresAttention: z.boolean(),
+  triggeredRulesCount: z.number().int().min(0).optional(),
+  hasDecisionMatrix: z.boolean().optional()
+});
+
+export const SessionListResponseSchema = z.object({
+  sessions: z.array(SessionListItemSchema),
+  total: z.number().int().min(0),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1),
+  totalPages: z.number().int().min(0)
+});
+
+export const FilterOptionsSchema = z.object({
+  subjects: z.array(z.string()),
+  models: z.array(z.string()),
+  categories: z.array(TransformationCategorySchema),
+  statuses: z.array(z.string())
+});
+
+export const FilteredMetricsSchema = z.object({
+  totalCount: z.number().int().min(0),
+  averageConfidence: z.number().min(0).max(1),
+  agreementRate: z.number().min(0).max(1),
+  categoryDistribution: z.record(z.number().int().min(0))
 });
 
 // Export validation utilities

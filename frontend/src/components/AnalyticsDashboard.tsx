@@ -1,14 +1,51 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { AnalyticsMetrics } from '../../../shared/types';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { 
+  AnalyticsMetrics, 
+  SessionFilters as SessionFiltersType, 
+  SessionListItem, 
+  FilterOptions,
+  FilteredMetrics
+} from '../../../shared/types';
+import { apiService } from '../services/api';
+import SessionFilters from './SessionFilters';
+import FilteredMetricsSummary from './FilteredMetricsSummary';
+import SessionListTable from './SessionListTable';
+import SessionDetailModal from './SessionDetailModal';
 
 interface AnalyticsDashboardProps {
   onLoadAnalytics: () => Promise<AnalyticsMetrics>;
 }
 
 const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics }) => {
+  // Existing aggregate metrics state
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // New session list state
+  const [filters, setFilters] = useState<SessionFiltersType>({});
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    subjects: [],
+    models: [],
+    categories: [],
+    statuses: []
+  });
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0
+  });
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [filteredMetrics, setFilteredMetrics] = useState<FilteredMetrics | null>(null);
+  const [filteredMetricsLoading, setFilteredMetricsLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Debounce timer ref
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadMetrics = useCallback(async () => {
     setLoading(true);
@@ -28,9 +65,159 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
     }
   }, [onLoadAnalytics]);
 
+  // Load filter options on mount (memoized)
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const options = await apiService.getFilterOptions();
+      setFilterOptions(options);
+    } catch (err: any) {
+      console.error('Failed to load filter options:', err);
+      showToast('Failed to load filter options', 'error');
+    }
+  }, []);
+
+  // Memoize filter options to prevent unnecessary re-renders
+  const memoizedFilterOptions = useMemo(() => filterOptions, [
+    filterOptions.subjects.join(','),
+    filterOptions.models.join(','),
+    filterOptions.categories.join(','),
+    filterOptions.statuses.join(',')
+  ]);
+
+  // Load filtered metrics
+  const loadFilteredMetrics = useCallback(async (currentFilters: SessionFiltersType) => {
+    setFilteredMetricsLoading(true);
+    try {
+      // Get all sessions matching filters (without pagination) to calculate metrics
+      const response = await apiService.getSessionsList(
+        currentFilters,
+        1,
+        10000 // Large limit to get all sessions for metrics
+      );
+      
+      // Calculate metrics from sessions
+      const totalCount = response.total;
+      const sessionsWithConfidence = response.sessions.filter((s: SessionListItem) => s.confidence !== undefined);
+      const averageConfidence = sessionsWithConfidence.length > 0
+        ? sessionsWithConfidence.reduce((sum: number, s: SessionListItem) => sum + (s.confidence || 0), 0) / sessionsWithConfidence.length
+        : 0;
+      
+      const sessionsWithFeedback = response.sessions.filter((s: SessionListItem) => s.feedbackConfirmed !== undefined);
+      const confirmedFeedback = sessionsWithFeedback.filter((s: SessionListItem) => s.feedbackConfirmed === true);
+      const agreementRate = sessionsWithFeedback.length > 0
+        ? confirmedFeedback.length / sessionsWithFeedback.length
+        : 0;
+      
+      const categoryDistribution: { [category: string]: number } = {};
+      response.sessions.forEach((s: SessionListItem) => {
+        if (s.category) {
+          categoryDistribution[s.category] = (categoryDistribution[s.category] || 0) + 1;
+        }
+      });
+
+      setFilteredMetrics({
+        totalCount,
+        averageConfidence,
+        agreementRate,
+        categoryDistribution
+      });
+    } catch (err: any) {
+      console.error('Failed to load filtered metrics:', err);
+    } finally {
+      setFilteredMetricsLoading(false);
+    }
+  }, []);
+
+  // Load session list with debouncing
+  const loadSessions = useCallback(async (
+    currentFilters: SessionFiltersType,
+    currentPage: number,
+    immediate: boolean = false
+  ) => {
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    const fetchSessions = async () => {
+      setSessionsLoading(true);
+      setSessionsError('');
+      try {
+        const response = await apiService.getSessionsList(
+          currentFilters,
+          currentPage,
+          pagination.limit
+        );
+        setSessions(response.sessions);
+        setPagination({
+          page: response.page,
+          limit: response.limit,
+          total: response.total,
+          totalPages: response.totalPages
+        });
+
+        // Also load filtered metrics
+        loadFilteredMetrics(currentFilters);
+      } catch (err: any) {
+        setSessionsError(err.message || 'Failed to load sessions');
+        console.error('Sessions error:', err);
+        showToast('Failed to load sessions', 'error');
+      } finally {
+        setSessionsLoading(false);
+      }
+    };
+
+    if (immediate) {
+      fetchSessions();
+    } else {
+      // Debounce for 200ms
+      debounceTimerRef.current = setTimeout(fetchSessions, 200);
+    }
+  }, [pagination.limit, loadFilteredMetrics]);
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  // Handle filter changes
+  const handleFiltersChange = useCallback((newFilters: SessionFiltersType) => {
+    setFilters(newFilters);
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
+    loadSessions(newFilters, 1, false); // Debounced
+  }, [loadSessions]);
+
+  // Handle page changes
+  const handlePageChange = useCallback((newPage: number) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
+    loadSessions(filters, newPage, true); // Immediate
+  }, [filters, loadSessions]);
+
+  // Handle session click
+  const handleSessionClick = useCallback((sessionId: string) => {
+    setSelectedSessionId(sessionId);
+  }, []);
+
+  // Handle modal close
+  const handleModalClose = useCallback(() => {
+    setSelectedSessionId(null);
+  }, []);
+
   useEffect(() => {
     loadMetrics();
-  }, [loadMetrics]);
+    loadFilterOptions();
+    loadSessions({}, 1, true); // Load initial sessions immediately
+  }, [loadMetrics, loadFilterOptions, loadSessions]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const formatPercentage = (value: number): string => {
     return `${Math.round(value * 100)}%`;
@@ -106,6 +293,25 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
       margin: '20px auto',
       padding: '20px'
     }}>
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '15px 20px',
+          backgroundColor: toast.type === 'error' ? '#f8d7da' : '#d4edda',
+          color: toast.type === 'error' ? '#721c24' : '#155724',
+          border: `1px solid ${toast.type === 'error' ? '#f5c6cb' : '#c3e6cb'}`,
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          maxWidth: '400px'
+        }}>
+          {toast.message}
+        </div>
+      )}
+
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -130,7 +336,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
       </div>
 
       {/* Alert Banner */}
-      {metrics.alertTriggered && (
+      {metrics && metrics.alertTriggered && (
         <div style={{
           padding: '15px',
           backgroundColor: '#fff3cd',
@@ -325,10 +531,66 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
         marginTop: '20px',
         fontSize: '12px',
         color: '#999',
-        textAlign: 'center'
+        textAlign: 'center',
+        marginBottom: '40px'
       }}>
         Last updated: {new Date(metrics.calculatedAt).toLocaleString()}
       </div>
+
+      {/* Divider */}
+      <div style={{
+        borderTop: '2px solid #e9ecef',
+        margin: '40px 0',
+        paddingTop: '40px'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '20px' }}>Session Explorer</h3>
+      </div>
+
+      {/* Session Filters */}
+      <SessionFilters
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        filterOptions={memoizedFilterOptions}
+      />
+
+      {/* Filtered Metrics Summary */}
+      {filteredMetrics && (
+        <FilteredMetricsSummary
+          metrics={filteredMetrics}
+          loading={filteredMetricsLoading}
+        />
+      )}
+
+      {/* Sessions Error */}
+      {sessionsError && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#f8d7da',
+          color: '#721c24',
+          borderRadius: '4px',
+          marginTop: '20px',
+          marginBottom: '20px'
+        }}>
+          {sessionsError}
+        </div>
+      )}
+
+      {/* Session List Table */}
+      <SessionListTable
+        sessions={sessions}
+        loading={sessionsLoading}
+        onSessionClick={handleSessionClick}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+      />
+
+      {/* Session Detail Modal */}
+      {selectedSessionId && (
+        <SessionDetailModal
+          sessionId={selectedSessionId}
+          onClose={handleModalClose}
+        />
+      )}
     </div>
   );
 };

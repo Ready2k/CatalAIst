@@ -10,6 +10,7 @@ import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
 import { SubjectExtractionService } from '../services/subject-extraction.service';
 import { Session, Conversation, Classification } from '../../../shared/types';
+import { analyticsService } from './analytics.routes';
 
 const router = Router();
 
@@ -162,6 +163,9 @@ router.post('/submit', async (req: Request, res: Response) => {
 
     // Save session
     await sessionStorage.saveSession(session);
+    
+    // Invalidate analytics cache on new session
+    analyticsService.invalidateCache();
 
     // Perform classification
     const classificationStartTime = Date.now();
@@ -239,6 +243,7 @@ router.post('/submit', async (req: Request, res: Response) => {
     if (classificationResult.action === 'manual_review') {
       session.status = 'manual_review';
       await sessionStorage.saveSession(session);
+      analyticsService.invalidateCache();
 
       return res.json({
         sessionId: session.sessionId,
@@ -317,6 +322,7 @@ router.post('/submit', async (req: Request, res: Response) => {
     session.status = 'completed';
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     // Log classification with decision matrix info
     await auditLogService.logClassification(
@@ -489,6 +495,7 @@ router.post('/classify', async (req: Request, res: Response) => {
     if (classificationResult.action === 'manual_review' && !forceClassify) {
       session.status = 'manual_review';
       await sessionStorage.saveSession(session);
+      analyticsService.invalidateCache();
 
       return res.json({
         action: 'manual_review',
@@ -566,6 +573,7 @@ router.post('/classify', async (req: Request, res: Response) => {
     session.status = 'completed';
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     // Log classification with decision matrix info
     await auditLogService.logClassification(
@@ -694,6 +702,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
 
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     // Log clarification responses
     await auditLogService.logClarification(
@@ -776,6 +785,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     if (classificationResult.action === 'manual_review') {
       session.status = 'manual_review';
       await sessionStorage.saveSession(session);
+      analyticsService.invalidateCache();
 
       return res.json({
         classification: classificationResult.result,
@@ -842,6 +852,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     session.status = 'completed';
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     await auditLogService.logClassification(
       sessionId,

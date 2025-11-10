@@ -4,6 +4,7 @@ import { AuditLogService } from '../services/audit-log.service';
 import { PIIService } from '../services/pii.service';
 import { JsonStorageService } from '../services/storage.service';
 import { Feedback, UserRating } from '../../../shared/types';
+import { analyticsService } from './analytics.routes';
 
 const router = Router();
 
@@ -95,6 +96,7 @@ router.post('/classification', async (req: Request, res: Response) => {
     session.feedback = feedback;
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     // Log feedback
     await auditLogService.logFeedback(
@@ -183,6 +185,7 @@ router.post('/rating', async (req: Request, res: Response) => {
     session.userRating = userRating;
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
 
     // Log rating
     await auditLogService.logRating(
