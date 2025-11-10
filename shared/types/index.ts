@@ -58,13 +58,13 @@ export interface UserRating {
 export interface AuditLogEntry {
   sessionId: string;
   timestamp: string;
-  eventType: 'input' | 'clarification' | 'classification' | 'feedback' | 'rating';
+  eventType: 'input' | 'clarification' | 'classification' | 'feedback' | 'rating' | 'model_list_success' | 'model_list_error';
   userId: string;
   data: any;
   modelPrompt?: string;
   modelResponse?: string;
   piiScrubbed: boolean;
-  metadata: {
+  metadata?: {
     modelVersion?: string;
     latencyMs?: number;
     llmProvider?: string;

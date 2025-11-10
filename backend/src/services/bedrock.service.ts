@@ -75,40 +75,66 @@ export class BedrockService implements ILLMProvider {
       };
 
       const command = new InvokeModelCommand(input);
-      const response = await this.withTimeout(
-        client.send(command),
-        this.TIMEOUT_MS
-      );
+      
+      try {
+        const response = await this.withTimeout(
+          client.send(command),
+          this.TIMEOUT_MS
+        );
 
-      if (!response.body) {
-        throw new Error('No response body from Bedrock');
+        if (!response.body) {
+          throw new Error('No response body from Bedrock');
+        }
+        
+        return this.parseBedrockResponse(response, model);
+      } catch (error: any) {
+        // Handle provisioned throughput errors
+        if (error.message?.includes('on-demand throughput') || 
+            error.message?.includes('provisioned throughput') ||
+            error.name === 'ValidationException') {
+          throw new Error(
+            `Model ${model} requires Provisioned Throughput. ` +
+            `This model is not available with On-Demand access. ` +
+            `Please select a different model or configure Provisioned Throughput in AWS Bedrock console.`
+          );
+        }
+        throw error;
       }
-
-      // Parse response
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-
-      if (!responseBody.content || responseBody.content.length === 0) {
-        throw new Error('No content in Bedrock response');
-      }
-
-      // Extract text from content blocks
-      const content = responseBody.content
-        .filter((block: any) => block.type === 'text')
-        .map((block: any) => block.text)
-        .join('\n');
-
-      return {
-        content,
-        model: responseBody.model || model,
-        usage: {
-          promptTokens: responseBody.usage?.input_tokens || 0,
-          completionTokens: responseBody.usage?.output_tokens || 0,
-          totalTokens:
-            (responseBody.usage?.input_tokens || 0) +
-            (responseBody.usage?.output_tokens || 0),
-        },
-      };
     });
+  }
+
+  /**
+   * Parse Bedrock response
+   */
+  private parseBedrockResponse(response: any, model: string): ChatCompletionResponse {
+    if (!response.body) {
+      throw new Error('No response body from Bedrock');
+    }
+
+    // Parse response
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    if (!responseBody.content || responseBody.content.length === 0) {
+      throw new Error('No content in Bedrock response');
+    }
+
+    // Extract text from content blocks
+    const content = responseBody.content
+      .filter((block: any) => block.type === 'text')
+      .map((block: any) => block.text)
+      .join('\n');
+
+    return {
+      content,
+      model: responseBody.model || model,
+      usage: {
+        promptTokens: responseBody.usage?.input_tokens || 0,
+        completionTokens: responseBody.usage?.output_tokens || 0,
+        totalTokens:
+          (responseBody.usage?.input_tokens || 0) +
+          (responseBody.usage?.output_tokens || 0),
+      },
+    };
   }
 
   /**
@@ -128,17 +154,43 @@ export class BedrockService implements ILLMProvider {
       );
 
       if (!response.modelSummaries || response.modelSummaries.length === 0) {
-        console.warn('No models returned from Bedrock API, using fallback list');
+        console.warn('[Bedrock] No models returned from Bedrock API, using fallback list');
         return this.getFallbackModels();
       }
 
+      console.log(`[Bedrock] API returned ${response.modelSummaries.length} total models`);
+
+      // Log all Anthropic models and their statuses for debugging
+      // Note: AWS console may show different names than API model IDs
+      // e.g., "Claude 3.7 Sonnet" in console = "anthropic.claude-3-5-sonnet-20241022-v2:0" in API
+      const anthropicModels = response.modelSummaries.filter(m => 
+        m.modelId?.startsWith('anthropic.claude')
+      );
+      console.log(`[Bedrock] Found ${anthropicModels.length} Anthropic Claude models:`);
+      anthropicModels.forEach(m => {
+        console.log(`[Bedrock]   - ${m.modelId}: ${m.modelLifecycle?.status || 'UNKNOWN'}`);
+      });
+
       // Convert Bedrock model summaries to ModelInfo format
-      return response.modelSummaries
-        .filter((model: FoundationModelSummary) => 
-          model.modelId && 
-          model.modelId.startsWith('anthropic.claude') &&
-          model.modelLifecycle?.status === 'ACTIVE'
-        )
+      // Include all Claude models regardless of status (AWS marks older models as LEGACY but they still work)
+      // Filter out models that require provisioned throughput (like Claude Haiku 4.5)
+      const filteredModels = response.modelSummaries
+        .filter((model: FoundationModelSummary) => {
+          if (!model.modelId || !model.modelId.startsWith('anthropic.claude')) {
+            return false;
+          }
+          
+          // Check if model requires provisioned throughput
+          const requiresProvisioned = model.inferenceTypesSupported?.includes('PROVISIONED') && 
+                                      !model.inferenceTypesSupported?.includes('ON_DEMAND');
+          
+          if (requiresProvisioned) {
+            console.log(`[Bedrock]   Skipping ${model.modelId} (requires Provisioned Throughput)`);
+            return false;
+          }
+          
+          return true;
+        })
         .map((model: FoundationModelSummary) => ({
           id: model.modelId!,
           created: 0, // Bedrock doesn't provide creation timestamp
@@ -150,9 +202,41 @@ export class BedrockService implements ILLMProvider {
           const versionB = this.extractVersion(b.id);
           return versionB.localeCompare(versionA);
         });
+
+      console.log(`[Bedrock] Returning ${filteredModels.length} Claude models (all statuses included)`);
+      
+      if (filteredModels.length === 0) {
+        console.warn('[Bedrock] No Claude models found! This might indicate:');
+        console.warn('[Bedrock]   - No Anthropic models available in your region');
+        console.warn('[Bedrock]   - Model access needs to be requested in AWS Bedrock console');
+        console.warn('[Bedrock]   - IAM permissions might be insufficient');
+      }
+      
+      // Log a summary of statuses
+      const statusCounts: Record<string, number> = {};
+      anthropicModels.forEach(m => {
+        const status = m.modelLifecycle?.status || 'UNKNOWN';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      });
+      console.log(`[Bedrock] Status breakdown:`, statusCounts);
+      
+      return filteredModels;
     } catch (error) {
-      console.error('Error listing Bedrock models:', error);
-      console.warn('Falling back to static model list');
+      console.error('[Bedrock] Error listing models:', error);
+      
+      // Log detailed error information
+      if (error instanceof Error) {
+        console.error('[Bedrock] Error name:', error.name);
+        console.error('[Bedrock] Error message:', error.message);
+        if ((error as any).$metadata) {
+          console.error('[Bedrock] AWS Error metadata:', JSON.stringify((error as any).$metadata, null, 2));
+        }
+        if ((error as any).Code) {
+          console.error('[Bedrock] AWS Error code:', (error as any).Code);
+        }
+      }
+      
+      console.warn('[Bedrock] Falling back to static model list');
       return this.getFallbackModels();
     }
   }

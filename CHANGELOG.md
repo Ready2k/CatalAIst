@@ -31,6 +31,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New Dependencies**: Added `@aws-sdk/client-bedrock` package
 - **Test Script**: Added `test-bedrock-models.sh` for testing model listing
 
+### Added
+
+#### Audit Logging for Model Fetching
+- **Model list events logged**: All model fetching attempts are now logged to audit trail
+  - `model_list_success`: Successful model fetch with count and list of models
+  - `model_list_error`: Failed attempts with error details
+  - Includes provider, region, duration, IP address, and error stack traces
+- **Enhanced Bedrock logging**: Detailed console logs for debugging
+  - Shows total models returned by AWS API
+  - Lists all Anthropic models with their lifecycle status
+  - Warns when no models pass the filter
+  - Logs detailed AWS error metadata
+- **Audit trail visibility**: View model fetching activity in the Audit Logs tab
+
 ### Changed
 
 #### Flexible Model Support for Bedrock
@@ -39,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `isModelSupported()` now checks for `anthropic.claude` prefix
   - Supports new models like `anthropic.claude-haiku-4-5-20251001-v1:0` automatically
   - No code updates needed when AWS releases new Claude models
+- **All model statuses included**: Returns models regardless of lifecycle status (ACTIVE, LEGACY, DEPRECATED)
+  - AWS marks older models as LEGACY but they still work
+  - Users can see and select all available Claude models
+  - Status breakdown logged for debugging
+- **Provisioned Throughput filtering**: Automatically filters out models that require Provisioned Throughput
+  - Models like Claude Haiku 4.5 that only support Provisioned Throughput are excluded
+  - Only shows models available with On-Demand access
+  - Clear error message if user tries to use a Provisioned Throughput model
 
 #### Model Fetching Behavior
 - **On-demand model fetching**: Models are now fetched only when the model dropdown is clicked
