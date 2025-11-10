@@ -40,14 +40,14 @@ if (!envLoaded) {
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // Log configuration on startup
 console.log('Server Configuration:');
 console.log(`- Port: ${PORT}`);
 console.log(`- Node Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`- Data Directory: ${process.env.DATA_DIR || './data'}`);
-console.log(`- Allowed Origins: ${process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:80'}`);
+console.log(`- Allowed Origins: ${process.env.ALLOWED_ORIGINS || 'http://localhost:4001,http://localhost:3000'}`);
 
 // Security headers
 app.use(helmet({
@@ -77,7 +77,7 @@ app.use(helmet({
 // CORS configuration - restrict to specific origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:80'];
+  : ['http://localhost:4001', 'http://localhost:3000', 'http://localhost:80'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -233,8 +233,8 @@ initializeApplication()
       console.log(`✅ Backend server running on port ${PORT}`);
       console.log(`   Health check: http://localhost:${PORT}/health`);
       console.log(`   API endpoint: http://localhost:${PORT}/api`);
-      if (PORT !== 8080) {
-        console.log(`⚠️  WARNING: Running on port ${PORT} instead of default 8080`);
+      if (PORT !== 4000) {
+        console.log(`⚠️  WARNING: Running on port ${PORT} instead of default 4000`);
         console.log(`   Check your .env file or PORT environment variable`);
       }
       console.log('='.repeat(60));

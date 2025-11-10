@@ -30,34 +30,22 @@ cd CatalAIst
 ### 2. Setup Environment Variables
 
 ```bash
-# Create .env file in root
-cat > .env << 'EOF'
-# Security Configuration (REQUIRED)
-JWT_SECRET=your-super-secret-jwt-key-change-this
-PII_ENCRYPTION_KEY=your-pii-encryption-key-change-this
-CREDENTIALS_ENCRYPTION_KEY=your-credentials-key-change-this
+# Copy example files
+cp .env.example .env
+cp frontend/.env.example frontend/.env.local
 
-# CORS Configuration
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-
-# Server Configuration
-NODE_ENV=development
-PORT=8080
-DATA_DIR=./data
-LOG_LEVEL=debug
-
-# LLM Configuration (Optional)
-DEFAULT_MODEL=gpt-4
-DEFAULT_VOICE=alloy
-EOF
-
-# Generate secure secrets
-echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
-echo "PII_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
-echo "CREDENTIALS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
+# Generate secure secrets (Mac/Linux)
+sed -i '' "s/your-super-secret-jwt-key-change-this/$(openssl rand -base64 32)/" .env
+sed -i '' "s/your-pii-encryption-key-change-this/$(openssl rand -base64 32)/" .env
+sed -i '' "s/your-credentials-key-change-this/$(openssl rand -base64 32)/" .env
 ```
 
-Or manually edit `.env` with your own secrets.
+Or manually edit `.env` and `frontend/.env.local` with your own secrets.
+
+**Key settings:**
+- Backend runs on port **4000**
+- Frontend runs on port **4001**
+- Frontend knows to call backend at `http://localhost:4000`
 
 ### 3. Install Dependencies
 
@@ -109,7 +97,7 @@ cd backend
 npm run dev
 ```
 
-This starts the backend on **http://localhost:8080** with hot reload.
+This starts the backend on **http://localhost:4000** with hot reload.
 
 ### Terminal 2: Frontend
 
@@ -118,15 +106,15 @@ cd frontend
 npm start
 ```
 
-This starts the frontend on **http://localhost:3000** with hot reload.
+This starts the frontend on **http://localhost:4001** with hot reload.
 
 ---
 
 ## 🌐 Access the Application
 
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8080
-- **Health Check:** http://localhost:8080/health
+- **Frontend:** http://localhost:4001
+- **Backend API:** http://localhost:4000
+- **Health Check:** http://localhost:4000/health
 
 ---
 
@@ -137,12 +125,12 @@ This starts the frontend on **http://localhost:3000** with hot reload.
 **Backend Changes:**
 1. Edit files in `backend/src/`
 2. Save (auto-reloads with `ts-node-dev`)
-3. Test at http://localhost:8080
+3. Test at http://localhost:4000
 
 **Frontend Changes:**
 1. Edit files in `frontend/src/`
 2. Save (auto-reloads with React dev server)
-3. Test at http://localhost:3000
+3. Test at http://localhost:4001
 
 ### Running Tests
 
@@ -178,9 +166,9 @@ CREDENTIALS_ENCRYPTION_KEY=<32+ random bytes>
 # Used for encrypting user credentials
 # Generate: openssl rand -base64 32
 
-ALLOWED_ORIGINS=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:4001
 # Frontend URL for CORS
-# Add multiple: http://localhost:3000,http://localhost:8080
+# Add multiple: http://localhost:4001,http://localhost:3000
 ```
 
 ### Optional
@@ -189,8 +177,8 @@ ALLOWED_ORIGINS=http://localhost:3000
 NODE_ENV=development
 # Set to 'production' for production builds
 
-PORT=8080
-# Backend port (default: 8080)
+PORT=4000
+# Backend port (default: 4000 for local dev)
 
 DATA_DIR=./data
 # Where to store data files
@@ -205,28 +193,26 @@ LOG_LEVEL=debug
 
 ### Frontend API URL
 
-The frontend needs to know where the backend is:
+The frontend is pre-configured to connect to the backend:
 
-**Option 1: Environment Variable**
-
-Create `frontend/.env.local`:
+**Configuration in `frontend/.env.local`:**
 ```bash
-REACT_APP_API_URL=http://localhost:8080
+PORT=4001
+REACT_APP_API_URL=http://localhost:4000
 ```
 
-**Option 2: Proxy (Recommended)**
+This tells the frontend:
+- Run on port 4001
+- Make API calls to backend at http://localhost:4000
 
-Already configured in `frontend/package.json`:
+**Proxy fallback** in `frontend/package.json`:
 ```json
 {
-  "proxy": "http://localhost:8080"
+  "proxy": "http://localhost:4000"
 }
 ```
 
-With proxy, frontend can use relative URLs:
-```javascript
-fetch('/api/auth/login')  // Proxied to http://localhost:8080/api/auth/login
-```
+Both methods work, but the explicit `REACT_APP_API_URL` is clearer.
 
 ---
 
@@ -244,16 +230,21 @@ cat .env | grep JWT_SECRET
 echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
 ```
 
-### "Port 8080 already in use"
+### "Port 4000 already in use"
 
-**Solution:** Change port in `.env`:
+**Solution:** Kill the process using port 4000:
 ```bash
-PORT=8081
+# Mac/Linux
+lsof -ti:4000 | xargs kill
+
+# Windows
+netstat -ano | findstr :4000
+taskkill /PID <PID> /F
 ```
 
-Or kill the process using port 8080:
+Or change port in `.env` (and update `frontend/.env.local` to match):
 ```bash
-lsof -ti:8080 | xargs kill
+PORT=4002
 ```
 
 ### "Cannot find module"
@@ -274,7 +265,7 @@ npm install
 **Solution:** Make sure `ALLOWED_ORIGINS` includes your frontend URL:
 ```bash
 # In .env
-ALLOWED_ORIGINS=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:4001
 ```
 
 ### Backend won't start
@@ -303,8 +294,9 @@ npm start
 
 **Common issues:**
 - Missing dependencies
-- Port 3000 in use
+- Port 4001 in use
 - Node version too old
+- Missing `frontend/.env.local` file
 
 ---
 
@@ -368,8 +360,8 @@ npm run build                        # In backend/
 npm run create-admin:dev             # In backend/
 
 # Development
-npm run dev                          # Backend (port 8080)
-npm start                            # Frontend (port 3000)
+npm run dev                          # Backend (port 4000)
+npm start                            # Frontend (port 4001)
 
 # Testing
 npm test                             # Backend tests

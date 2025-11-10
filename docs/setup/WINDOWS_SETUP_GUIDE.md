@@ -17,23 +17,29 @@ git clone <repository-url>
 cd CatalAIst
 ```
 
-### 2. Create .env File
+### 2. Create .env Files
 
 ```powershell
-# Copy example file
+# Copy example files
 Copy-Item .env.example .env
+Copy-Item frontend\.env.example frontend\.env.local
 
 # Or create manually
 @"
-PORT=8080
+PORT=4000
 JWT_SECRET=your-secret-here
 PII_ENCRYPTION_KEY=your-key-here
 CREDENTIALS_ENCRYPTION_KEY=your-key-here
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:80
+ALLOWED_ORIGINS=http://localhost:4001,http://localhost:3000,http://localhost:80
 NODE_ENV=development
 DATA_DIR=./data
 LOG_LEVEL=debug
 "@ | Out-File -FilePath .env -Encoding UTF8
+
+@"
+PORT=4001
+REACT_APP_API_URL=http://localhost:4000
+"@ | Out-File -FilePath frontend\.env.local -Encoding UTF8
 ```
 
 ### 3. Install Dependencies
@@ -97,57 +103,43 @@ npm start
 
 ## Port Configuration
 
-### Default Ports
-- **Backend:** 8080
-- **Frontend:** 3000
+### Standard Ports (Local Development)
+- **Backend:** 4000
+- **Frontend:** 4001
 
-### If Backend Runs on Port 4000
+These ports are configured in:
+- `.env` → `PORT=4000` (backend)
+- `frontend/.env.local` → `PORT=4001` (frontend)
+- `frontend/.env.local` → `REACT_APP_API_URL=http://localhost:4000`
 
-This usually means the `.env` file isn't being loaded correctly.
+### Verify Configuration
 
-**Fix:**
-
-1. **Check if .env exists:**
-   ```powershell
-   Get-Item .env
-   ```
-
-2. **Verify PORT setting:**
+1. **Check backend port:**
    ```powershell
    Get-Content .env | Select-String "PORT"
+   # Should show: PORT=4000
    ```
 
-3. **Check environment variable:**
+2. **Check frontend configuration:**
    ```powershell
-   $env:PORT
+   Get-Content frontend\.env.local
+   # Should show:
+   # PORT=4001
+   # REACT_APP_API_URL=http://localhost:4000
    ```
 
-4. **If PORT is set to 4000, clear it:**
+3. **Start services:**
    ```powershell
-   Remove-Item Env:\PORT
-   ```
-
-5. **Ensure .env has correct value:**
-   ```powershell
-   # Add or update PORT in .env
-   (Get-Content .env) -replace 'PORT=.*', 'PORT=8080' | Set-Content .env
-   ```
-
-6. **Restart backend:**
-   ```powershell
+   # Terminal 1
    cd backend
    npm run dev
-   ```
+   # Should show: ✅ Backend server running on port 4000
 
-**You should see:**
-```
-Loaded environment from: C:\path\to\CatalAIst\.env
-Server Configuration:
-- Port: 8080
-- Node Environment: development
-...
-✅ Backend server running on port 8080
-```
+   # Terminal 2
+   cd frontend
+   npm start
+   # Should show: Local: http://localhost:4001
+   ```
 
 ## Common Windows Issues
 
@@ -285,8 +277,9 @@ Remove-Item Env:\PORT
 # All Node processes
 Get-Process node
 
-# Processes using specific port
-netstat -ano | findstr :8080
+# Processes using specific ports
+netstat -ano | findstr :4000
+netstat -ano | findstr :4001
 ```
 
 ### Kill Node Processes
@@ -309,8 +302,9 @@ Get-Content .env | Select-String "PORT"
 
 ### Network Diagnostics
 ```powershell
-# Test if port is accessible
-Test-NetConnection -ComputerName localhost -Port 8080
+# Test if ports are accessible
+Test-NetConnection -ComputerName localhost -Port 4000
+Test-NetConnection -ComputerName localhost -Port 4001
 
 # List all listening ports
 netstat -ano | findstr LISTENING
@@ -396,10 +390,10 @@ npm install
 Backend logs show configuration on startup:
 ```
 Server Configuration:
-- Port: 8080
+- Port: 4000
 - Node Environment: development
 - Data Directory: ./data
-- Allowed Origins: http://localhost:3000,http://localhost:80
+- Allowed Origins: http://localhost:4001,http://localhost:3000
 ```
 
 ### Common Log Messages
@@ -407,19 +401,20 @@ Server Configuration:
 **✅ Good:**
 ```
 Loaded environment from: C:\...\CatalAIst\.env
-✅ Backend server running on port 8080
+✅ Backend server running on port 4000
 ```
 
 **⚠️ Warning:**
 ```
 Warning: No .env file found, using environment variables or defaults
-⚠️ WARNING: Running on port 4000 instead of default 8080
+⚠️ WARNING: Running on port 8080 instead of default 4000
 ```
 
 **❌ Error:**
 ```
-Error: EADDRINUSE: address already in use :::8080
+Error: EADDRINUSE: address already in use :::4000
 Error: JWT_SECRET not configured
+Error: Not allowed by CORS
 ```
 
 ### Documentation

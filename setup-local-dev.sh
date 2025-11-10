@@ -1,162 +1,146 @@
 #!/bin/bash
-# Local Development Setup Script (No Docker)
+
+# Local Development Setup Script
+# Sets up CatalAIst for local development with ports 4000 (backend) and 4001 (frontend)
 
 set -e
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-echo "================================"
-echo "CatalAIst Local Development Setup"
-echo "================================"
+echo "🚀 CatalAIst Local Development Setup"
+echo "===================================="
 echo ""
 
-# Check Node.js
-echo "Checking prerequisites..."
-if ! command -v node &> /dev/null; then
-    echo -e "${YELLOW}⚠ Node.js not found${NC}"
-    echo "Please install Node.js 20+ from https://nodejs.org/"
-    exit 1
-fi
-
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo -e "${YELLOW}⚠ Node.js version $NODE_VERSION is too old${NC}"
-    echo "Please upgrade to Node.js 20+ from https://nodejs.org/"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Node.js $(node --version)${NC}"
-echo -e "${GREEN}✓ npm $(npm --version)${NC}"
-echo ""
-
-# Create .env if it doesn't exist
+# Check if .env exists
 if [ -f .env ]; then
-    echo -e "${YELLOW}⚠ .env file already exists${NC}"
-    read -p "Do you want to overwrite it? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Using existing .env file"
-        SKIP_ENV=true
-    fi
-fi
-
-if [ "$SKIP_ENV" != "true" ]; then
-    echo "Creating .env file with secure secrets..."
+    echo "✅ .env file exists"
+else
+    echo "📝 Creating .env file from example..."
+    cp .env.example .env
     
+    # Generate secure secrets
+    echo "🔐 Generating secure secrets..."
     JWT_SECRET=$(openssl rand -base64 32)
     PII_KEY=$(openssl rand -base64 32)
     CRED_KEY=$(openssl rand -base64 32)
     
-    cat > .env << EOF
-# Security Configuration (REQUIRED)
-JWT_SECRET=$JWT_SECRET
-PII_ENCRYPTION_KEY=$PII_KEY
-CREDENTIALS_ENCRYPTION_KEY=$CRED_KEY
-
-# CORS Configuration
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-
-# Server Configuration
-NODE_ENV=development
-PORT=8080
-DATA_DIR=./data
-LOG_LEVEL=debug
-
-# LLM Configuration (Optional)
-DEFAULT_MODEL=gpt-4
-DEFAULT_VOICE=alloy
-
-# AWS Bedrock Configuration (Optional)
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_SESSION_TOKEN=
-AWS_REGION=us-east-1
-EOF
+    # Update .env with generated secrets
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i '' "s/your-super-secret-jwt-key-change-this/$JWT_SECRET/" .env
+        sed -i '' "s/your-pii-encryption-key-change-this/$PII_KEY/" .env
+        sed -i '' "s/your-credentials-key-change-this/$CRED_KEY/" .env
+    else
+        # Linux
+        sed -i "s/your-super-secret-jwt-key-change-this/$JWT_SECRET/" .env
+        sed -i "s/your-pii-encryption-key-change-this/$PII_KEY/" .env
+        sed -i "s/your-credentials-key-change-this/$CRED_KEY/" .env
+    fi
     
-    echo -e "${GREEN}✓ .env file created${NC}"
-    echo ""
+    echo "✅ .env file created with secure secrets"
 fi
 
-# Install backend dependencies
-echo "Installing backend dependencies..."
-cd backend
-npm install
-echo -e "${GREEN}✓ Backend dependencies installed${NC}"
+# Check if frontend/.env.local exists
+if [ -f frontend/.env.local ]; then
+    echo "✅ frontend/.env.local exists"
+else
+    echo "📝 Creating frontend/.env.local..."
+    cp frontend/.env.example frontend/.env.local
+    echo "✅ frontend/.env.local created"
+fi
+
+# Verify port configuration
 echo ""
+echo "🔍 Verifying configuration..."
+BACKEND_PORT=$(grep "^PORT=" .env | cut -d'=' -f2)
+FRONTEND_PORT=$(grep "^PORT=" frontend/.env.local | cut -d'=' -f2)
+API_URL=$(grep "^REACT_APP_API_URL=" frontend/.env.local | cut -d'=' -f2)
+
+echo "   Backend port: $BACKEND_PORT"
+echo "   Frontend port: $FRONTEND_PORT"
+echo "   API URL: $API_URL"
+
+if [ "$BACKEND_PORT" != "4000" ]; then
+    echo "⚠️  Warning: Backend port is $BACKEND_PORT, expected 4000"
+fi
+
+if [ "$FRONTEND_PORT" != "4001" ]; then
+    echo "⚠️  Warning: Frontend port is $FRONTEND_PORT, expected 4001"
+fi
+
+if [ "$API_URL" != "http://localhost:4000" ]; then
+    echo "⚠️  Warning: API URL is $API_URL, expected http://localhost:4000"
+fi
+
+# Check if dependencies are installed
+echo ""
+echo "📦 Checking dependencies..."
+
+if [ ! -d "backend/node_modules" ]; then
+    echo "📥 Installing backend dependencies..."
+    cd backend
+    npm install
+    cd ..
+    echo "✅ Backend dependencies installed"
+else
+    echo "✅ Backend dependencies already installed"
+fi
+
+if [ ! -d "frontend/node_modules" ]; then
+    echo "📥 Installing frontend dependencies..."
+    cd frontend
+    npm install
+    cd ..
+    echo "✅ Frontend dependencies installed"
+else
+    echo "✅ Frontend dependencies already installed"
+fi
 
 # Build backend
-echo "Building backend..."
+echo ""
+echo "🔨 Building backend..."
+cd backend
 npm run build
-echo -e "${GREEN}✓ Backend built${NC}"
-echo ""
-
-# Install frontend dependencies
-echo "Installing frontend dependencies..."
-cd ../frontend
-npm install
-echo -e "${GREEN}✓ Frontend dependencies installed${NC}"
-echo ""
+cd ..
+echo "✅ Backend built successfully"
 
 # Create data directories
-echo "Creating data directories..."
-cd ..
+echo ""
+echo "📁 Creating data directories..."
 mkdir -p data/{sessions,audit-logs,prompts,audio,audio/cache,analytics,pii-mappings,decision-matrix,learning,users}
-echo -e "${GREEN}✓ Data directories created${NC}"
-echo ""
+echo "✅ Data directories created"
 
-# Create admin user
-echo "================================"
-echo "Create Admin User"
-echo "================================"
+# Check if admin user exists
 echo ""
-echo "You need to create an admin user to access the system."
-echo ""
-
-read -p "Do you want to create an admin user now? (Y/n): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    cd backend
-    npm run create-admin:dev
-    cd ..
-    echo ""
-    echo -e "${GREEN}✓ Admin user created${NC}"
+if [ -f "data/users/users.json" ]; then
+    echo "✅ Admin user already exists"
 else
+    echo "👤 Admin user not found"
     echo ""
-    echo -e "${YELLOW}⚠ Skipping admin user creation${NC}"
-    echo "You can create it later with: cd backend && npm run create-admin:dev"
+    echo "Please create an admin user:"
+    echo "   cd backend"
+    echo "   npm run create-admin:dev"
+    echo ""
 fi
-echo ""
 
-# Summary
-echo "================================"
-echo "Setup Complete!"
-echo "================================"
 echo ""
-echo -e "${GREEN}✓ Dependencies installed${NC}"
-echo -e "${GREEN}✓ Backend built${NC}"
-echo -e "${GREEN}✓ Environment configured${NC}"
-echo -e "${GREEN}✓ Data directories created${NC}"
+echo "✅ Setup complete!"
 echo ""
-echo "To start development:"
+echo "📋 Next steps:"
 echo ""
-echo -e "${BLUE}Terminal 1 (Backend):${NC}"
-echo "  cd backend"
-echo "  npm run dev"
+echo "1. Create admin user (if not done):"
+echo "   cd backend"
+echo "   npm run create-admin:dev"
 echo ""
-echo -e "${BLUE}Terminal 2 (Frontend):${NC}"
-echo "  cd frontend"
-echo "  npm start"
+echo "2. Start backend (Terminal 1):"
+echo "   cd backend"
+echo "   npm run dev"
 echo ""
-echo "Then access:"
-echo "  - Frontend: http://localhost:3000"
-echo "  - Backend:  http://localhost:8080"
+echo "3. Start frontend (Terminal 2):"
+echo "   cd frontend"
+echo "   npm start"
 echo ""
-echo "Documentation:"
-echo "  - LOCAL_DEVELOPMENT.md - Complete local dev guide"
-echo "  - README.md - Main documentation"
+echo "4. Access application:"
+echo "   Frontend: http://localhost:4001"
+echo "   Backend:  http://localhost:4000"
+echo "   Health:   http://localhost:4000/health"
 echo ""
-echo -e "${GREEN}Happy coding! 🚀${NC}"
-echo ""
+echo "🎉 Happy coding!"

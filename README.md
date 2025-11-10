@@ -376,29 +376,15 @@ npm run build
 
 ## 📚 Documentation
 
-### Quick Start Guides
+All documentation has been organized in the `/docs` directory:
 
-- **CRITICAL_FIXES_SUMMARY.md** - 5-minute quick start
-- **DOCKER_README.md** - Complete Docker guide
-- **DOCKER_QUICK_REFERENCE.md** - Command reference
+- **[docs/setup/](docs/setup/)** - Setup guides, Docker, AWS Bedrock, ports, HTTPS
+- **[docs/deployment/](docs/deployment/)** - Production deployment guides
+- **[docs/security/](docs/security/)** - Security configuration and audits
+- **[docs/releases/](docs/releases/)** - Release notes and changelogs
+- **[docs/fixes/](docs/fixes/)** - Bug fixes and improvements
 
-### Security
-
-- **SECURITY_SETUP.md** - Security configuration
-- **SECURITY_AUDIT_REPORT.md** - Security audit results
-- **SECURITY_UPDATES.md** - Security changelog
-
-### Deployment
-
-- **DEPLOYMENT_CHECKLIST.md** - Production deployment
-- **DOCKER_SECURITY_SETUP.md** - Docker security
-- **CORS_FIX.md** - CORS troubleshooting
-
-### Features
-
-- **FRONTEND_AUTH_UPDATE.md** - Authentication guide
-- **decision-matrix-flow-visualization.md** - Decision matrix UI
-- **prompt-management-policy.md** - Prompt management
+See **[docs/README.md](docs/README.md)** for the complete documentation index.
 
 ---
 
