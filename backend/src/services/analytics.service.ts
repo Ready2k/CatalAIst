@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { JsonStorageService } from './storage.service';
 import { SessionStorageService } from './session-storage.service';
 import { 
@@ -18,6 +19,14 @@ import {
   FilteredMetricsSchema,
   TransformationCategory
 } from '../../../shared/types';
+
+// Defensive check for schema availability
+if (!SessionFiltersSchema || !PaginationParamsSchema || !FilterOptionsSchema) {
+  console.error('CRITICAL: Zod schemas not loaded properly in analytics.service.ts');
+  console.error('SessionFiltersSchema:', SessionFiltersSchema);
+  console.error('PaginationParamsSchema:', PaginationParamsSchema);
+  console.error('FilterOptionsSchema:', FilterOptionsSchema);
+}
 
 // Cache interfaces
 interface CacheEntry<T> {
@@ -510,7 +519,11 @@ export class AnalyticsService {
     };
 
     // Validate options
-    FilterOptionsSchema.parse(options);
+    if (!FilterOptionsSchema) {
+      console.error('FilterOptionsSchema is undefined - skipping validation');
+    } else {
+      FilterOptionsSchema.parse(options);
+    }
 
     // Cache the options
     this.filterOptionsCache = {

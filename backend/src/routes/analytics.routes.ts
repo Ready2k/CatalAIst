@@ -4,11 +4,21 @@ import { AnalyticsService } from '../services/analytics.service';
 import { SessionStorageService } from '../services/session-storage.service';
 import { JsonStorageService } from '../services/storage.service';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth.middleware';
+import { z } from 'zod';
 import { 
+  SessionFilters,
   SessionFiltersSchema, 
+  PaginationParams,
   PaginationParamsSchema,
   TransformationCategory 
 } from '../../../shared/types';
+
+// Defensive check for schema availability
+if (!SessionFiltersSchema || !PaginationParamsSchema) {
+  console.error('CRITICAL: Zod schemas not loaded properly from shared types');
+  console.error('SessionFiltersSchema:', SessionFiltersSchema);
+  console.error('PaginationParamsSchema:', PaginationParamsSchema);
+}
 
 const router = Router();
 
