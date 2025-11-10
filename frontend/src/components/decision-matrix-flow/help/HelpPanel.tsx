@@ -147,6 +147,35 @@ const HELP_SECTIONS: HelpSection[] = [
         </p>
         
         <h4 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>
+          Creating Connections
+        </h4>
+        <ul style={{ marginBottom: '16px', paddingLeft: '20px', lineHeight: '1.6' }}>
+          <li><strong>Drag from Attribute to Condition</strong>: Click and drag from an attribute's handle (right side) to a condition's handle (left side)</li>
+          <li>This connects the attribute to the condition, making the condition check that attribute</li>
+          <li>You can only connect attributes to conditions (other connections are not allowed)</li>
+          <li>When you create a connection, the condition automatically updates to reference the new attribute</li>
+        </ul>
+        
+        <h4 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>
+          Deleting Connections
+        </h4>
+        <ul style={{ marginBottom: '16px', paddingLeft: '20px', lineHeight: '1.6' }}>
+          <li>Click on an edge (connection line) to select it</li>
+          <li>Press Delete or Backspace to remove the connection</li>
+          <li>You can also delete nodes, which will remove all their connections</li>
+        </ul>
+        
+        <h4 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>
+          Adding and Deleting Nodes
+        </h4>
+        <ul style={{ marginBottom: '16px', paddingLeft: '20px', lineHeight: '1.6' }}>
+          <li><strong>Add Rule</strong>: Click "➕ Add Rule" in the toolbar to create a new rule</li>
+          <li><strong>Add Condition</strong>: Open a rule's property panel and click "+ Add Node" to create a new condition</li>
+          <li><strong>Delete Node</strong>: Open a node's property panel and click "🗑️ Delete" (not available for attributes and categories)</li>
+          <li>Deleting a rule also deletes all its conditions and action</li>
+        </ul>
+        
+        <h4 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>
           Editing Attributes
         </h4>
         <ul style={{ marginBottom: '16px', paddingLeft: '20px', lineHeight: '1.6' }}>

@@ -208,6 +208,87 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
     []
   );
 
+  // Handle new connection creation
+  const onConnect = useCallback(
+    (connection: any) => {
+      if (readOnly) return;
+      
+      const sourceNode = allNodes.find(n => n.id === connection.source);
+      const targetNode = allNodes.find(n => n.id === connection.target);
+      
+      if (!sourceNode || !targetNode) return;
+      
+      // Only allow attribute -> condition connections
+      if (sourceNode.type === 'attribute' && targetNode.type === 'condition') {
+        // Update the condition to reference the new attribute
+        const conditionData = targetNode.data as any;
+        const attributeData = sourceNode.data as any;
+        
+        setAllNodes((nds) =>
+          nds.map((node) => {
+            if (node.id === targetNode.id) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  condition: {
+                    ...conditionData.condition,
+                    attribute: attributeData.attribute.name
+                  }
+                }
+              };
+            }
+            return node;
+          })
+        );
+        
+        // Add the edge
+        const newEdge: CustomEdge = {
+          id: `edge-${connection.source}-${connection.target}`,
+          source: connection.source,
+          target: connection.target,
+          type: 'condition',
+          animated: false,
+          data: { animated: false }
+        };
+        
+        setEdges((eds) => [...eds, newEdge]);
+        setIsDirty(true);
+        
+        setScreenReaderAnnouncement(
+          `Connected ${attributeData.attribute.name} to condition. Condition now checks ${attributeData.attribute.name}.`
+        );
+      } else {
+        // Invalid connection
+        setScreenReaderAnnouncement(
+          `Invalid connection. You can only connect attributes to conditions.`
+        );
+      }
+    },
+    [allNodes, readOnly]
+  );
+
+  // Handle edge deletion
+  const onEdgesDelete = useCallback(
+    (edgesToDelete: any[]) => {
+      if (readOnly) return;
+      
+      edgesToDelete.forEach(edge => {
+        const sourceNode = allNodes.find(n => n.id === edge.source);
+        const targetNode = allNodes.find(n => n.id === edge.target);
+        
+        if (sourceNode?.type === 'attribute' && targetNode?.type === 'condition') {
+          setScreenReaderAnnouncement(
+            `Disconnected ${(sourceNode.data as any).attribute.name} from condition. Condition may need updating.`
+          );
+        }
+      });
+      
+      setIsDirty(true);
+    },
+    [allNodes, readOnly]
+  );
+
   // Handle node click for property panel display
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -424,6 +505,176 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNode, nodes, edges, readOnly]);
 
+  // Handle adding a new rule
+  const handleAddRule = useCallback(() => {
+    const newRuleId = `rule-${Date.now()}`;
+    const ruleCount = allNodes.filter(n => n.type === 'rule').length;
+    
+    // Create new rule
+    const newRule: any = {
+      ruleId: newRuleId,
+      name: `New Rule ${ruleCount + 1}`,
+      description: 'New rule description',
+      priority: 50,
+      active: true,
+      conditions: [],
+      action: {
+        type: 'adjust_confidence',
+        confidenceAdjustment: 0
+      }
+    };
+    
+    // Create rule node
+    const ruleNode: FlowNode = {
+      id: `rule-${newRuleId}`,
+      type: 'rule',
+      position: { x: 400, y: ruleCount * 150 },
+      data: {
+        label: newRule.name,
+        rule: newRule,
+        isHighlighted: false,
+        nodeId: `rule-${newRuleId}`
+      } as any,
+      width: 220,
+      height: 100
+    };
+    
+    // Create action node
+    const actionNode: FlowNode = {
+      id: `action-${newRuleId}`,
+      type: 'action',
+      position: { x: 700, y: ruleCount * 150 },
+      data: {
+        label: 'Adjust Confidence',
+        action: newRule.action,
+        parentRuleId: newRuleId,
+        isHighlighted: false,
+        nodeId: `action-${newRuleId}`
+      } as any,
+      width: 180,
+      height: 70
+    };
+    
+    // Create edge from rule to action
+    const ruleToActionEdge: CustomEdge = {
+      id: `edge-rule-${newRuleId}-action-${newRuleId}`,
+      source: `rule-${newRuleId}`,
+      target: `action-${newRuleId}`,
+      type: 'flow',
+      animated: false,
+      data: { animated: false }
+    };
+    
+    setAllNodes((nds) => [...nds, ruleNode, actionNode]);
+    setEdges((eds) => [...eds, ruleToActionEdge]);
+    setIsDirty(true);
+    setSelectedNode(ruleNode);
+    
+    setScreenReaderAnnouncement(
+      `Added new rule: ${newRule.name}. You can now add conditions by connecting attributes to the rule.`
+    );
+  }, [allNodes]);
+
+  // Handle adding a condition to a rule
+  const handleAddCondition = useCallback((ruleId: string) => {
+    const ruleNode = allNodes.find(n => n.type === 'rule' && (n.data as any).rule.ruleId === ruleId);
+    if (!ruleNode) return;
+    
+    const existingConditions = allNodes.filter(
+      n => n.type === 'condition' && (n.data as any).parentRuleId === ruleId
+    );
+    
+    const conditionIndex = existingConditions.length;
+    
+    // Create new condition with placeholder values
+    const newCondition: any = {
+      attribute: 'Select Attribute',
+      operator: 'equals',
+      value: ''
+    };
+    
+    // Create condition node
+    const conditionNode: FlowNode = {
+      id: `cond-${ruleId}-${conditionIndex}`,
+      type: 'condition',
+      position: { 
+        x: ruleNode.position.x - 250, 
+        y: ruleNode.position.y + (conditionIndex * 80) 
+      },
+      data: {
+        label: 'Select Attribute = ""',
+        condition: newCondition,
+        parentRuleId: ruleId,
+        isHighlighted: false,
+        nodeId: `cond-${ruleId}-${conditionIndex}`
+      } as any,
+      width: 180,
+      height: 60
+    };
+    
+    // Create edge from condition to rule
+    const condToRuleEdge: CustomEdge = {
+      id: `edge-cond-${ruleId}-${conditionIndex}-rule-${ruleId}`,
+      source: `cond-${ruleId}-${conditionIndex}`,
+      target: `rule-${ruleId}`,
+      type: 'condition',
+      animated: false,
+      data: { animated: false }
+    };
+    
+    setAllNodes((nds) => [...nds, conditionNode]);
+    setEdges((eds) => [...eds, condToRuleEdge]);
+    setIsDirty(true);
+    
+    setScreenReaderAnnouncement(
+      `Added new condition to rule. Connect an attribute to this condition to complete it.`
+    );
+  }, [allNodes]);
+
+  // Handle deleting a node
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    const node = allNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    // Prevent deleting attribute and category nodes
+    if (node.type === 'attribute' || node.type === 'category') {
+      setScreenReaderAnnouncement(
+        `Cannot delete ${node.type} nodes. These are part of the matrix structure.`
+      );
+      return;
+    }
+    
+    // If deleting a rule, also delete its conditions and action
+    if (node.type === 'rule') {
+      const ruleId = (node.data as any).rule.ruleId;
+      const relatedNodeIds = allNodes
+        .filter(n => 
+          (n.type === 'condition' && (n.data as any).parentRuleId === ruleId) ||
+          (n.type === 'action' && (n.data as any).parentRuleId === ruleId)
+        )
+        .map(n => n.id);
+      
+      setAllNodes((nds) => nds.filter(n => n.id !== nodeId && !relatedNodeIds.includes(n.id)));
+      setEdges((eds) => eds.filter(e => 
+        e.source !== nodeId && 
+        e.target !== nodeId &&
+        !relatedNodeIds.includes(e.source) &&
+        !relatedNodeIds.includes(e.target)
+      ));
+      
+      setScreenReaderAnnouncement(`Deleted rule and its related conditions and action.`);
+    } else {
+      // Delete single node and its edges
+      setAllNodes((nds) => nds.filter(n => n.id !== nodeId));
+      setEdges((eds) => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+      
+      setScreenReaderAnnouncement(`Deleted ${node.type} node.`);
+    }
+    
+    setIsDirty(true);
+    setSelectedNode(null);
+  }, [allNodes]);
+
   // Handle save operation
   const handleSave = useCallback(async () => {
     // Check for validation errors
@@ -496,6 +747,8 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onEdgesDelete={onEdgesDelete}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           onNodeMouseEnter={onNodeMouseEnter}
@@ -506,18 +759,33 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           minZoom={isMobile ? 0.2 : 0.1}
           maxZoom={isMobile ? 1.5 : 2}
           nodesDraggable={!readOnly && !isMobile}
-          nodesConnectable={false}
+          nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
           panOnScroll={!isMobile}
           panOnDrag={!isMobile}
           zoomOnScroll={!isMobile}
           zoomOnPinch={isMobile}
           zoomOnDoubleClick={!isMobile}
+          connectionMode="loose"
           defaultEdgeOptions={{
             animated: false,
             style: { stroke: '#94a3b8', strokeWidth: isMobile ? 1.5 : 2 },
           }}
-          aria-label="Decision matrix flow diagram. Use arrow keys to navigate between connected nodes, Enter to select, Escape to deselect."
+          isValidConnection={(connection) => {
+            // Only allow attribute -> condition connections
+            const sourceNode = allNodes.find(n => n.id === connection.source);
+            const targetNode = allNodes.find(n => n.id === connection.target);
+            
+            if (!sourceNode || !targetNode) return false;
+            
+            // Allow attribute -> condition
+            if (sourceNode.type === 'attribute' && targetNode.type === 'condition') {
+              return true;
+            }
+            
+            return false;
+          }}
+          aria-label="Decision matrix flow diagram. Use arrow keys to navigate between connected nodes, Enter to select, Escape to deselect. Drag from attribute nodes to condition nodes to create connections."
         >
         {/* Background pattern */}
         <Background color="#e2e8f0" gap={16} />
@@ -675,6 +943,28 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
         >
           {isMobile ? (showUnusedNodes ? '👁️' : '👁️‍🗨️') : (showUnusedNodes ? 'Hide Unused' : 'Show All')}
         </button>
+        
+        {!readOnly && (
+          <>
+            <button
+              onClick={handleAddRule}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+              title="Add new rule"
+              aria-label="Add a new rule to the decision matrix"
+            >
+              {isMobile ? '➕ Rule' : '➕ Add Rule'}
+            </button>
+          </>
+        )}
         </div>
 
         {!readOnly && (
@@ -742,6 +1032,8 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
               onSave={handleRuleSave}
               onCancel={handlePropertyPanelCancel}
               onClose={handlePropertyPanelClose}
+              onDelete={() => handleDeleteNode(selectedNode.id)}
+              onAddCondition={() => handleAddCondition((selectedNode.data as any).rule.ruleId)}
               availableAttributes={matrix.attributes.map(attr => attr.name)}
             />
           )}

@@ -91,6 +91,7 @@ The rule will only trigger if ALL conditions are met (AND logic).`;
         type="target"
         position={Position.Left}
         id="condition-in"
+        isConnectable={true}
         style={{
           background: nodeColor,
           width: '8px',

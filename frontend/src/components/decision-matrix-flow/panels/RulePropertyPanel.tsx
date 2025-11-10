@@ -10,6 +10,8 @@ interface RulePropertyPanelProps {
   onClose: () => void;
   onSave: (updatedRule: Rule) => void;
   onCancel: () => void;
+  onDelete?: () => void;
+  onAddCondition?: () => void;
   availableAttributes: string[];
 }
 
@@ -18,6 +20,8 @@ const RulePropertyPanel: React.FC<RulePropertyPanelProps> = ({
   onClose,
   onSave,
   onCancel,
+  onDelete,
+  onAddCondition,
   availableAttributes
 }) => {
   const [editedRule, setEditedRule] = useState<Rule | null>(null);
@@ -85,18 +89,24 @@ const RulePropertyPanel: React.FC<RulePropertyPanelProps> = ({
     setIsDirty(true);
   };
 
-  const handleAddCondition = () => {
-    const newCondition: Condition = {
-      attribute: availableAttributes[0] || '',
-      operator: '==',
-      value: ''
-    };
-    const updated = {
-      ...editedRule,
-      conditions: [...editedRule.conditions, newCondition]
-    };
-    setEditedRule(updated);
-    setIsDirty(true);
+  const handleAddConditionClick = () => {
+    // If onAddCondition is provided, use it to add a condition node in the flow
+    if (onAddCondition) {
+      onAddCondition();
+    } else {
+      // Otherwise, add condition to the rule directly
+      const newCondition: Condition = {
+        attribute: availableAttributes[0] || '',
+        operator: '==',
+        value: ''
+      };
+      const updated = {
+        ...editedRule,
+        conditions: [...editedRule.conditions, newCondition]
+      };
+      setEditedRule(updated);
+      setIsDirty(true);
+    }
   };
 
   const handleRemoveCondition = (index: number) => {
@@ -136,6 +146,7 @@ const RulePropertyPanel: React.FC<RulePropertyPanelProps> = ({
       onClose={onClose}
       onSave={handleSave}
       onCancel={handleCancel}
+      onDelete={onDelete}
       title="Rule Properties"
       isDirty={isDirty}
       hasErrors={hasBlockingErrors}
@@ -312,7 +323,7 @@ const RulePropertyPanel: React.FC<RulePropertyPanelProps> = ({
               Conditions * (All must be true)
             </label>
             <button
-              onClick={handleAddCondition}
+              onClick={handleAddConditionClick}
               style={{
                 padding: '4px 12px',
                 fontSize: '12px',
@@ -323,8 +334,9 @@ const RulePropertyPanel: React.FC<RulePropertyPanelProps> = ({
                 cursor: 'pointer',
                 fontWeight: 500
               }}
+              title={onAddCondition ? 'Add a new condition node in the flow' : 'Add a new condition'}
             >
-              + Add
+              + Add {onAddCondition ? 'Node' : ''}
             </button>
           </div>
 

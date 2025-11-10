@@ -6,6 +6,7 @@ interface NodePropertyPanelProps {
   onClose: () => void;
   onSave: (node: FlowNode) => void;
   onCancel: () => void;
+  onDelete?: () => void;
   children: React.ReactNode;
   title: string;
   isDirty: boolean;
@@ -17,6 +18,7 @@ const NodePropertyPanel: React.FC<NodePropertyPanelProps> = ({
   onClose,
   onSave,
   onCancel,
+  onDelete,
   children,
   title,
   isDirty,
@@ -183,6 +185,36 @@ const NodePropertyPanel: React.FC<NodePropertyPanelProps> = ({
           backgroundColor: '#f9fafb'
         }}
       >
+        {onDelete && (
+          <button
+            onClick={() => {
+              const confirmed = window.confirm('Are you sure you want to delete this node? This action cannot be undone.');
+              if (confirmed) {
+                onDelete();
+              }
+            }}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#dc2626';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#ef4444';
+            }}
+            title="Delete this node"
+          >
+            🗑️ Delete
+          </button>
+        )}
         <button
           onClick={handleSaveClick}
           disabled={!isDirty || hasErrors}

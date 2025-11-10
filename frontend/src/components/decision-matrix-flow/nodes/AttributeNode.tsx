@@ -127,6 +127,7 @@ Click to edit weight and description.`;
         type="source"
         position={Position.Right}
         id="attribute-out"
+        isConnectable={true}
         style={{
           background: getTypeColor(),
           width: '10px',

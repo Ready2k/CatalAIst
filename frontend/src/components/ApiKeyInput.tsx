@@ -30,7 +30,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
     
     setLoadingModels(true);
     try {
-      const response = await apiService.listModels(key);
+      const response = await apiService.listModels('openai', { apiKey: key });
       if (response.models && response.models.length > 0) {
         setModels(response.models);
       }
