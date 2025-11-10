@@ -225,7 +225,21 @@ function App() {
     }
   };
 
-  const resetWorkflow = () => {
+  const resetWorkflow = async () => {
+    // Create a new session for the next classification
+    if (llmConfig) {
+      try {
+        if (llmConfig.provider === 'openai' && llmConfig.apiKey) {
+          await apiService.createSession(llmConfig.apiKey, llmConfig.model);
+        } else {
+          await apiService.createSession('', llmConfig.model);
+        }
+        console.log('[App] Created new session for next classification');
+      } catch (err) {
+        console.error('[App] Failed to create new session:', err);
+      }
+    }
+    
     setWorkflowState('input');
     setClarificationQuestions([]);
     setQuestionCount(0);

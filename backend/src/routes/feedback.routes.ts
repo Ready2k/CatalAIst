@@ -51,7 +51,14 @@ router.post('/classification', async (req: Request, res: Response) => {
       });
     }
 
+    console.log('[Feedback] Session loaded:', sessionId);
+    console.log('[Feedback] Session has classification:', !!session.classification);
+    console.log('[Feedback] Session status:', session.status);
+    console.log('[Feedback] Session keys:', Object.keys(session));
+
     if (!session.classification) {
+      console.error('[Feedback] No classification found in session!');
+      console.error('[Feedback] Session data:', JSON.stringify(session, null, 2));
       return res.status(400).json({
         error: 'No classification found',
         message: 'Session does not have a classification yet'

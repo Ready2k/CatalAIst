@@ -21,6 +21,19 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterEventType, setFilterEventType] = useState<string>('all');
   const [filterSessionId, setFilterSessionId] = useState<string>('');
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+
+  const toggleSession = (sessionId: string) => {
+    setExpandedSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
+  };
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -66,6 +79,14 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
     return bLatest - aLatest;
   });
 
+  const expandAll = () => {
+    setExpandedSessions(new Set(sortedSessions.map(([id]) => id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedSessions(new Set());
+  };
+
   const eventTypes = ['all', ...Array.from(new Set(logs.map(l => l.eventType)))];
 
   const getEventColor = (eventType: string) => {
@@ -107,19 +128,50 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
         marginBottom: '20px'
       }}>
         <h2 style={{ margin: 0 }}>Audit Trail</h2>
-        <button
-          onClick={loadLogs}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#007bff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          🔄 Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={expandAll}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            ▼ Expand All
+          </button>
+          <button
+            onClick={collapseAll}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            ▶ Collapse All
+          </button>
+          <button
+            onClick={loadLogs}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#007bff',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -244,26 +296,36 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
                 overflow: 'hidden'
               }}>
                 {/* Session Header */}
-                <div style={{
-                  backgroundColor: '#f8f9fa',
-                  padding: '15px 20px',
-                  borderBottom: '1px solid #ddd'
-                }}>
+                <div 
+                  onClick={() => toggleSession(sessionId)}
+                  style={{
+                    backgroundColor: '#f8f9fa',
+                    padding: '15px 20px',
+                    borderBottom: expandedSessions.has(sessionId) ? '1px solid #ddd' : 'none',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', fontFamily: 'monospace' }}>
-                        Session: {sessionId}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>
-                        <span style={{ marginRight: '15px' }}>
-                          👤 User: {firstLog.userId}
-                        </span>
-                        <span style={{ marginRight: '15px' }}>
-                          📅 Started: {new Date(firstLog.timestamp).toLocaleString()}
-                        </span>
-                        <span>
-                          🔢 {sessionLogs.length} events
-                        </span>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                        {expandedSessions.has(sessionId) ? '▼' : '▶'}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', fontFamily: 'monospace' }}>
+                          Session: {sessionId}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          <span style={{ marginRight: '15px' }}>
+                            👤 User: {firstLog.userId}
+                          </span>
+                          <span style={{ marginRight: '15px' }}>
+                            📅 Started: {new Date(firstLog.timestamp).toLocaleString()}
+                          </span>
+                          <span>
+                            🔢 {sessionLogs.length} events
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -297,7 +359,8 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
                 </div>
 
                 {/* Session Events */}
-                <div style={{ padding: '20px' }}>
+                {expandedSessions.has(sessionId) && (
+                  <div style={{ padding: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {sessionLogs.map((log, idx) => (
                       <div key={idx} style={{
@@ -383,6 +446,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
                     ))}
                   </div>
                 </div>
+                )}
               </div>
             );
           })}

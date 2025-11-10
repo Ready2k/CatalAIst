@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Collapsible Audit Trail Sessions
+- **Collapse/Expand sessions**: Click on session header to toggle visibility
+  - Keeps audit view clean and organized
+  - Shows session summary when collapsed
+  - "Expand All" and "Collapse All" buttons for bulk operations
+  - Arrow indicator (▶/▼) shows current state
+  - Sessions start collapsed by default for cleaner view
+
 #### Audit Logging for Model Fetching
 - **Model list events logged**: All model fetching attempts are now logged to audit trail
   - `model_list_success`: Successful model fetch with count and list of models
@@ -72,6 +80,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better UX - user controls when to fetch
 
 ### Fixed
+
+#### Session Management
+- **New session for each classification**: Creates a new session when starting a new classification
+  - Prevents session data from previous classifications interfering
+  - Each classification has its own session ID
+  - Fixes "Session does not have a classification yet" error
+  - Added debug logging for session creation
 
 #### Frontend Model Dropdown Issue
 - **Fixed Bedrock models not appearing**: useEffect was resetting models to default list
