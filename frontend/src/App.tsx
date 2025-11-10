@@ -527,28 +527,51 @@ function App() {
           )}
 
               {workflowState === 'feedback' && (
-                <div style={{
-                  maxWidth: '800px',
-                  margin: '20px auto',
-                  padding: '20px',
-                  textAlign: 'center'
-                }}>
-                  <button
-                    onClick={resetWorkflow}
-                    style={{
-                      padding: '12px 24px',
-                      backgroundColor: '#007bff',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Start New Classification
-                  </button>
-                </div>
+                <>
+                  <div style={{
+                    maxWidth: '800px',
+                    margin: '20px auto',
+                    padding: '20px',
+                    textAlign: 'center'
+                  }}>
+                    <button
+                      onClick={resetWorkflow}
+                      style={{
+                        padding: '12px 24px',
+                        backgroundColor: '#007bff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Start New Classification
+                    </button>
+                  </div>
+                  
+                  {classification && (
+                    <div style={{
+                      maxWidth: '800px',
+                      margin: '20px auto',
+                      padding: '20px',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#495057' }}>
+                        Previous Classification
+                      </h3>
+                      <ClassificationResult
+                        classification={classification}
+                        onSynthesize={voiceEnabled ? handleVoiceSynthesize : undefined}
+                        voiceEnabled={voiceEnabled}
+                        autoPlayVoice={false}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

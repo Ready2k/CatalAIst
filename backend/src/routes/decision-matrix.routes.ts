@@ -177,13 +177,34 @@ router.post('/generate', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
   try {
-    const { apiKey, model, userId = 'admin' } = req.body;
+    const { 
+      apiKey, 
+      model, 
+      userId = 'admin',
+      provider,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
+    } = req.body;
 
-    if (!apiKey) {
-      return res.status(400).json({
-        error: 'Missing API key',
-        message: 'OpenAI API key is required to generate decision matrix'
-      });
+    // Validate credentials based on provider
+    const detectedProvider = provider || (model?.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+    
+    if (detectedProvider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+    } else {
+      if (!apiKey) {
+        return res.status(400).json({
+          error: 'Missing API key',
+          message: 'OpenAI API key is required to generate decision matrix'
+        });
+      }
     }
 
     // Check if matrix already exists
@@ -195,10 +216,20 @@ router.post('/generate', async (req: Request, res: Response) => {
       });
     }
 
+    // Build LLM config
+    const llmConfig: any = {
+      provider: detectedProvider,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion: awsRegion || 'us-east-1'
+    };
+
     // Generate the matrix
     const matrix = await decisionMatrixService.generateInitialMatrix(
-      apiKey,
-      model || 'gpt-4'
+      llmConfig,
+      model || (detectedProvider === 'bedrock' ? 'anthropic.claude-3-5-sonnet-20241022-v2:0' : 'gpt-4')
     );
 
     // Log decision matrix generation
@@ -218,8 +249,8 @@ router.post('/generate', async (req: Request, res: Response) => {
       modelResponse: JSON.stringify(matrix),
       piiScrubbed: false,
       metadata: {
-        modelVersion: model || 'gpt-4',
-        llmProvider: 'openai',
+        modelVersion: model || (detectedProvider === 'bedrock' ? 'anthropic.claude-3-5-sonnet-20241022-v2:0' : 'gpt-4'),
+        llmProvider: detectedProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: matrix.version
       }

@@ -419,13 +419,36 @@ class ApiService {
   }
 
   async generateDecisionMatrix(): Promise<any> {
-    if (!this.apiKey) {
-      const error: ApiError = { message: 'No API key set', status: 401 };
+    // Check if we have either OpenAI API key or Bedrock credentials
+    if (!this.apiKey && !this.llmConfig) {
+      const error: ApiError = { message: 'No API key or credentials set', status: 401 };
       throw error;
     }
+
+    // Build request body based on provider
+    const body: any = {};
+    
+    if (this.llmConfig) {
+      // Use LLM config (supports both OpenAI and Bedrock)
+      body.provider = this.llmConfig.provider;
+      body.model = this.llmConfig.model;
+      
+      if (this.llmConfig.provider === 'bedrock') {
+        body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+        body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+        body.awsSessionToken = this.llmConfig.awsSessionToken;
+        body.awsRegion = this.llmConfig.awsRegion;
+      } else {
+        body.apiKey = this.llmConfig.apiKey || this.apiKey;
+      }
+    } else {
+      // Fallback to legacy OpenAI-only mode
+      body.apiKey = this.apiKey;
+    }
+
     return this.request('/api/decision-matrix/generate', {
       method: 'POST',
-      body: JSON.stringify({ apiKey: this.apiKey }),
+      body: JSON.stringify(body),
     });
   }
 

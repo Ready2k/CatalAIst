@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { OpenAIService } from './openai.service';
+import { LLMService, LLMProviderConfig } from './llm.service';
 import { VersionedStorageService } from './versioned-storage.service';
 import { DecisionMatrix, Attribute, Rule, TransformationCategory } from '../../../shared/types';
 
@@ -8,11 +9,13 @@ import { DecisionMatrix, Attribute, Rule, TransformationCategory } from '../../.
  */
 export class DecisionMatrixService {
   private openAIService: OpenAIService;
+  private llmService: LLMService;
   private versionedStorage: VersionedStorageService;
   private readonly DECISION_MATRIX_GENERATION_PROMPT_ID = 'decision-matrix-generation';
 
   constructor(openAIService: OpenAIService, versionedStorage: VersionedStorageService) {
     this.openAIService = openAIService;
+    this.llmService = new LLMService();
     this.versionedStorage = versionedStorage;
   }
 
@@ -20,10 +23,10 @@ export class DecisionMatrixService {
    * Generate initial decision matrix using AI
    * Creates a baseline decision matrix with default attributes and rules
    */
-  async generateInitialMatrix(apiKey: string, model: string = 'gpt-4'): Promise<DecisionMatrix> {
+  async generateInitialMatrix(llmConfig: LLMProviderConfig, model: string = 'gpt-4'): Promise<DecisionMatrix> {
     const prompt = await this.getDecisionMatrixGenerationPrompt();
     
-    const response = await this.openAIService.chat(
+    const response = await this.llmService.chat(
       [
         {
           role: 'system',
@@ -35,7 +38,7 @@ export class DecisionMatrixService {
         }
       ],
       model,
-      { provider: 'openai', apiKey }
+      llmConfig
     );
 
     // Parse the LLM response to extract the decision matrix structure
@@ -199,13 +202,13 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
    * Get or generate initial matrix
    * If no matrix exists, generates one. Otherwise returns existing.
    */
-  async ensureInitialMatrix(apiKey: string, model: string = 'gpt-4'): Promise<DecisionMatrix> {
+  async ensureInitialMatrix(llmConfig: LLMProviderConfig, model: string = 'gpt-4'): Promise<DecisionMatrix> {
     const existing = await this.versionedStorage.getLatestDecisionMatrix();
     
     if (existing) {
       return existing;
     }
 
-    return await this.generateInitialMatrix(apiKey, model);
+    return await this.generateInitialMatrix(llmConfig, model);
   }
 }
