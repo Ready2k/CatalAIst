@@ -16,6 +16,7 @@ export interface Session {
   updatedAt: string;
   status: 'active' | 'completed' | 'manual_review';
   modelUsed: string;
+  subject?: string; // Business area/domain (e.g., "Finance", "HR", "Sales")
   conversations: Conversation[];
   classification?: Classification;
   feedback?: Feedback;
@@ -26,6 +27,7 @@ export interface Conversation {
   conversationId: string;
   timestamp: string;
   processDescription: string;
+  subject?: string; // Business area/domain extracted from description
   clarificationQA: Array<{ question: string; answer: string }>;
 }
 
@@ -169,6 +171,13 @@ export interface LearningAnalysis {
       examples: string[];
     }>;
     identifiedPatterns: string[];
+    subjectConsistency?: Array<{
+      subject: string;
+      totalSessions: number;
+      agreementRate: number;
+      commonCategory: string;
+      categoryDistribution: { [category: string]: number };
+    }>;
   };
   suggestions: string[];
 }
@@ -224,6 +233,7 @@ export const ConversationSchema = z.object({
   conversationId: z.string().uuid(),
   timestamp: z.string().datetime(),
   processDescription: z.string().min(10),
+  subject: z.string().optional(),
   clarificationQA: z.array(z.object({
     question: z.string(),
     answer: z.string()
@@ -274,6 +284,7 @@ export const SessionSchema = z.object({
   updatedAt: z.string().datetime(),
   status: z.enum(['active', 'completed', 'manual_review']),
   modelUsed: z.string(),
+  subject: z.string().optional(),
   conversations: z.array(ConversationSchema),
   classification: ClassificationSchema.optional(),
   feedback: FeedbackSchema.optional(),
@@ -382,7 +393,14 @@ export const LearningAnalysisSchema = z.object({
       count: z.number().int().min(0),
       examples: z.array(z.string().uuid())
     })),
-    identifiedPatterns: z.array(z.string())
+    identifiedPatterns: z.array(z.string()),
+    subjectConsistency: z.array(z.object({
+      subject: z.string(),
+      totalSessions: z.number().int().min(0),
+      agreementRate: z.number().min(0).max(1),
+      commonCategory: z.string(),
+      categoryDistribution: z.record(z.number().int().min(0))
+    })).optional()
   }),
   suggestions: z.array(z.string().uuid())
 });

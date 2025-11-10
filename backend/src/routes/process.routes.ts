@@ -8,6 +8,7 @@ import { AuditLogService } from '../services/audit-log.service';
 import { PIIService } from '../services/pii.service';
 import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
+import { SubjectExtractionService } from '../services/subject-extraction.service';
 import { Session, Conversation, Classification } from '../../../shared/types';
 
 const router = Router();
@@ -22,6 +23,7 @@ const clarificationService = new ClarificationService(versionedStorage);
 const evaluatorService = new DecisionMatrixEvaluatorService();
 const auditLogService = new AuditLogService(dataDir);
 const piiService = new PIIService(dataDir);
+const subjectExtractionService = new SubjectExtractionService();
 
 /**
  * POST /api/process/submit
@@ -35,6 +37,7 @@ router.post('/submit', async (req: Request, res: Response) => {
     const { 
       description, 
       sessionId, 
+      subject: manualSubject, // User-provided subject (optional)
       apiKey,
       awsAccessKeyId,
       awsSecretAccessKey,
@@ -98,17 +101,49 @@ router.post('/submit', async (req: Request, res: Response) => {
       };
     }
 
+    // Determine LLM provider
+    const llmProvider = provider || (model.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+
+    // Determine subject: use manual subject if provided, otherwise auto-extract
+    let subject: string | undefined = manualSubject;
+    
+    if (!subject) {
+      // Auto-extract subject from process description
+      try {
+        subject = await subjectExtractionService.extractSubject(
+          scrubbedInput.scrubbedText,
+          {
+            provider: llmProvider,
+            model,
+            apiKey,
+            awsAccessKeyId,
+            awsSecretAccessKey,
+            awsSessionToken,
+            awsRegion
+          }
+        );
+        console.log(`Auto-extracted subject: ${subject}`);
+      } catch (error) {
+        console.warn('Failed to extract subject, continuing without it:', error);
+      }
+    } else {
+      console.log(`Using manual subject: ${subject}`);
+    }
+
     // Create conversation
     const conversation: Conversation = {
       conversationId: uuidv4(),
       timestamp: new Date().toISOString(),
       processDescription: scrubbedInput.scrubbedText,
+      subject,
       clarificationQA: []
     };
     session.conversations.push(conversation);
 
-    // Determine LLM provider
-    const llmProvider = provider || (model.startsWith('anthropic.claude') ? 'bedrock' : 'openai');
+    // Store subject at session level too
+    if (subject && !session.subject) {
+      session.subject = subject;
+    }
 
     // Log user input
     await auditLogService.logUserInput(
@@ -120,7 +155,8 @@ router.post('/submit', async (req: Request, res: Response) => {
       {
         modelVersion: model,
         llmProvider,
-        latencyMs: Date.now() - startTime
+        latencyMs: Date.now() - startTime,
+        subject
       }
     );
 
@@ -335,7 +371,8 @@ router.post('/classify', async (req: Request, res: Response) => {
       awsRegion,
       provider,
       userId = 'anonymous',
-      model = 'gpt-4'
+      model = 'gpt-4',
+      forceClassify = false
     } = req.body;
 
     if (!sessionId) {
@@ -398,8 +435,8 @@ router.post('/classify', async (req: Request, res: Response) => {
 
     const classificationLatency = Date.now() - classificationStartTime;
 
-    // Check if clarification is needed
-    if (classificationResult.action === 'clarify') {
+    // Check if clarification is needed (unless force classify is enabled)
+    if (classificationResult.action === 'clarify' && !forceClassify) {
       // Generate clarification questions
       const clarificationResponse = await clarificationService.generateQuestions({
         processDescription: latestConversation.processDescription,
@@ -448,8 +485,8 @@ router.post('/classify', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if manual review is needed
-    if (classificationResult.action === 'manual_review') {
+    // Check if manual review is needed (unless force classify is enabled)
+    if (classificationResult.action === 'manual_review' && !forceClassify) {
       session.status = 'manual_review';
       await sessionStorage.saveSession(session);
 
@@ -545,7 +582,9 @@ router.post('/classify', async (req: Request, res: Response) => {
         llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
-        action: 'auto_classify'
+        action: forceClassify ? 'force_classify' : 'auto_classify',
+        interviewSkipped: forceClassify,
+        questionsAsked: conversationHistory.length
       }
     );
 

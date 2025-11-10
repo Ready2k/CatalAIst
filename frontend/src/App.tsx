@@ -97,11 +97,11 @@ function App() {
     }
   };
 
-  const handleProcessSubmit = async (description: string) => {
+  const handleProcessSubmit = async (description: string, subject?: string) => {
     setError('');
     setIsProcessing(true);
     try {
-      const response = await apiService.submitProcess(description);
+      const response = await apiService.submitProcess(description, subject);
       
       console.log('Submit response:', response);
       
@@ -141,6 +141,26 @@ function App() {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to submit answer');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSkipInterview = async () => {
+    setError('');
+    setIsProcessing(true);
+    try {
+      // Force classification with current information
+      const response = await apiService.forceClassification();
+      
+      if (response.classification) {
+        setClassification(response.classification);
+        setWorkflowState('result');
+      } else {
+        setError('Failed to classify. Please try again.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to skip interview');
     } finally {
       setIsProcessing(false);
     }
@@ -502,6 +522,7 @@ function App() {
               currentQuestionIndex={questionCount - clarificationQuestions.length}
               totalQuestions={questionCount}
               onAnswer={handleClarificationAnswer}
+              onSkipInterview={handleSkipInterview}
               onVoiceRecord={() => setShowVoiceRecorder(true)}
               isProcessing={isProcessing}
               showVoiceButton={true}

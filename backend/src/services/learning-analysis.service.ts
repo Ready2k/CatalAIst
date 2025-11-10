@@ -183,6 +183,79 @@ export class LearningAnalysisService {
   }
 
   /**
+   * Group sessions by subject for consistency analysis
+   */
+  groupSessionsBySubject(sessions: Session[]): Map<string, Session[]> {
+    const grouped = new Map<string, Session[]>();
+
+    for (const session of sessions) {
+      const subject = session.subject || 'Unknown';
+      
+      if (!grouped.has(subject)) {
+        grouped.set(subject, []);
+      }
+      
+      grouped.get(subject)!.push(session);
+    }
+
+    return grouped;
+  }
+
+  /**
+   * Analyze consistency within subject areas
+   * Checks if similar processes in the same subject area get consistent classifications
+   */
+  analyzeSubjectConsistency(sessions: Session[]): Array<{
+    subject: string;
+    totalSessions: number;
+    agreementRate: number;
+    commonCategory: string;
+    categoryDistribution: { [category: string]: number };
+  }> {
+    const grouped = this.groupSessionsBySubject(sessions);
+    const results: Array<{
+      subject: string;
+      totalSessions: number;
+      agreementRate: number;
+      commonCategory: string;
+      categoryDistribution: { [category: string]: number };
+    }> = [];
+
+    for (const [subject, subjectSessions] of grouped.entries()) {
+      if (subjectSessions.length < 2) continue; // Need at least 2 sessions to analyze
+
+      // Calculate agreement rate for this subject
+      const confirmedCount = subjectSessions.filter(
+        s => s.feedback?.confirmed === true
+      ).length;
+      const agreementRate = confirmedCount / subjectSessions.length;
+
+      // Calculate category distribution
+      const categoryDistribution: { [category: string]: number } = {};
+      for (const session of subjectSessions) {
+        if (session.classification) {
+          const category = session.classification.category;
+          categoryDistribution[category] = (categoryDistribution[category] || 0) + 1;
+        }
+      }
+
+      // Find most common category
+      const commonCategory = Object.entries(categoryDistribution)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+      results.push({
+        subject,
+        totalSessions: subjectSessions.length,
+        agreementRate,
+        commonCategory,
+        categoryDistribution
+      });
+    }
+
+    return results.sort((a, b) => b.totalSessions - a.totalSessions);
+  }
+
+  /**
    * Identify patterns in misclassifications
    * Returns human-readable pattern descriptions
    */
@@ -250,6 +323,32 @@ export class LearningAnalysisService {
       );
     }
 
+    // Pattern 5: Subject-based consistency issues
+    const subjectConsistency = this.analyzeSubjectConsistency(sessions);
+    const inconsistentSubjects = subjectConsistency.filter(s => s.agreementRate < 0.7 && s.totalSessions >= 3);
+    
+    if (inconsistentSubjects.length > 0) {
+      for (const subject of inconsistentSubjects.slice(0, 3)) { // Top 3 most inconsistent
+        patterns.push(
+          `Subject "${subject.subject}": Low consistency (${(subject.agreementRate * 100).toFixed(0)}% agreement) across ${subject.totalSessions} sessions`
+        );
+      }
+    }
+
+    // Pattern 6: Subject-specific misclassification trends
+    const grouped = this.groupSessionsBySubject(sessions);
+    for (const [subject, subjectSessions] of grouped.entries()) {
+      if (subjectSessions.length < 5) continue; // Need enough data
+      
+      const subjectMisclassifications = this.identifyMisclassifications(subjectSessions);
+      if (subjectMisclassifications.length > 0 && subjectMisclassifications[0].count >= 2) {
+        const top = subjectMisclassifications[0];
+        patterns.push(
+          `Subject "${subject}": Recurring misclassification ${top.from} → ${top.to} (${top.count} times)`
+        );
+      }
+    }
+
     return patterns;
   }
 
@@ -266,6 +365,7 @@ export class LearningAnalysisService {
     const overallAgreementRate = this.calculateOverallAgreementRate(sessions);
     const categoryAgreementRates = this.calculateAgreementRateByCategory(sessions);
     const commonMisclassifications = this.identifyMisclassifications(sessions);
+    const subjectConsistency = this.analyzeSubjectConsistency(sessions);
     const identifiedPatterns = this.identifyPatterns(sessions, commonMisclassifications);
 
     const analysis: LearningAnalysis = {
@@ -281,7 +381,8 @@ export class LearningAnalysisService {
         overallAgreementRate,
         categoryAgreementRates,
         commonMisclassifications,
-        identifiedPatterns
+        identifiedPatterns,
+        subjectConsistency
       },
       suggestions: [] // Will be populated by suggestion generation service
     };

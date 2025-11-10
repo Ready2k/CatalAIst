@@ -5,6 +5,7 @@ interface ClarificationQuestionsProps {
   currentQuestionIndex: number;
   totalQuestions: number;
   onAnswer: (answer: string) => void;
+  onSkipInterview?: () => void;
   onVoiceRecord?: () => void;
   isProcessing?: boolean;
   showVoiceButton?: boolean;
@@ -15,6 +16,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
   currentQuestionIndex,
   totalQuestions,
   onAnswer,
+  onSkipInterview,
   onVoiceRecord,
   isProcessing = false,
   showVoiceButton = true,
@@ -182,12 +184,59 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
       <div style={{
         textAlign: 'center',
         color: '#666',
-        fontSize: '14px'
+        fontSize: '14px',
+        marginTop: '20px'
       }}>
-        <p>
+        <p style={{ marginBottom: '15px' }}>
           We need a bit more information to provide an accurate classification.
-          Maximum 5 questions per session.
+          {currentQuestionIndex >= 8 && (
+            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+              {' '}({currentQuestionIndex + 1}/15 questions - approaching limit)
+            </span>
+          )}
         </p>
+        
+        {onSkipInterview && (
+          <div>
+            <button
+              onClick={onSkipInterview}
+              disabled={isProcessing}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: 'transparent',
+                color: '#dc3545',
+                border: '2px solid #dc3545',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                if (!isProcessing) {
+                  e.currentTarget.style.backgroundColor = '#dc3545';
+                  e.currentTarget.style.color = '#fff';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!isProcessing) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#dc3545';
+                }
+              }}
+            >
+              Skip Interview & Classify Now
+            </button>
+            <p style={{ 
+              fontSize: '12px', 
+              color: '#999', 
+              marginTop: '8px',
+              fontStyle: 'italic'
+            }}>
+              Use this if the LLM is stuck in a loop or you want to proceed with available information
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import promptsRoutes from './routes/prompts.routes';
 import auditRoutes from './routes/audit.routes';
 import authRoutes from './routes/auth.routes';
+import subjectsRoutes from './routes/subjects.routes';
 import { authenticateToken } from './middleware/auth.middleware';
 import { initializeApplication } from './startup';
 
@@ -224,6 +225,7 @@ app.use('/api/voice', authenticateToken, voiceRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/prompts', authenticateToken, promptsRoutes);
 app.use('/api/audit', authenticateToken, auditRoutes);
+app.use('/api/subjects', authenticateToken, subjectsRoutes);
 
 // Initialize application on startup
 initializeApplication()

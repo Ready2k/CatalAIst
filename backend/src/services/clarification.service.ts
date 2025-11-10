@@ -56,12 +56,14 @@ export class ClarificationService {
       const questionCount = request.conversationHistory.length;
       const confidence = request.classification.confidence;
       
-      // Hard limit - stop the interview
-      if (questionCount >= this.HARD_LIMIT_QUESTIONS) {
+      // Check if interview should be stopped (includes all detection logic)
+      const stopCheck = this.shouldStopInterview(request.conversationHistory);
+      if (stopCheck.shouldStop) {
+        console.log(`Auto-stopping interview: ${stopCheck.reason}`);
         return {
           questions: [],
           shouldClarify: false,
-          reason: `Interview limit reached (${this.HARD_LIMIT_QUESTIONS} questions). Proceeding with available information.`
+          reason: stopCheck.reason
         };
       }
 
@@ -86,18 +88,6 @@ export class ClarificationService {
           questions: [],
           shouldClarify: false,
           reason: 'Low confidence after multiple questions - flagged for manual review'
-        };
-      }
-
-      // Check for "I don't know" patterns in recent answers
-      const hasUnknownAnswers = this.detectUnknownAnswers(request.conversationHistory);
-      
-      // If user doesn't know and we've asked enough, proceed with what we have
-      if (hasUnknownAnswers && questionCount >= 5) {
-        return {
-          questions: [],
-          shouldClarify: false,
-          reason: 'User unable to provide more information - proceeding with available data'
         };
       }
 
@@ -172,6 +162,86 @@ export class ClarificationService {
   }
 
   /**
+   * Check if interview should be automatically stopped
+   * Detects LLM loops, user frustration, and other problematic patterns
+   * @param conversationHistory - Current conversation history
+   * @returns Object with shouldStop flag and reason
+   */
+  shouldStopInterview(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): { shouldStop: boolean; reason: string } {
+    const questionCount = conversationHistory.length;
+
+    // Hard limit reached
+    if (questionCount >= this.HARD_LIMIT_QUESTIONS) {
+      return {
+        shouldStop: true,
+        reason: `Interview limit reached (${this.HARD_LIMIT_QUESTIONS} questions)`
+      };
+    }
+
+    // Check for user frustration (PRIORITY - stop immediately)
+    if (questionCount >= 2) {
+      const isFrustrated = this.detectUserFrustration(conversationHistory);
+      if (isFrustrated) {
+        return {
+          shouldStop: true,
+          reason: 'User showing signs of frustration - stopping interview'
+        };
+      }
+    }
+
+    // Check for repetitive questions (potential loop)
+    if (questionCount >= 3) {
+      const isRepetitive = this.detectRepetitiveQuestions(conversationHistory);
+      if (isRepetitive) {
+        return {
+          shouldStop: true,
+          reason: 'Detected repetitive questions - stopping to avoid frustration'
+        };
+      }
+    }
+
+    // Check for exact duplicate questions (strict loop detection)
+    if (questionCount >= 5) {
+      const recentQuestions = conversationHistory.slice(-5).map(qa => qa.question.toLowerCase());
+      const uniqueQuestions = new Set(recentQuestions);
+      
+      // If last 5 questions have less than 3 unique questions, likely a loop
+      if (uniqueQuestions.size < 3) {
+        return {
+          shouldStop: true,
+          reason: 'Detected duplicate questions - possible LLM loop'
+        };
+      }
+    }
+
+    // Check for excessive "don't know" answers
+    if (questionCount >= 5) {
+      const hasUnknownAnswers = this.detectUnknownAnswers(conversationHistory);
+      if (hasUnknownAnswers) {
+        return {
+          shouldStop: true,
+          reason: 'User unable to provide more information'
+        };
+      }
+    }
+
+    // Soft limit warning
+    if (questionCount >= this.SOFT_LIMIT_QUESTIONS) {
+      return {
+        shouldStop: false,
+        reason: `Approaching limit (${questionCount}/${this.HARD_LIMIT_QUESTIONS} questions asked)`
+      };
+    }
+
+    return {
+      shouldStop: false,
+      reason: 'Interview can continue'
+    };
+  }
+
+  /**
    * Assess if we have enough information to make a confident classification
    * @param processDescription - Original process description
    * @param conversationHistory - Q&A history
@@ -236,6 +306,103 @@ export class ClarificationService {
     
     // If 2 out of last 3 answers are "don't know", user likely can't provide more info
     return unknownCount >= 2;
+  }
+
+  /**
+   * Detect user frustration or negative sentiment in answers
+   * @param conversationHistory - Q&A history
+   * @returns True if user shows signs of frustration
+   */
+  private detectUserFrustration(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): boolean {
+    if (conversationHistory.length === 0) {
+      return false;
+    }
+
+    // Check last 3 answers for frustration indicators
+    const recentAnswers = conversationHistory.slice(-3);
+    
+    const frustrationPatterns = [
+      // Direct frustration
+      /\b(frustrat|annoying|annoyed|irritat|tired of|sick of|enough)\b/i,
+      // Repetition complaints
+      /\b(already (said|told|answered|responded)|repeat|again\?|same question)\b/i,
+      // Dismissive responses
+      /\b(whatever|fine|sure|ok ok|yeah yeah|stop asking)\b/i,
+      // Short dismissive answers after longer ones
+      /^(yes|no|ok|fine|sure|idk)\.?$/i,
+      // Explicit complaints
+      /\b(why (do you|are you) (keep )?ask|stop|this is|too many)\b/i,
+      // Sarcasm indicators
+      /\b(obviously|clearly|as i (said|mentioned)|like i said)\b/i
+    ];
+
+    let frustrationCount = 0;
+    let shortAnswerCount = 0;
+
+    for (const qa of recentAnswers) {
+      const answer = qa.answer.toLowerCase().trim();
+      
+      // Check for frustration patterns
+      if (frustrationPatterns.some(pattern => pattern.test(answer))) {
+        frustrationCount++;
+      }
+
+      // Check for increasingly short answers (sign of disengagement)
+      if (answer.length < 20) {
+        shortAnswerCount++;
+      }
+    }
+
+    // Frustrated if:
+    // - Any explicit frustration detected
+    // - All recent answers are very short (disengagement)
+    return frustrationCount >= 1 || shortAnswerCount >= 3;
+  }
+
+  /**
+   * Detect if questions are becoming repetitive
+   * @param conversationHistory - Q&A history
+   * @returns True if questions are repetitive
+   */
+  private detectRepetitiveQuestions(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): boolean {
+    if (conversationHistory.length < 3) {
+      return false;
+    }
+
+    // Get last 5 questions
+    const recentQuestions = conversationHistory.slice(-5).map(qa => qa.question.toLowerCase());
+    
+    // Check for similar keywords in questions
+    const questionKeywords = recentQuestions.map(q => {
+      // Extract key words (remove common words)
+      const words = q.split(/\s+/).filter(w => 
+        w.length > 3 && 
+        !['what', 'when', 'where', 'which', 'does', 'have', 'this', 'that', 'your', 'the'].includes(w)
+      );
+      return new Set(words);
+    });
+
+    // Check if recent questions share many keywords (indicating repetition)
+    let similarityCount = 0;
+    for (let i = 0; i < questionKeywords.length - 1; i++) {
+      for (let j = i + 1; j < questionKeywords.length; j++) {
+        const intersection = new Set(
+          [...questionKeywords[i]].filter(x => questionKeywords[j].has(x))
+        );
+        
+        // If questions share 2+ keywords, they're likely similar
+        if (intersection.size >= 2) {
+          similarityCount++;
+        }
+      }
+    }
+
+    // If 2+ pairs of similar questions, we're being repetitive
+    return similarityCount >= 2;
   }
 
   /**

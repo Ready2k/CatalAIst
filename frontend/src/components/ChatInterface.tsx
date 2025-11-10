@@ -1,11 +1,50 @@
 import React, { useState } from 'react';
 
 interface ChatInterfaceProps {
-  onSubmit: (description: string) => void;
+  onSubmit: (description: string, subject?: string) => void;
   onVoiceRecord?: () => void;
   isProcessing?: boolean;
   showVoiceButton?: boolean;
 }
+
+// Common business subjects
+const COMMON_SUBJECTS = [
+  'Finance',
+  'Accounting',
+  'Procurement',
+  'Accounts Payable',
+  'Accounts Receivable',
+  'HR',
+  'Human Resources',
+  'Recruitment',
+  'Onboarding',
+  'Payroll',
+  'Benefits',
+  'Sales',
+  'Marketing',
+  'Customer Service',
+  'Support',
+  'IT',
+  'Technology',
+  'Infrastructure',
+  'Security',
+  'Operations',
+  'Manufacturing',
+  'Supply Chain',
+  'Logistics',
+  'Inventory',
+  'Legal',
+  'Compliance',
+  'Risk Management',
+  'Audit',
+  'Product',
+  'Engineering',
+  'Development',
+  'Quality Assurance',
+  'Administration',
+  'Facilities',
+  'General Management'
+].sort();
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSubmit,
@@ -14,7 +53,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   showVoiceButton = true,
 }) => {
   const [description, setDescription] = useState('');
+  const [subject, setSubject] = useState('');
+  const [customSubject, setCustomSubject] = useState('');
+  const [showCustomSubject, setShowCustomSubject] = useState(false);
   const [error, setError] = useState('');
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>(COMMON_SUBJECTS);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+
+  // Load subjects from API on mount
+  React.useEffect(() => {
+    const loadSubjects = async () => {
+      setLoadingSubjects(true);
+      try {
+        const { apiService } = await import('../services/api');
+        const subjects = await apiService.getSubjects();
+        if (subjects.length > 0) {
+          setAvailableSubjects(subjects);
+        }
+      } catch (error) {
+        console.warn('Failed to load subjects from API, using defaults:', error);
+      } finally {
+        setLoadingSubjects(false);
+      }
+    };
+    loadSubjects();
+  }, []);
 
   const validateDescription = (text: string): boolean => {
     if (text.trim().length < 10) {
@@ -24,13 +87,45 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubjectChange = (value: string) => {
+    setSubject(value);
+    if (value === 'custom') {
+      setShowCustomSubject(true);
+    } else {
+      setShowCustomSubject(false);
+      setCustomSubject('');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (validateDescription(description)) {
-      onSubmit(description);
+      const finalSubject = showCustomSubject && customSubject.trim() 
+        ? customSubject.trim() 
+        : subject || undefined;
+      
+      // If custom subject was entered, save it to the backend
+      if (showCustomSubject && customSubject.trim()) {
+        try {
+          const { apiService } = await import('../services/api');
+          await apiService.addCustomSubject(customSubject.trim());
+          // Add to local list for immediate use
+          if (!availableSubjects.includes(customSubject.trim())) {
+            setAvailableSubjects([...availableSubjects, customSubject.trim()].sort());
+          }
+        } catch (error) {
+          console.warn('Failed to save custom subject:', error);
+          // Continue anyway - subject will still be used for this session
+        }
+      }
+      
+      onSubmit(description, finalSubject);
       setDescription('');
+      setSubject('');
+      setCustomSubject('');
+      setShowCustomSubject(false);
     }
   };
 
@@ -47,6 +142,76 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '15px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: 'bold',
+            fontSize: '14px'
+          }}>
+            Business Area / Subject (Optional)
+          </label>
+          <select
+            value={subject}
+            onChange={(e) => handleSubjectChange(e.target.value)}
+            disabled={isProcessing || loadingSubjects}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '14px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              backgroundColor: '#fff',
+              cursor: (isProcessing || loadingSubjects) ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <option value="">-- Auto-detect from description --</option>
+            {availableSubjects.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+            <option value="custom">✏️ Add Custom Subject...</option>
+          </select>
+          <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+            Helps group similar processes for consistency checking
+          </div>
+        </div>
+
+        {showCustomSubject && (
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px', 
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}>
+              Custom Subject Name
+            </label>
+            <input
+              type="text"
+              value={customSubject}
+              onChange={(e) => setCustomSubject(e.target.value)}
+              placeholder="e.g., Research & Development"
+              disabled={isProcessing}
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: 'bold',
+            fontSize: '14px'
+          }}>
+            Process Description
+          </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}

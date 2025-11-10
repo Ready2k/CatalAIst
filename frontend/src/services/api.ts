@@ -225,7 +225,7 @@ class ApiService {
   }
 
   // Process submission
-  async submitProcess(description: string): Promise<any> {
+  async submitProcess(description: string, subject?: string): Promise<any> {
     if (!this.sessionId) {
       const error: ApiError = { message: 'No active session', status: 400 };
       throw error;
@@ -241,6 +241,11 @@ class ApiService {
       model: this.llmConfig.model,
       provider: this.llmConfig.provider,
     };
+
+    // Add subject if provided
+    if (subject) {
+      body.subject = subject;
+    }
 
     if (this.llmConfig.provider === 'openai') {
       body.apiKey = this.llmConfig.apiKey;
@@ -285,6 +290,39 @@ class ApiService {
     }
 
     return this.request('/api/process/clarify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Force classification (skip interview)
+  async forceClassification(): Promise<any> {
+    if (!this.sessionId) {
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
+    }
+    if (!this.llmConfig) {
+      const error: ApiError = { message: 'No LLM configuration set', status: 401 };
+      throw error;
+    }
+
+    const body: any = {
+      sessionId: this.sessionId,
+      model: this.llmConfig.model,
+      provider: this.llmConfig.provider,
+      forceClassify: true, // Skip clarification and force classification
+    };
+
+    if (this.llmConfig.provider === 'openai') {
+      body.apiKey = this.llmConfig.apiKey;
+    } else {
+      body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+      body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+      body.awsSessionToken = this.llmConfig.awsSessionToken;
+      body.awsRegion = this.llmConfig.awsRegion;
+    }
+
+    return this.request('/api/process/classify', {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -592,6 +630,25 @@ class ApiService {
 
   async deleteUser(userId: string): Promise<void> {
     await this.request(`/api/auth/users/${userId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Subjects endpoints
+  async getSubjects(): Promise<string[]> {
+    const response = await this.request<{ subjects: string[]; count: number }>('/api/subjects');
+    return response.subjects || [];
+  }
+
+  async addCustomSubject(subject: string): Promise<void> {
+    await this.request('/api/subjects', {
+      method: 'POST',
+      body: JSON.stringify({ subject })
+    });
+  }
+
+  async removeCustomSubject(subject: string): Promise<void> {
+    await this.request(`/api/subjects/${encodeURIComponent(subject)}`, {
       method: 'DELETE'
     });
   }
