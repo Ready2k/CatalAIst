@@ -77,12 +77,38 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     
     setLoadingModels(true);
     try {
-      const response = await apiService.listModels(key);
+      const response = await apiService.listModels('openai', { apiKey: key });
       if (response.models && response.models.length > 0) {
         setModels(response.models);
       }
     } catch (err) {
-      console.warn('Failed to load models, using defaults:', err);
+      console.warn('Failed to load OpenAI models, using defaults:', err);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const loadBedrockModels = async () => {
+    if (!awsAccessKeyId || !awsSecretAccessKey) return;
+    
+    setLoadingModels(true);
+    try {
+      const response = await apiService.listModels('bedrock', {
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken: awsSessionToken || undefined,
+        awsRegion
+      });
+      if (response.models && response.models.length > 0) {
+        setModels(response.models);
+        // Set first model as default if current model is not in the list
+        if (!response.models.find(m => m.id === model)) {
+          setModel(response.models[0].id);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load Bedrock models, using defaults:', err);
+      setError('Failed to fetch models. Using default list. Check your credentials and permissions.');
     } finally {
       setLoadingModels(false);
     }
@@ -91,6 +117,12 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   const handleApiKeyBlur = () => {
     if (provider === 'openai' && apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
       loadOpenAIModels(apiKey);
+    }
+  };
+
+  const handleBedrockCredentialsBlur = () => {
+    if (provider === 'bedrock' && awsAccessKeyId && awsSecretAccessKey) {
+      loadBedrockModels();
     }
   };
 
@@ -233,6 +265,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           type="text"
           value={awsAccessKeyId}
           onChange={(e) => setAwsAccessKeyId(e.target.value)}
+          onBlur={handleBedrockCredentialsBlur}
           placeholder="AKIAIOSFODNN7EXAMPLE"
           style={{
             width: '100%',
@@ -254,6 +287,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           type="password"
           value={awsSecretAccessKey}
           onChange={(e) => setAwsSecretAccessKey(e.target.value)}
+          onBlur={handleBedrockCredentialsBlur}
           placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
           style={{
             width: '100%',
@@ -264,6 +298,9 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             boxSizing: 'border-box'
           }}
         />
+        <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+          After entering credentials, models will be fetched automatically
+        </div>
       </div>
 
       <div style={{ marginBottom: '15px' }}>
@@ -346,7 +383,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
         </div>
         <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#0c5460' }}>
           <li>Request model access in AWS Bedrock console</li>
-          <li>Ensure IAM permissions include <code>bedrock:InvokeModel</code></li>
+          <li>Ensure IAM permissions include <code>bedrock:InvokeModel</code> and <code>bedrock:ListFoundationModels</code></li>
           <li>Check model availability in your selected region</li>
         </ul>
         <div style={{ marginTop: '8px', fontSize: '12px' }}>
@@ -422,11 +459,13 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
               Loading available models...
             </div>
           )}
-          <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-            {provider === 'openai' 
-              ? 'GPT-4 is recommended for best results'
-              : 'Claude 3.5 Sonnet is recommended for production use'}
-          </div>
+          {!loadingModels && (
+            <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
+              {provider === 'openai' 
+                ? 'GPT-4 is recommended for best results. Models are fetched from your OpenAI account.'
+                : 'Claude 3.5 Sonnet is recommended for production use. Models are fetched from your AWS Bedrock region.'}
+            </div>
+          )}
         </div>
         
         <button

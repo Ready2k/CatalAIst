@@ -7,6 +7,7 @@ import { DecisionMatrixEvaluatorService } from '../services/decision-matrix-eval
 import { AuditLogService } from '../services/audit-log.service';
 import { PIIService } from '../services/pii.service';
 import { OpenAIService } from '../services/openai.service';
+import { BedrockService } from '../services/bedrock.service';
 import { JsonStorageService } from '../services/storage.service';
 import { VersionedStorageService } from '../services/versioned-storage.service';
 import { Session, Conversation, Classification, Feedback, UserRating } from '../../../shared/types';
@@ -24,6 +25,7 @@ const evaluatorService = new DecisionMatrixEvaluatorService();
 const auditLogService = new AuditLogService(dataDir);
 const piiService = new PIIService(dataDir);
 const openaiService = new OpenAIService();
+const bedrockService = new BedrockService();
 
 /**
  * GET /api/sessions/models
@@ -32,10 +34,11 @@ const openaiService = new OpenAIService();
  */
 router.get('/models', async (req: Request, res: Response) => {
   try {
-    const apiKey = req.headers['x-api-key'] as string;
     const provider = (req.query.provider as string) || 'openai';
 
     if (provider === 'openai') {
+      const apiKey = req.headers['x-api-key'] as string;
+      
       if (!apiKey) {
         return res.status(400).json({
           error: 'Missing API key',
@@ -56,18 +59,30 @@ router.get('/models', async (req: Request, res: Response) => {
         models: relevantModels
       });
     } else if (provider === 'bedrock') {
-      // Return static list of Bedrock models
-      // In a real implementation, you could query AWS Bedrock API for available models
-      const bedrockModels = [
-        { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', created: 0, ownedBy: 'anthropic' },
-        { id: 'anthropic.claude-3-5-haiku-20241022-v1:0', created: 0, ownedBy: 'anthropic' },
-        { id: 'anthropic.claude-3-opus-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
-        { id: 'anthropic.claude-3-sonnet-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
-        { id: 'anthropic.claude-3-haiku-20240307-v1:0', created: 0, ownedBy: 'anthropic' }
-      ];
+      // Get AWS credentials from headers or query params
+      const awsAccessKeyId = req.headers['x-aws-access-key-id'] as string || req.query.awsAccessKeyId as string;
+      const awsSecretAccessKey = req.headers['x-aws-secret-access-key'] as string || req.query.awsSecretAccessKey as string;
+      const awsSessionToken = req.headers['x-aws-session-token'] as string || req.query.awsSessionToken as string;
+      const awsRegion = req.headers['x-aws-region'] as string || req.query.awsRegion as string || 'us-east-1';
+
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+
+      // Fetch models dynamically from AWS Bedrock
+      const models = await bedrockService.listModels({
+        provider: 'bedrock',
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion
+      });
 
       res.json({
-        models: bedrockModels
+        models
       });
     } else {
       return res.status(400).json({

@@ -3,6 +3,11 @@ import {
   InvokeModelCommand,
   InvokeModelCommandInput,
 } from '@aws-sdk/client-bedrock-runtime';
+import {
+  BedrockClient,
+  ListFoundationModelsCommand,
+  FoundationModelSummary,
+} from '@aws-sdk/client-bedrock';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import https from 'https';
 import {
@@ -108,13 +113,65 @@ export class BedrockService implements ILLMProvider {
    * List available Bedrock models
    */
   async listModels(config: LLMProviderConfig): Promise<ModelInfo[]> {
-    // Bedrock doesn't have a simple list models API like OpenAI
-    // Return the supported models we know about
+    try {
+      const client = this.createBedrockClient(config);
+      
+      const command = new ListFoundationModelsCommand({
+        byProvider: 'Anthropic', // Filter to Anthropic models (Claude)
+      });
+      
+      const response = await this.withTimeout(
+        client.send(command),
+        this.TIMEOUT_MS
+      );
+
+      if (!response.modelSummaries || response.modelSummaries.length === 0) {
+        console.warn('No models returned from Bedrock API, using fallback list');
+        return this.getFallbackModels();
+      }
+
+      // Convert Bedrock model summaries to ModelInfo format
+      return response.modelSummaries
+        .filter((model: FoundationModelSummary) => 
+          model.modelId && 
+          model.modelId.startsWith('anthropic.claude') &&
+          model.modelLifecycle?.status === 'ACTIVE'
+        )
+        .map((model: FoundationModelSummary) => ({
+          id: model.modelId!,
+          created: 0, // Bedrock doesn't provide creation timestamp
+          ownedBy: model.providerName?.toLowerCase() || 'anthropic',
+        }))
+        .sort((a: ModelInfo, b: ModelInfo) => {
+          // Sort by version (newer first)
+          const versionA = this.extractVersion(a.id);
+          const versionB = this.extractVersion(b.id);
+          return versionB.localeCompare(versionA);
+        });
+    } catch (error) {
+      console.error('Error listing Bedrock models:', error);
+      console.warn('Falling back to static model list');
+      return this.getFallbackModels();
+    }
+  }
+
+  /**
+   * Get fallback model list when API call fails
+   */
+  private getFallbackModels(): ModelInfo[] {
     return this.SUPPORTED_MODELS.map((modelId, index) => ({
       id: modelId,
       created: Date.now() - index * 86400000, // Fake timestamps
       ownedBy: 'anthropic',
     }));
+  }
+
+  /**
+   * Extract version string from model ID for sorting
+   */
+  private extractVersion(modelId: string): string {
+    const match = modelId.match(/(\d{8})/);
+    return match ? match[1] : '0';
   }
 
   /**
@@ -128,7 +185,7 @@ export class BedrockService implements ILLMProvider {
   }
 
   /**
-   * Create Bedrock client with credentials
+   * Create Bedrock Runtime client with credentials (for invoking models)
    */
   private createClient(config: LLMProviderConfig): BedrockRuntimeClient {
     if (!config.awsAccessKeyId || !config.awsSecretAccessKey) {
@@ -169,6 +226,47 @@ export class BedrockService implements ILLMProvider {
     }
 
     return new BedrockRuntimeClient(clientConfig);
+  }
+
+  /**
+   * Create Bedrock client with credentials (for listing models)
+   */
+  private createBedrockClient(config: LLMProviderConfig): BedrockClient {
+    if (!config.awsAccessKeyId || !config.awsSecretAccessKey) {
+      throw new Error('AWS credentials are required for Bedrock');
+    }
+
+    const clientConfig: any = {
+      region: config.awsRegion || 'us-east-1',
+      credentials: {
+        accessKeyId: config.awsAccessKeyId,
+        secretAccessKey: config.awsSecretAccessKey,
+      },
+    };
+
+    if (config.awsSessionToken) {
+      clientConfig.credentials.sessionToken = config.awsSessionToken;
+    }
+
+    // Handle self-signed certificates (common in corporate environments)
+    const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+    
+    if (!rejectUnauthorized) {
+      console.warn('WARNING: TLS certificate validation is disabled. This should only be used in development/testing with trusted networks.');
+      
+      const httpsAgent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+      });
+
+      clientConfig.requestHandler = new NodeHttpHandler({
+        httpsAgent,
+        connectionTimeout: 30000,
+        socketTimeout: 30000,
+      });
+    }
+
+    return new BedrockClient(clientConfig);
   }
 
   /**

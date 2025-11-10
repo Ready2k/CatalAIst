@@ -5,6 +5,10 @@ CatalAIst now supports AWS Bedrock as an alternative LLM provider alongside Open
 ## Supported Models
 
 ### AWS Bedrock (Claude Models)
+
+Models are now **dynamically fetched** from AWS Bedrock based on your credentials and region. The system will automatically list all available Anthropic Claude models that you have access to.
+
+Common models include:
 - `anthropic.claude-3-5-sonnet-20241022-v2:0` (Latest Claude 3.5 Sonnet)
 - `anthropic.claude-3-5-sonnet-20240620-v1:0`
 - `anthropic.claude-3-5-haiku-20241022-v1:0`
@@ -15,7 +19,13 @@ CatalAIst now supports AWS Bedrock as an alternative LLM provider alongside Open
 - `anthropic.claude-v2`
 - `anthropic.claude-instant-v1`
 
+**Note:** The actual available models depend on your AWS region and Bedrock access permissions.
+
 ### OpenAI (Existing Support)
+
+Models are **dynamically fetched** from OpenAI based on your API key.
+
+Common models include:
 - `gpt-4`
 - `gpt-4-turbo`
 - `gpt-4o`
@@ -64,13 +74,19 @@ AWS_REGION=us-east-1
        {
          "Effect": "Allow",
          "Action": [
-           "bedrock:InvokeModel"
+           "bedrock:InvokeModel",
+           "bedrock:ListFoundationModels"
          ],
-         "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude*"
+         "Resource": [
+           "arn:aws:bedrock:*::foundation-model/anthropic.claude*",
+           "*"
+         ]
        }
      ]
    }
    ```
+
+**Note:** The `bedrock:ListFoundationModels` permission is required to dynamically fetch available models.
 
 ## API Usage
 
@@ -203,6 +219,16 @@ The system uses a provider abstraction layer:
 - **Model Validation**: Checks if model is supported by provider
 
 ## Testing
+
+### Test Bedrock Model Listing
+
+```bash
+# List available Bedrock models
+curl -X GET "http://localhost:8080/api/sessions/models?provider=bedrock" \
+  -H "x-aws-access-key-id: YOUR_KEY" \
+  -H "x-aws-secret-access-key: YOUR_SECRET" \
+  -H "x-aws-region: us-east-1"
+```
 
 ### Test Bedrock Connection
 

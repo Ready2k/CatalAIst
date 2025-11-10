@@ -5,6 +5,30 @@ All notable changes to CatalAIst will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Dynamic Bedrock Model Fetching
+- **AWS Bedrock Model Discovery**: Models are now dynamically fetched from AWS Bedrock
+  - Uses AWS SDK `ListFoundationModels` API to get available models
+  - Filters to Anthropic Claude models with ACTIVE status
+  - Automatically sorts by version (newest first)
+  - Falls back to static list if API call fails
+- **Frontend Integration**: 
+  - Models load automatically when AWS credentials are entered
+  - Real-time model fetching on credential blur
+  - Loading indicator during model fetch
+  - Error handling with fallback to defaults
+- **Updated IAM Requirements**: 
+  - Added `bedrock:ListFoundationModels` permission requirement
+  - Updated documentation with new permission
+- **API Updates**:
+  - `GET /api/sessions/models?provider=bedrock` now accepts AWS credentials in headers
+  - Headers: `x-aws-access-key-id`, `x-aws-secret-access-key`, `x-aws-session-token`, `x-aws-region`
+- **New Dependencies**: Added `@aws-sdk/client-bedrock` package
+- **Test Script**: Added `test-bedrock-models.sh` for testing model listing
+
 ## [2.1.0] - 2025-11-10
 
 ### Added

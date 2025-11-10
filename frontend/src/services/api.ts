@@ -193,12 +193,40 @@ class ApiService {
     return response;
   }
 
-  async listModels(apiKey: string): Promise<{ models: Array<{ id: string; created: number; ownedBy: string }> }> {
-    const response = await fetch(`${API_BASE_URL}/api/sessions/models`, {
+  async listModels(
+    provider: 'openai' | 'bedrock',
+    credentials: {
+      apiKey?: string;
+      awsAccessKeyId?: string;
+      awsSecretAccessKey?: string;
+      awsSessionToken?: string;
+      awsRegion?: string;
+    }
+  ): Promise<{ models: Array<{ id: string; created: number; ownedBy: string }> }> {
+    const headers: Record<string, string> = {};
+    
+    if (provider === 'openai') {
+      if (!credentials.apiKey) {
+        throw new Error('API key is required for OpenAI');
+      }
+      headers['X-API-Key'] = credentials.apiKey;
+    } else if (provider === 'bedrock') {
+      if (!credentials.awsAccessKeyId || !credentials.awsSecretAccessKey) {
+        throw new Error('AWS credentials are required for Bedrock');
+      }
+      headers['x-aws-access-key-id'] = credentials.awsAccessKeyId;
+      headers['x-aws-secret-access-key'] = credentials.awsSecretAccessKey;
+      if (credentials.awsSessionToken) {
+        headers['x-aws-session-token'] = credentials.awsSessionToken;
+      }
+      if (credentials.awsRegion) {
+        headers['x-aws-region'] = credentials.awsRegion;
+      }
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/sessions/models?provider=${provider}`, {
       method: 'GET',
-      headers: {
-        'X-API-Key': apiKey,
-      },
+      headers,
     });
 
     if (!response.ok) {
