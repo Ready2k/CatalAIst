@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### TypeScript Build Errors
+- **Fixed DecisionMatrixFlowEditor type errors**: Added proper type casting for ReactFlow node updates
+- **Removed invalid connectionMode prop**: Removed unsupported `connectionMode="loose"` from ReactFlow configuration
+- **Frontend builds successfully**: All TypeScript compilation errors resolved
+
 #### CORS Configuration for AWS Headers
 - **Added AWS credential headers** to CORS allowed headers list
   - `x-aws-access-key-id`

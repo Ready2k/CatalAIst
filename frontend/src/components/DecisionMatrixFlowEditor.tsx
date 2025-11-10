@@ -236,7 +236,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
                     attribute: attributeData.attribute.name
                   }
                 }
-              };
+              } as FlowNode;
             }
             return node;
           })
@@ -766,7 +766,6 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           zoomOnScroll={!isMobile}
           zoomOnPinch={isMobile}
           zoomOnDoubleClick={!isMobile}
-          connectionMode="loose"
           defaultEdgeOptions={{
             animated: false,
             style: { stroke: '#94a3b8', strokeWidth: isMobile ? 1.5 : 2 },
