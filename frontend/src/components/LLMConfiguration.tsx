@@ -114,15 +114,16 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     }
   };
 
-  const handleApiKeyBlur = () => {
-    if (provider === 'openai' && apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
-      loadOpenAIModels(apiKey);
-    }
-  };
-
-  const handleBedrockCredentialsBlur = () => {
-    if (provider === 'bedrock' && awsAccessKeyId && awsSecretAccessKey) {
-      loadBedrockModels();
+  const handleModelDropdownClick = () => {
+    // Fetch models when dropdown is clicked
+    if (provider === 'openai') {
+      if (apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
+        loadOpenAIModels(apiKey);
+      }
+    } else if (provider === 'bedrock') {
+      if (awsAccessKeyId && awsSecretAccessKey) {
+        loadBedrockModels();
+      }
     }
   };
 
@@ -236,7 +237,6 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          onBlur={handleApiKeyBlur}
           placeholder="sk-..."
           style={{
             width: '100%',
@@ -265,7 +265,6 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           type="text"
           value={awsAccessKeyId}
           onChange={(e) => setAwsAccessKeyId(e.target.value)}
-          onBlur={handleBedrockCredentialsBlur}
           placeholder="AKIAIOSFODNN7EXAMPLE"
           style={{
             width: '100%',
@@ -287,7 +286,6 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           type="password"
           value={awsSecretAccessKey}
           onChange={(e) => setAwsSecretAccessKey(e.target.value)}
-          onBlur={handleBedrockCredentialsBlur}
           placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
           style={{
             width: '100%',
@@ -299,7 +297,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           }}
         />
         <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-          After entering credentials, models will be fetched automatically
+          Models will be fetched when you click the Model dropdown below
         </div>
       </div>
 
@@ -436,6 +434,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             id="model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
+            onFocus={handleModelDropdownClick}
             disabled={loadingModels}
             style={{
               width: '100%',
@@ -462,8 +461,8 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           {!loadingModels && (
             <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
               {provider === 'openai' 
-                ? 'GPT-4 is recommended for best results. Models are fetched from your OpenAI account.'
-                : 'Claude 3.5 Sonnet is recommended for production use. Models are fetched from your AWS Bedrock region.'}
+                ? 'GPT-4 is recommended for best results. Click to fetch models from your OpenAI account.'
+                : 'Claude 3.5 Sonnet is recommended for production use. Click to fetch models from your AWS Bedrock region.'}
             </div>
           )}
         </div>

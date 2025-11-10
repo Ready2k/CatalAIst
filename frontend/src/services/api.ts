@@ -224,7 +224,7 @@ class ApiService {
       }
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/sessions/models?provider=${provider}`, {
+    const response = await fetch(`${API_BASE_URL}/api/public/models?provider=${provider}`, {
       method: 'GET',
       headers,
     });

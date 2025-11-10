@@ -24,10 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `bedrock:ListFoundationModels` permission requirement
   - Updated documentation with new permission
 - **API Updates**:
-  - `GET /api/sessions/models?provider=bedrock` now accepts AWS credentials in headers
+  - New public endpoint: `GET /api/public/models?provider=bedrock`
+  - Accepts AWS credentials in headers (no authentication required)
   - Headers: `x-aws-access-key-id`, `x-aws-secret-access-key`, `x-aws-session-token`, `x-aws-region`
+  - Models are fetched on-demand when user clicks the model dropdown
 - **New Dependencies**: Added `@aws-sdk/client-bedrock` package
 - **Test Script**: Added `test-bedrock-models.sh` for testing model listing
+
+### Changed
+
+#### Model Fetching Behavior
+- **On-demand model fetching**: Models are now fetched only when the model dropdown is clicked
+  - Prevents unnecessary API calls during credential entry
+  - Avoids authentication errors before user is ready
+  - Improves user experience with explicit action
+- **Updated UI hints**: Changed text to indicate "Click to fetch models"
 
 ### Fixed
 

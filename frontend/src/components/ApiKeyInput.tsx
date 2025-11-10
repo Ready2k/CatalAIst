@@ -42,7 +42,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
     }
   };
 
-  const handleApiKeyBlur = () => {
+  const handleModelDropdownClick = () => {
     if (apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20) {
       loadModels(apiKey);
     }
@@ -99,7 +99,6 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            onBlur={handleApiKeyBlur}
             placeholder="sk-..."
             style={{
               width: '100%',
@@ -125,6 +124,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
             id="model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
+            onFocus={handleModelDropdownClick}
             disabled={loadingModels}
             style={{
               width: '100%',
@@ -149,7 +149,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit }) => {
             </div>
           )}
           <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-            Select the model to use for classification. GPT-4 is recommended for best results.
+            Select the model to use for classification. GPT-4 is recommended for best results. Click to fetch models from your OpenAI account.
           </div>
         </div>
         

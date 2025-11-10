@@ -7,6 +7,7 @@ import { resolve } from 'path';
 import decisionMatrixRoutes from './routes/decision-matrix.routes';
 import learningRoutes from './routes/learning.routes';
 import sessionRoutes from './routes/session.routes';
+import publicRoutes from './routes/public.routes';
 import processRoutes from './routes/process.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import voiceRoutes from './routes/voice.routes';
@@ -222,6 +223,7 @@ app.get('/health', async (req, res) => {
 
 // Public routes (no authentication required)
 app.use('/api/auth', authRoutes);
+app.use('/api/public', publicRoutes);
 
 // Protected routes (authentication required)
 app.use('/api/sessions', authenticateToken, sessionRoutes);

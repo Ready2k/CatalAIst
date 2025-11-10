@@ -47,11 +47,13 @@ CatalAIst now dynamically fetches available AWS Bedrock models based on your cre
 ### List Bedrock Models
 
 ```bash
-curl -X GET "http://localhost:8080/api/sessions/models?provider=bedrock" \
+curl -X GET "http://localhost:8080/api/public/models?provider=bedrock" \
   -H "x-aws-access-key-id: YOUR_ACCESS_KEY_ID" \
   -H "x-aws-secret-access-key: YOUR_SECRET_ACCESS_KEY" \
   -H "x-aws-region: us-east-1"
 ```
+
+**Note**: This is a public endpoint that doesn't require authentication, allowing users to fetch models during initial configuration.
 
 ### Response Format
 
