@@ -28,26 +28,6 @@ const PromptAdmin: React.FC<PromptAdminProps> = ({
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState('');
 
-  useEffect(() => {
-    loadPrompts();
-  }, []);
-
-  const loadPrompts = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await onLoadPrompts();
-      setPrompts(data);
-      if (data.length > 0 && !selectedPrompt) {
-        await selectPrompt(data[0].id);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load prompts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const selectPrompt = async (id: string) => {
     setLoading(true);
     setError('');
@@ -62,6 +42,27 @@ const PromptAdmin: React.FC<PromptAdminProps> = ({
       setLoading(false);
     }
   };
+
+  const loadPrompts = React.useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await onLoadPrompts();
+      setPrompts(data);
+      if (data.length > 0 && !selectedPrompt) {
+        await selectPrompt(data[0].id);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load prompts');
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onLoadPrompts]);
+
+  useEffect(() => {
+    loadPrompts();
+  }, [loadPrompts]);
 
   const validatePrompt = (content: string): boolean => {
     setValidationError('');

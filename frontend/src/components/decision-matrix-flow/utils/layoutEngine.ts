@@ -1,6 +1,6 @@
 // Auto-layout engine using Dagre algorithm
 import dagre from 'dagre';
-import { Node, Edge } from '@xyflow/react';
+import { Node } from '@xyflow/react';
 import {
   FlowNode,
   CustomEdge,

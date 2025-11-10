@@ -35,23 +35,23 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Default models
-  const openAIModels = [
+  // Default models - defined outside useEffect to avoid dependency issues
+  const openAIModels = React.useMemo(() => [
     { id: 'gpt-4', created: 0, ownedBy: 'openai' },
     { id: 'gpt-4-turbo', created: 0, ownedBy: 'openai' },
     { id: 'gpt-4o', created: 0, ownedBy: 'openai' },
     { id: 'gpt-3.5-turbo', created: 0, ownedBy: 'openai' },
     { id: 'o1-preview', created: 0, ownedBy: 'openai' },
     { id: 'o1-mini', created: 0, ownedBy: 'openai' },
-  ];
+  ], []);
 
-  const bedrockModels = [
+  const bedrockModels = React.useMemo(() => [
     { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', created: 0, ownedBy: 'anthropic' },
     { id: 'anthropic.claude-3-5-haiku-20241022-v1:0', created: 0, ownedBy: 'anthropic' },
     { id: 'anthropic.claude-3-opus-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
     { id: 'anthropic.claude-3-sonnet-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
     { id: 'anthropic.claude-3-haiku-20240307-v1:0', created: 0, ownedBy: 'anthropic' },
-  ];
+  ], []);
 
   const awsRegions = [
     'us-east-1',
@@ -70,7 +70,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       setModels(bedrockModels);
       setModel('anthropic.claude-3-5-sonnet-20241022-v2:0');
     }
-  }, [provider]);
+  }, [provider, openAIModels, bedrockModels]);
 
   const loadOpenAIModels = async (key: string) => {
     if (!key || !key.startsWith('sk-')) return;

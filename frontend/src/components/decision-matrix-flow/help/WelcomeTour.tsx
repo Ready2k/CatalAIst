@@ -73,6 +73,37 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ isOpen, onClose }) => 
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightedElements, setHighlightedElements] = useState<HTMLElement[]>([]);
 
+  const highlightElements = React.useCallback((selector: string) => {
+    // Clear previous highlights
+    highlightedElements.forEach(el => {
+      el.style.outline = '';
+      el.style.outlineOffset = '';
+      el.style.zIndex = '';
+    });
+    
+    const elements = document.querySelectorAll(selector);
+    const elementsArray = Array.from(elements) as HTMLElement[];
+    
+    elementsArray.forEach(el => {
+      el.style.outline = '3px solid #3b82f6';
+      el.style.outlineOffset = '4px';
+      el.style.zIndex = '1000';
+    });
+    
+    setHighlightedElements(elementsArray);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clearHighlights = React.useCallback(() => {
+    highlightedElements.forEach(el => {
+      el.style.outline = '';
+      el.style.outlineOffset = '';
+      el.style.zIndex = '';
+    });
+    setHighlightedElements([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!isOpen) {
       clearHighlights();
@@ -87,30 +118,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({ isOpen, onClose }) => 
     }
 
     return () => clearHighlights();
-  }, [isOpen, currentStep]);
-
-  const highlightElements = (selector: string) => {
-    clearHighlights();
-    const elements = document.querySelectorAll(selector);
-    const elementsArray = Array.from(elements) as HTMLElement[];
-    
-    elementsArray.forEach(el => {
-      el.style.outline = '3px solid #3b82f6';
-      el.style.outlineOffset = '4px';
-      el.style.zIndex = '1000';
-    });
-    
-    setHighlightedElements(elementsArray);
-  };
-
-  const clearHighlights = () => {
-    highlightedElements.forEach(el => {
-      el.style.outline = '';
-      el.style.outlineOffset = '';
-      el.style.zIndex = '';
-    });
-    setHighlightedElements([]);
-  };
+  }, [isOpen, currentStep, highlightElements, clearHighlights]);
 
   const handleNext = () => {
     if (currentStep < TOUR_STEPS.length - 1) {

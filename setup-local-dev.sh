@@ -43,7 +43,15 @@ if [ -f frontend/.env.local ]; then
     echo "✅ frontend/.env.local exists"
 else
     echo "📝 Creating frontend/.env.local..."
-    cp frontend/.env.example frontend/.env.local
+    cat > frontend/.env.local << 'EOF'
+# Frontend Local Development Configuration
+
+# Frontend port
+PORT=4001
+
+# Backend API URL
+REACT_APP_API_URL=http://localhost:4000
+EOF
     echo "✅ frontend/.env.local created"
 fi
 

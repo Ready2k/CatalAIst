@@ -3,8 +3,7 @@ import {
   Attribute,
   Rule,
   Condition,
-  RuleAction,
-  TransformationCategory
+  RuleAction
 } from '../../../../../shared/types';
 import { ValidationError } from '../types/flow-types';
 

@@ -5,7 +5,6 @@ import {
   Controls,
   MiniMap,
   Node,
-  Edge,
   OnNodesChange,
   OnEdgesChange,
   applyNodeChanges,
@@ -81,12 +80,10 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   
   // Responsive design - detect screen size
   const [isMobile, setIsMobile] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
   
   useEffect(() => {
     const checkScreenSize = () => {
       setIsMobile(window.innerWidth < 768);
-      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
     };
     
     checkScreenSize();

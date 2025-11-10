@@ -21,11 +21,7 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
   const [analysisResult, setAnalysisResult] = useState<LearningAnalysis | null>(null);
   const [rejectNotes, setRejectNotes] = useState<{ [key: string]: string }>({});
 
-  useEffect(() => {
-    loadSuggestions();
-  }, []);
-
-  const loadSuggestions = async () => {
+  const loadSuggestions = React.useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -36,7 +32,11 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [onLoadSuggestions]);
+
+  useEffect(() => {
+    loadSuggestions();
+  }, [loadSuggestions]);
 
   const handleTriggerAnalysis = async () => {
     setAnalyzing(true);

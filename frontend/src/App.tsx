@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
-import ApiKeyInput from './components/ApiKeyInput';
 import LLMConfiguration, { LLMConfig } from './components/LLMConfiguration';
 import ChatInterface from './components/ChatInterface';
 import VoiceRecorder from './components/VoiceRecorder';
@@ -30,7 +29,7 @@ function App() {
   const [currentView, setCurrentView] = useState<AppView>('main');
   const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   
@@ -78,14 +77,17 @@ function App() {
     setError('');
     setIsProcessing(true);
     try {
-      // For OpenAI, create session with API key
+      // Set LLM config first so createSession can use it
+      apiService.setLLMConfig(config);
+      
+      // Create session with appropriate credentials
       if (config.provider === 'openai' && config.apiKey) {
         await apiService.createSession(config.apiKey, config.model);
       } else {
-        // For Bedrock, just create a session without API key
+        // For Bedrock, createSession will use the config we just set
         await apiService.createSession('', config.model);
       }
-      apiService.setLLMConfig(config);
+      
       setLLMConfig(config);
       setHasConfig(true);
     } catch (err: any) {
@@ -93,15 +95,6 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  // Legacy support for old ApiKeyInput component
-  const handleApiKeySubmit = async (apiKey: string, model: string) => {
-    await handleConfigSubmit({
-      provider: 'openai',
-      model,
-      apiKey,
-    });
   };
 
   const handleProcessSubmit = async (description: string) => {

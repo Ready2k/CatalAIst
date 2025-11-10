@@ -132,18 +132,20 @@ class ApiService {
       if (response.status === 401 || response.status === 403) {
         sessionStorage.clear();
         window.location.reload();
-        throw {
+        const authError: ApiError = {
           message: 'Authentication required. Please login again.',
           status: response.status,
-        } as ApiError;
+        };
+        throw authError;
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw {
+        const apiError: ApiError = {
           message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
-        } as ApiError;
+        };
+        throw apiError;
       }
 
       return await response.json();
@@ -151,19 +153,41 @@ class ApiService {
       if ((error as ApiError).status) {
         throw error;
       }
-      throw {
+      const networkError: ApiError = {
         message: 'Network error. Please check your connection.',
         status: 0,
-      } as ApiError;
+      };
+      throw networkError;
     }
   }
 
   // Session endpoints
   async createSession(apiKey: string, model?: string): Promise<{ sessionId: string; model: string }> {
     this.setApiKey(apiKey);
+    
+    // Build request body based on current LLM config
+    const body: any = { model };
+    
+    if (this.llmConfig) {
+      body.provider = this.llmConfig.provider;
+      
+      if (this.llmConfig.provider === 'openai') {
+        body.apiKey = this.llmConfig.apiKey || apiKey;
+      } else if (this.llmConfig.provider === 'bedrock') {
+        body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+        body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+        body.awsSessionToken = this.llmConfig.awsSessionToken;
+        body.awsRegion = this.llmConfig.awsRegion;
+      }
+    } else {
+      // Fallback to OpenAI if no config set
+      body.provider = 'openai';
+      body.apiKey = apiKey;
+    }
+    
     const response = await this.request<{ sessionId: string; model: string }>('/api/sessions', {
       method: 'POST',
-      body: JSON.stringify({ apiKey, model }),
+      body: JSON.stringify(body),
     });
     this.setSessionId(response.sessionId);
     return response;
@@ -179,10 +203,11 @@ class ApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to list models' }));
-      throw {
+      const apiError: ApiError = {
         message: errorData.message || 'Failed to list models',
         status: response.status,
-      } as ApiError;
+      };
+      throw apiError;
     }
 
     return await response.json();
@@ -202,10 +227,12 @@ class ApiService {
   // Process submission
   async submitProcess(description: string): Promise<any> {
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
     if (!this.llmConfig) {
-      throw { message: 'No LLM configuration set', status: 401 } as ApiError;
+      const error: ApiError = { message: 'No LLM configuration set', status: 401 };
+      throw error;
     }
 
     const body: any = {
@@ -233,10 +260,12 @@ class ApiService {
   // Conversation endpoints
   async addConversation(response: string): Promise<any> {
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
     if (!this.llmConfig) {
-      throw { message: 'No LLM configuration set', status: 401 } as ApiError;
+      const error: ApiError = { message: 'No LLM configuration set', status: 401 };
+      throw error;
     }
 
     const body: any = {
@@ -267,7 +296,8 @@ class ApiService {
     correctedCategory?: string
   ): Promise<void> {
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
     await this.request('/api/feedback/classification', {
       method: 'POST',
@@ -281,7 +311,8 @@ class ApiService {
 
   async submitRating(rating: 'up' | 'down', comments?: string): Promise<void> {
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
     await this.request('/api/feedback/rating', {
       method: 'POST',
@@ -296,11 +327,13 @@ class ApiService {
   // Voice endpoints
   async transcribeAudio(audioFile: File): Promise<{ transcription: string }> {
     if (!this.apiKey) {
-      throw { message: 'No API key set', status: 401 } as ApiError;
+      const error: ApiError = { message: 'No API key set', status: 401 };
+      throw error;
     }
 
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
 
     const formData = new FormData();
@@ -315,10 +348,11 @@ class ApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Transcription failed' }));
-      throw {
+      const apiError: ApiError = {
         message: errorData.message || 'Transcription failed',
         status: response.status,
-      } as ApiError;
+      };
+      throw apiError;
     }
 
     return await response.json();
@@ -326,11 +360,13 @@ class ApiService {
 
   async synthesizeSpeech(text: string): Promise<Blob> {
     if (!this.apiKey) {
-      throw { message: 'No API key set', status: 401 } as ApiError;
+      const error: ApiError = { message: 'No API key set', status: 401 };
+      throw error;
     }
 
     if (!this.sessionId) {
-      throw { message: 'No active session', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No active session', status: 400 };
+      throw error;
     }
 
     const response = await fetch(`${API_BASE_URL}/api/voice/synthesize`, {
@@ -346,10 +382,11 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw {
+      const apiError: ApiError = {
         message: 'Speech synthesis failed',
         status: response.status,
-      } as ApiError;
+      };
+      throw apiError;
     }
 
     return await response.blob();
@@ -383,7 +420,8 @@ class ApiService {
 
   async generateDecisionMatrix(): Promise<any> {
     if (!this.apiKey) {
-      throw { message: 'No API key set', status: 401 } as ApiError;
+      const error: ApiError = { message: 'No API key set', status: 401 };
+      throw error;
     }
     return this.request('/api/decision-matrix/generate', {
       method: 'POST',
@@ -413,7 +451,8 @@ class ApiService {
 
   async triggerAnalysis(): Promise<any> {
     if (!this.llmConfig) {
-      throw { message: 'No LLM configuration set. Please configure your provider in the Configuration tab.', status: 400 } as ApiError;
+      const error: ApiError = { message: 'No LLM configuration set. Please configure your provider in the Configuration tab.', status: 400 };
+      throw error;
     }
 
     const body: any = {
@@ -423,7 +462,8 @@ class ApiService {
 
     if (this.llmConfig.provider === 'openai') {
       if (!this.llmConfig.apiKey) {
-        throw { message: 'OpenAI API key not found. Please reconfigure in the Configuration tab.', status: 400 } as ApiError;
+        const error: ApiError = { message: 'OpenAI API key not found. Please reconfigure in the Configuration tab.', status: 400 };
+        throw error;
       }
       body.apiKey = this.llmConfig.apiKey;
     } else if (this.llmConfig.provider === 'bedrock') {

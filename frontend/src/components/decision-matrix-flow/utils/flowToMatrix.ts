@@ -1,5 +1,5 @@
 // Convert ReactFlow graph back to DecisionMatrix structure
-import { Node, Edge } from '@xyflow/react';
+import { Node } from '@xyflow/react';
 import {
   DecisionMatrix,
   Attribute,
@@ -89,8 +89,8 @@ const extractActionForRule = (
  */
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : ((r & 0x3) | 0x8);
     return v.toString(16);
   });
 };
@@ -117,7 +117,7 @@ const extractRules = (nodes: FlowNode[]): Rule[] => {
       const finalAction = action || ruleData.action;
       
       // Ensure ruleId is a valid UUID
-      const validRuleId = ruleData.ruleId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+      const validRuleId = (ruleData.ruleId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i))
         ? ruleData.ruleId
         : generateUUID();
       

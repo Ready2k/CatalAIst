@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { AnalyticsMetrics } from '../../../shared/types';
 
 interface AnalyticsDashboardProps {
@@ -10,11 +10,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadMetrics();
-  }, []);
-
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -30,7 +26,11 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
     } finally {
       setLoading(false);
     }
-  };
+  }, [onLoadAnalytics]);
+
+  useEffect(() => {
+    loadMetrics();
+  }, [loadMetrics]);
 
   const formatPercentage = (value: number): string => {
     return `${Math.round(value * 100)}%`;

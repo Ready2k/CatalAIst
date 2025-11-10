@@ -29,7 +29,15 @@ if (Test-Path frontend\.env.local) {
     Write-Host "✅ frontend\.env.local exists" -ForegroundColor Green
 } else {
     Write-Host "📝 Creating frontend\.env.local..." -ForegroundColor Yellow
-    Copy-Item frontend\.env.example frontend\.env.local
+    @"
+# Frontend Local Development Configuration
+
+# Frontend port
+PORT=4001
+
+# Backend API URL
+REACT_APP_API_URL=http://localhost:4000
+"@ | Out-File -FilePath frontend\.env.local -Encoding UTF8
     Write-Host "✅ frontend\.env.local created" -ForegroundColor Green
 }
 

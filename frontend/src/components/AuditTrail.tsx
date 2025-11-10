@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 interface AuditLog {
   sessionId: string;
@@ -22,11 +22,7 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
   const [filterEventType, setFilterEventType] = useState<string>('all');
   const [filterSessionId, setFilterSessionId] = useState<string>('');
 
-  useEffect(() => {
-    loadLogs();
-  }, [selectedDate]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -37,7 +33,11 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onLoadAuditLogs, selectedDate]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const filteredLogs = logs.filter(log => {
     if (filterEventType !== 'all' && log.eventType !== filterEventType) {
@@ -233,7 +233,6 @@ const AuditTrail: React.FC<AuditTrailProps> = ({ onLoadAuditLogs }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {sortedSessions.map(([sessionId, sessionLogs]) => {
             const firstLog = sessionLogs[0];
-            const lastLog = sessionLogs[sessionLogs.length - 1];
             const classification = sessionLogs.find(l => l.eventType === 'classification');
             const hasPII = sessionLogs.some(l => l.piiScrubbed);
             

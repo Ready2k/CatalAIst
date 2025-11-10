@@ -5,8 +5,7 @@ import {
   Rule, 
   Condition, 
   RuleAction, 
-  TransformationCategory,
-  DecisionMatrix 
+  TransformationCategory
 } from '../../../../../shared/types';
 
 // Node Types

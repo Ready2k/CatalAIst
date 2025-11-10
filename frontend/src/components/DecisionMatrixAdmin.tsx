@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { DecisionMatrix, Rule, Attribute } from '../../../shared/types';
+import React, { useEffect, useState, useCallback } from 'react';
+import { DecisionMatrix } from '../../../shared/types';
 import DecisionMatrixFlowEditor from './DecisionMatrixFlowEditor';
 
 interface DecisionMatrixAdminProps {
@@ -27,16 +27,10 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const [generating, setGenerating] = useState(false);
   const [needsInitialization, setNeedsInitialization] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
-  const [showTour, setShowTour] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     setNeedsInitialization(false);
@@ -59,7 +53,11 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [onLoadMatrix, onLoadVersions]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -479,7 +477,6 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
           <button
             onClick={() => {
               setShowHelp(false);
-              setShowTour(true);
               setViewMode('flow');
             }}
             style={{
@@ -504,7 +501,6 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
           <button
             onClick={() => {
               setShowHelp(false);
-              setShowLegend(true);
               setViewMode('flow');
             }}
             style={{

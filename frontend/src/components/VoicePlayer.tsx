@@ -17,20 +17,7 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (autoPlay) {
-      playAudio();
-    }
-    
-    return () => {
-      // Cleanup audio URL on unmount
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
-      }
-    };
-  }, [autoPlay]);
-
-  const playAudio = async () => {
+  const playAudio = React.useCallback(async () => {
     setIsLoading(true);
     setError('');
 
@@ -55,7 +42,20 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [text, onSynthesize]);
+
+  useEffect(() => {
+    if (autoPlay) {
+      playAudio();
+    }
+    
+    return () => {
+      // Cleanup audio URL on unmount
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+    };
+  }, [autoPlay, playAudio]);
 
   const stopAudio = () => {
     if (audioRef.current) {

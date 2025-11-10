@@ -27,32 +27,54 @@ const openaiService = new OpenAIService();
 
 /**
  * GET /api/sessions/models
- * List available OpenAI models
+ * List available models (OpenAI or Bedrock)
  * Requirements: 9.2
  */
 router.get('/models', async (req: Request, res: Response) => {
   try {
     const apiKey = req.headers['x-api-key'] as string;
+    const provider = (req.query.provider as string) || 'openai';
 
-    if (!apiKey) {
+    if (provider === 'openai') {
+      if (!apiKey) {
+        return res.status(400).json({
+          error: 'Missing API key',
+          message: 'OpenAI API key is required'
+        });
+      }
+
+      const models = await openaiService.listModels({ provider: 'openai', apiKey });
+      
+      // Filter to only show relevant models for classification
+      const relevantModels = models.filter(model => 
+        model.id.includes('gpt-4') || 
+        model.id.includes('gpt-3.5') ||
+        model.id.includes('o1')
+      );
+
+      res.json({
+        models: relevantModels
+      });
+    } else if (provider === 'bedrock') {
+      // Return static list of Bedrock models
+      // In a real implementation, you could query AWS Bedrock API for available models
+      const bedrockModels = [
+        { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', created: 0, ownedBy: 'anthropic' },
+        { id: 'anthropic.claude-3-5-haiku-20241022-v1:0', created: 0, ownedBy: 'anthropic' },
+        { id: 'anthropic.claude-3-opus-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
+        { id: 'anthropic.claude-3-sonnet-20240229-v1:0', created: 0, ownedBy: 'anthropic' },
+        { id: 'anthropic.claude-3-haiku-20240307-v1:0', created: 0, ownedBy: 'anthropic' }
+      ];
+
+      res.json({
+        models: bedrockModels
+      });
+    } else {
       return res.status(400).json({
-        error: 'Missing API key',
-        message: 'OpenAI API key is required'
+        error: 'Invalid provider',
+        message: 'Provider must be "openai" or "bedrock"'
       });
     }
-
-    const models = await openaiService.listModels({ provider: 'openai', apiKey });
-    
-    // Filter to only show relevant models for classification
-    const relevantModels = models.filter(model => 
-      model.id.includes('gpt-4') || 
-      model.id.includes('gpt-3.5') ||
-      model.id.includes('o1')
-    );
-
-    res.json({
-      models: relevantModels
-    });
   } catch (error) {
     console.error('Error listing models:', error);
     res.status(500).json({
@@ -69,21 +91,50 @@ router.get('/models', async (req: Request, res: Response) => {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { apiKey, model = 'gpt-4', userId = 'anonymous' } = req.body;
+    const { 
+      apiKey, 
+      model = 'gpt-4', 
+      userId = 'anonymous',
+      provider = 'openai',
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
+    } = req.body;
 
-    if (!apiKey) {
-      return res.status(400).json({
-        error: 'Missing API key',
-        message: 'OpenAI API key is required'
-      });
-    }
+    // Validate credentials based on provider
+    if (provider === 'bedrock') {
+      // For Bedrock, validate AWS credentials
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+      
+      // Validate AWS Access Key ID format (basic check)
+      if (!awsAccessKeyId.startsWith('AKIA') && !awsAccessKeyId.startsWith('ASIA')) {
+        return res.status(400).json({
+          error: 'Invalid AWS credentials format',
+          message: 'AWS Access Key ID should start with "AKIA" or "ASIA"'
+        });
+      }
+    } else {
+      // For OpenAI, validate API key
+      if (!apiKey) {
+        return res.status(400).json({
+          error: 'Missing API key',
+          message: 'OpenAI API key is required'
+        });
+      }
 
-    // Validate API key format (basic check)
-    if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({
-        error: 'Invalid API key format',
-        message: 'OpenAI API key should start with "sk-"'
-      });
+      // Validate API key format (basic check)
+      if (!apiKey.startsWith('sk-')) {
+        return res.status(400).json({
+          error: 'Invalid API key format',
+          message: 'OpenAI API key should start with "sk-"'
+        });
+      }
     }
 
     const sessionId = uuidv4();
@@ -99,11 +150,12 @@ router.post('/', async (req: Request, res: Response) => {
 
     await sessionStorage.saveSession(session);
 
-    // Store API key in memory (not persisted)
+    // Store credentials in memory (not persisted)
     // In a real implementation, this would be stored in a secure session store
     res.json({
       sessionId,
       model,
+      provider,
       message: 'Session created successfully'
     });
   } catch (error) {

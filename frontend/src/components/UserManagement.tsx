@@ -36,11 +36,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = React.useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
@@ -51,7 +47,11 @@ const UserManagement: React.FC<UserManagementProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [onLoadUsers]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const handleRoleChange = async (user: User) => {
     if (user.userId === currentUserId) {

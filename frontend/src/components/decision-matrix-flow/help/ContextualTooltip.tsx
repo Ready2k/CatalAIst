@@ -22,7 +22,7 @@ export const ContextualTooltip: React.FC<ContextualTooltipProps> = ({
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const calculatePosition = () => {
+  const calculatePosition = React.useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
 
     const triggerRect = triggerRef.current.getBoundingClientRect();
@@ -83,7 +83,7 @@ export const ContextualTooltip: React.FC<ContextualTooltipProps> = ({
 
     setTooltipPosition({ top, left });
     setActualPosition(finalPosition);
-  };
+  }, [position]);
 
   const handleMouseEnter = () => {
     timeoutRef.current = setTimeout(() => {
@@ -109,7 +109,7 @@ export const ContextualTooltip: React.FC<ContextualTooltipProps> = ({
         window.removeEventListener('resize', calculatePosition);
       };
     }
-  }, [isVisible]);
+  }, [isVisible, calculatePosition]);
 
   useEffect(() => {
     return () => {
