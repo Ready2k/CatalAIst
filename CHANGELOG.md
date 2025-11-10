@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+#### Flexible Model Support for Bedrock
+- **Dynamic model validation**: System now accepts any Anthropic Claude model from AWS Bedrock
+  - Removed hardcoded model list validation
+  - `isModelSupported()` now checks for `anthropic.claude` prefix
+  - Supports new models like `anthropic.claude-haiku-4-5-20251001-v1:0` automatically
+  - No code updates needed when AWS releases new Claude models
+
 #### Model Fetching Behavior
 - **On-demand model fetching**: Models are now fetched only when the model dropdown is clicked
   - Prevents unnecessary API calls during credential entry

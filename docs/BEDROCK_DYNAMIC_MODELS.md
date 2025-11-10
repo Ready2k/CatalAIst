@@ -114,6 +114,7 @@ Use the provided test script:
 3. **Permission-Aware**: Only shows models the user has access to
 4. **Consistent UX**: Same experience as OpenAI model selection
 5. **No Code Updates**: New Bedrock models appear automatically
+6. **Flexible Validation**: Accepts any Anthropic Claude model without hardcoded restrictions
 
 ## Comparison: Before vs After
 
@@ -152,6 +153,11 @@ async listModels(config: LLMProviderConfig): Promise<ModelInfo[]> {
       ownedBy: model.providerName?.toLowerCase() || 'anthropic',
     }))
     .sort((a, b) => this.extractVersion(b.id).localeCompare(this.extractVersion(a.id)));
+}
+
+// Model validation is flexible - accepts any Anthropic Claude model
+isModelSupported(model: string): boolean {
+  return model.startsWith('anthropic.claude');
 }
 ```
 

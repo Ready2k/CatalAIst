@@ -9,17 +9,18 @@ CatalAIst now supports AWS Bedrock as an alternative LLM provider alongside Open
 Models are now **dynamically fetched** from AWS Bedrock based on your credentials and region. The system will automatically list all available Anthropic Claude models that you have access to.
 
 Common models include:
-- `anthropic.claude-3-5-sonnet-20241022-v2:0` (Latest Claude 3.5 Sonnet)
-- `anthropic.claude-3-5-sonnet-20240620-v1:0`
-- `anthropic.claude-3-5-haiku-20241022-v1:0`
-- `anthropic.claude-3-opus-20240229-v1:0`
-- `anthropic.claude-3-sonnet-20240229-v1:0`
-- `anthropic.claude-3-haiku-20240307-v1:0`
-- `anthropic.claude-v2:1`
-- `anthropic.claude-v2`
-- `anthropic.claude-instant-v1`
+- `anthropic.claude-3-5-sonnet-20241022-v2:0` (Claude 3.5 Sonnet v2)
+- `anthropic.claude-3-5-sonnet-20240620-v1:0` (Claude 3.5 Sonnet v1)
+- `anthropic.claude-3-5-haiku-20241022-v1:0` (Claude 3.5 Haiku)
+- `anthropic.claude-haiku-4-5-20251001-v1:0` (Claude Haiku 4.5 - Latest)
+- `anthropic.claude-3-opus-20240229-v1:0` (Claude 3 Opus)
+- `anthropic.claude-3-sonnet-20240229-v1:0` (Claude 3 Sonnet)
+- `anthropic.claude-3-haiku-20240307-v1:0` (Claude 3 Haiku)
+- `anthropic.claude-v2:1` (Claude 2.1)
+- `anthropic.claude-v2` (Claude 2)
+- `anthropic.claude-instant-v1` (Claude Instant)
 
-**Note:** The actual available models depend on your AWS region and Bedrock access permissions.
+**Note:** The actual available models depend on your AWS region and Bedrock access permissions. The system automatically accepts any Anthropic Claude model returned by AWS Bedrock.
 
 ### OpenAI (Existing Support)
 

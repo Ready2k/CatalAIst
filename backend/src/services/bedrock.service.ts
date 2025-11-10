@@ -27,8 +27,10 @@ export class BedrockService implements ILLMProvider {
   private readonly MAX_RETRIES = 3;
   private readonly INITIAL_RETRY_DELAY_MS = 1000; // 1 second
 
-  // Supported Bedrock models
+  // Fallback models (used when API call fails)
+  // This list is only used as a fallback and doesn't restrict which models can be used
   private readonly SUPPORTED_MODELS = [
+    'anthropic.claude-haiku-4-5-20251001-v1:0',
     'anthropic.claude-3-5-sonnet-20241022-v2:0',
     'anthropic.claude-3-5-sonnet-20240620-v1:0',
     'anthropic.claude-3-5-haiku-20241022-v1:0',
@@ -176,12 +178,11 @@ export class BedrockService implements ILLMProvider {
 
   /**
    * Check if a model is supported
+   * Since we dynamically fetch models, we accept any Anthropic Claude model
    */
   isModelSupported(model: string): boolean {
-    return this.SUPPORTED_MODELS.some(
-      (supportedModel) =>
-        model === supportedModel || model.startsWith(supportedModel.split(':')[0])
-    );
+    // Accept any Anthropic Claude model from Bedrock
+    return model.startsWith('anthropic.claude');
   }
 
   /**
