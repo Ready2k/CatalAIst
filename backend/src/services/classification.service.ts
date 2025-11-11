@@ -432,18 +432,26 @@ Respond ONLY with the JSON object, no additional text.`;
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    // Add conversation history if available
+    // Build context with smart summarization for long conversations
+    let contextText = `Process Description:\n${processDescription}\n\n`;
+    
     if (conversationHistory && conversationHistory.length > 0) {
-      for (const qa of conversationHistory) {
-        messages.push({ role: 'assistant', content: qa.question });
-        messages.push({ role: 'user', content: qa.answer });
+      // For conversations with 5+ Q&As, use summarization to prevent confusion
+      if (conversationHistory.length >= 5) {
+        contextText += this.buildSummarizedContext(conversationHistory);
+      } else {
+        // For shorter conversations, include full history
+        contextText += 'Clarification Questions and Answers:\n';
+        for (const qa of conversationHistory) {
+          contextText += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+        }
       }
     }
 
-    // Add the process description
+    // Add the classification request
     const userPrompt = isO1Model
-      ? `${systemPrompt}\n\nPlease classify the following business process:\n\n${processDescription}`
-      : `Please classify the following business process:\n\n${processDescription}`;
+      ? `${systemPrompt}\n\n${contextText}\nBased on the above information, please classify this business process.`
+      : `${contextText}\nBased on the above information, please classify this business process.`;
 
     messages.push({
       role: 'user',
@@ -451,6 +459,99 @@ Respond ONLY with the JSON object, no additional text.`;
     });
 
     return messages;
+  }
+
+  /**
+   * Build summarized context for long conversations
+   * Extracts key facts and keeps recent context
+   */
+  private buildSummarizedContext(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): string {
+    let context = '';
+    
+    // Extract key facts from all answers
+    const keyFacts = this.extractKeyFacts(conversationHistory);
+    if (keyFacts.length > 0) {
+      context += 'Key Information Gathered:\n';
+      keyFacts.forEach(fact => {
+        context += `- ${fact}\n`;
+      });
+      context += '\n';
+    }
+    
+    // Include last 2-3 Q&As for recent context
+    const recentCount = Math.min(3, conversationHistory.length);
+    const recentQAs = conversationHistory.slice(-recentCount);
+    
+    context += `Recent Clarifications (last ${recentCount} of ${conversationHistory.length}):\n`;
+    for (const qa of recentQAs) {
+      context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+    }
+    
+    return context;
+  }
+
+  /**
+   * Extract key facts from conversation history
+   * Identifies important information about frequency, volume, complexity, etc.
+   */
+  private extractKeyFacts(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): string[] {
+    const facts: string[] = [];
+    const allText = conversationHistory.map(qa => qa.answer).join(' ').toLowerCase();
+    
+    // Frequency
+    const frequencyMatch = allText.match(/\b(daily|weekly|monthly|hourly|quarterly|annually|every\s+\w+|once|twice|\d+\s+times?\s+per)\b/i);
+    if (frequencyMatch) {
+      facts.push(`Process frequency: ${frequencyMatch[0]}`);
+    }
+    
+    // Volume/Scale
+    const volumeMatch = allText.match(/\b(\d+)\s+(users?|people|employees?|transactions?|requests?|cases?)\b/i);
+    if (volumeMatch) {
+      facts.push(`Scale: ${volumeMatch[0]}`);
+    }
+    
+    // Current state
+    if (/\b(manual|paper-based|spreadsheet|excel)\b/i.test(allText)) {
+      facts.push('Current state: Manual/paper-based process');
+    } else if (/\b(digital|system|automated|software|tool)\b/i.test(allText)) {
+      facts.push('Current state: Digital/system-based');
+    }
+    
+    // Complexity indicators
+    const stepsMatch = allText.match(/\b(\d+)\s+(steps?|stages?|phases?)\b/i);
+    if (stepsMatch) {
+      facts.push(`Process complexity: ${stepsMatch[0]}`);
+    }
+    
+    // Systems involved
+    const systemsMatch = allText.match(/\b(\d+)\s+(systems?|applications?|tools?)\b/i);
+    if (systemsMatch) {
+      facts.push(`Systems involved: ${systemsMatch[0]}`);
+    }
+    
+    // Pain points
+    if (/\b(slow|time-consuming|takes\s+\d+\s+(hours?|minutes?|days?))\b/i.test(allText)) {
+      facts.push('Pain point: Time-consuming process');
+    }
+    if (/\b(error-prone|mistakes?|errors?)\b/i.test(allText)) {
+      facts.push('Pain point: Error-prone');
+    }
+    
+    // Business value
+    if (/\b(critical|essential|vital|important|high\s+priority)\b/i.test(allText)) {
+      facts.push('Business value: High/Critical');
+    }
+    
+    // Data sensitivity
+    if (/\b(sensitive|confidential|restricted|pii|personal\s+data)\b/i.test(allText)) {
+      facts.push('Data sensitivity: High');
+    }
+    
+    return facts;
   }
 
   /**
@@ -529,6 +630,13 @@ Respond ONLY with the JSON object, no additional text.`;
   private parseClassificationResponse(content: string): ClassificationResult {
     try {
       console.log('[Classification] Raw LLM response:', content.substring(0, 500));
+      
+      // Check for malformed responses (e.g., "Clarification 9")
+      const trimmedContent = content.trim();
+      if (/^Clarification\s+\d+$/i.test(trimmedContent)) {
+        console.error('[Classification] Detected clarification loop response:', trimmedContent);
+        throw new Error('LLM returned clarification loop response instead of classification. This may indicate the model is confused or has been asked too many questions.');
+      }
       
       // Extract JSON from response (handle cases where model adds extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);

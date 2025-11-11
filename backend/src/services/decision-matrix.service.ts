@@ -170,15 +170,25 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
         description: attr.description
       }));
 
-      const rules: Rule[] = parsed.rules.map((rule: any) => ({
-        ruleId: rule.ruleId || uuidv4(),
-        name: rule.name,
-        description: rule.description,
-        conditions: rule.conditions,
-        action: rule.action,
-        priority: rule.priority,
-        active: rule.active !== false // Default to true
-      }));
+      const rules: Rule[] = parsed.rules.map((rule: any) => {
+        // Sanitize action to ensure targetCategory is a string, not an array
+        const action = { ...rule.action };
+        if (action.targetCategory && Array.isArray(action.targetCategory)) {
+          // If it's an array, take the first element
+          action.targetCategory = action.targetCategory[0];
+          console.warn(`Rule "${rule.name}" had targetCategory as array, using first value: ${action.targetCategory}`);
+        }
+        
+        return {
+          ruleId: rule.ruleId || uuidv4(),
+          name: rule.name,
+          description: rule.description,
+          conditions: rule.conditions,
+          action: action,
+          priority: rule.priority,
+          active: rule.active !== false // Default to true
+        };
+      });
 
       return {
         description: parsed.description,

@@ -41,10 +41,17 @@ export class DecisionMatrixEvaluatorService {
     // Evaluate each rule in priority order
     for (const rule of activeRules) {
       if (this.evaluateConditions(rule.conditions, extractedAttributes)) {
+        // Sanitize action to ensure targetCategory is a string
+        const sanitizedAction = { ...rule.action };
+        if (sanitizedAction.targetCategory && Array.isArray(sanitizedAction.targetCategory)) {
+          sanitizedAction.targetCategory = sanitizedAction.targetCategory[0] as TransformationCategory;
+          console.warn(`Rule "${rule.name}" had targetCategory as array, using first value: ${sanitizedAction.targetCategory}`);
+        }
+        
         triggeredRules.push({
           ruleId: rule.ruleId,
           ruleName: rule.name,
-          action: rule.action
+          action: sanitizedAction
         });
 
         // Apply the rule action

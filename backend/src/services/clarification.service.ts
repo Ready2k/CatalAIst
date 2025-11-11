@@ -431,9 +431,15 @@ export class ClarificationService {
     context += `- Rationale: ${classification.rationale}\n\n`;
 
     if (conversationHistory.length > 0) {
-      context += `Previous Questions and Answers:\n`;
-      for (const qa of conversationHistory) {
-        context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+      // For conversations with 5+ Q&As, use summarization to prevent confusion
+      if (conversationHistory.length >= 5) {
+        context += this.buildSummarizedContext(conversationHistory);
+      } else {
+        // For shorter conversations, include full history
+        context += `Previous Questions and Answers:\n`;
+        for (const qa of conversationHistory) {
+          context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+        }
       }
     }
 
@@ -472,6 +478,99 @@ export class ClarificationService {
     });
 
     return messages;
+  }
+
+  /**
+   * Build summarized context for long conversations
+   * Extracts key facts and keeps recent context
+   */
+  private buildSummarizedContext(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): string {
+    let context = '';
+    
+    // Extract key facts from all answers
+    const keyFacts = this.extractKeyFacts(conversationHistory);
+    if (keyFacts.length > 0) {
+      context += 'Key Information Already Gathered:\n';
+      keyFacts.forEach(fact => {
+        context += `- ${fact}\n`;
+      });
+      context += '\n';
+    }
+    
+    // Include last 2-3 Q&As for recent context
+    const recentCount = Math.min(3, conversationHistory.length);
+    const recentQAs = conversationHistory.slice(-recentCount);
+    
+    context += `Recent Questions and Answers (last ${recentCount} of ${conversationHistory.length}):\n`;
+    for (const qa of recentQAs) {
+      context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+    }
+    
+    return context;
+  }
+
+  /**
+   * Extract key facts from conversation history
+   * Identifies important information about frequency, volume, complexity, etc.
+   */
+  private extractKeyFacts(
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): string[] {
+    const facts: string[] = [];
+    const allText = conversationHistory.map(qa => qa.answer).join(' ').toLowerCase();
+    
+    // Frequency
+    const frequencyMatch = allText.match(/\b(daily|weekly|monthly|hourly|quarterly|annually|every\s+\w+|once|twice|\d+\s+times?\s+per)\b/i);
+    if (frequencyMatch) {
+      facts.push(`Process frequency: ${frequencyMatch[0]}`);
+    }
+    
+    // Volume/Scale
+    const volumeMatch = allText.match(/\b(\d+)\s+(users?|people|employees?|transactions?|requests?|cases?)\b/i);
+    if (volumeMatch) {
+      facts.push(`Scale: ${volumeMatch[0]}`);
+    }
+    
+    // Current state
+    if (/\b(manual|paper-based|spreadsheet|excel)\b/i.test(allText)) {
+      facts.push('Current state: Manual/paper-based process');
+    } else if (/\b(digital|system|automated|software|tool)\b/i.test(allText)) {
+      facts.push('Current state: Digital/system-based');
+    }
+    
+    // Complexity indicators
+    const stepsMatch = allText.match(/\b(\d+)\s+(steps?|stages?|phases?)\b/i);
+    if (stepsMatch) {
+      facts.push(`Process complexity: ${stepsMatch[0]}`);
+    }
+    
+    // Systems involved
+    const systemsMatch = allText.match(/\b(\d+)\s+(systems?|applications?|tools?)\b/i);
+    if (systemsMatch) {
+      facts.push(`Systems involved: ${systemsMatch[0]}`);
+    }
+    
+    // Pain points
+    if (/\b(slow|time-consuming|takes\s+\d+\s+(hours?|minutes?|days?))\b/i.test(allText)) {
+      facts.push('Pain point: Time-consuming process');
+    }
+    if (/\b(error-prone|mistakes?|errors?)\b/i.test(allText)) {
+      facts.push('Pain point: Error-prone');
+    }
+    
+    // Business value
+    if (/\b(critical|essential|vital|important|high\s+priority)\b/i.test(allText)) {
+      facts.push('Business value: High/Critical');
+    }
+    
+    // Data sensitivity
+    if (/\b(sensitive|confidential|restricted|pii|personal\s+data)\b/i.test(allText)) {
+      facts.push('Data sensitivity: High');
+    }
+    
+    return facts;
   }
 
   /**
@@ -573,6 +672,14 @@ Generate 2-3 questions maximum. Respond ONLY with the JSON array, no additional 
    */
   private parseClarificationResponse(content: string): ClarificationQuestion[] {
     try {
+      // Check for malformed responses (e.g., "Clarification 9")
+      const trimmedContent = content.trim();
+      if (/^Clarification\s+\d+$/i.test(trimmedContent)) {
+        console.warn('[Clarification] Detected loop response, stopping clarification:', trimmedContent);
+        // Return empty array to stop asking questions
+        return [];
+      }
+      
       // Extract JSON from response
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
