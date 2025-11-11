@@ -684,6 +684,141 @@ router.post('/clarify', async (req: Request, res: Response) => {
       });
     }
 
+    // Check for clarification loop BEFORE processing answers
+    // If we're receiving answers but no questions were provided, check audit trail
+    if (!questions || questions.length === 0 || questions.every((q: string) => !q || q.trim() === '')) {
+      const recentLogs = await auditLogService.getLogsBySession(sessionId);
+      const clarificationLogs = recentLogs.filter(log => log.eventType === 'clarification');
+      
+      // Check last 3 clarification events
+      const recentClarifications = clarificationLogs.slice(-3);
+      const emptyQuestionCount = recentClarifications.filter(
+        log => !log.data.questions || log.data.questions.length === 0
+      ).length;
+      
+      if (emptyQuestionCount >= 2) {
+        console.warn(`[Clarification Loop Detected] Session ${sessionId} has ${emptyQuestionCount} consecutive answer submissions with no questions. Forcing classification.`);
+        
+        // Force classification without asking more questions
+        const classificationResult = await classificationService.classify({
+          processDescription: latestConversation.processDescription,
+          conversationHistory: latestConversation.clarificationQA,
+          model,
+          provider: llmProvider,
+          apiKey,
+          awsAccessKeyId,
+          awsSecretAccessKey,
+          awsSessionToken,
+          awsRegion
+        });
+        
+        // Extract attributes for decision matrix
+        const extractedAttributes = await classificationService.extractAttributes(
+          latestConversation.processDescription,
+          latestConversation.clarificationQA,
+          {
+            processDescription: latestConversation.processDescription,
+            conversationHistory: latestConversation.clarificationQA,
+            model,
+            provider: llmProvider,
+            apiKey,
+            awsAccessKeyId,
+            awsSecretAccessKey,
+            awsSessionToken,
+            awsRegion
+          }
+        );
+
+        const attributeValues: { [key: string]: any } = {};
+        for (const [key, value] of Object.entries(extractedAttributes)) {
+          attributeValues[key] = value.value;
+        }
+
+        // Apply decision matrix if available
+        const decisionMatrix = await versionedStorage.getLatestDecisionMatrix();
+        let decisionMatrixEvaluation = null;
+        let finalClassification = classificationResult;
+
+        if (decisionMatrix) {
+          decisionMatrixEvaluation = evaluatorService.evaluateMatrix(
+            decisionMatrix,
+            {
+              ...classificationResult,
+              timestamp: new Date().toISOString(),
+              modelUsed: model,
+              llmProvider
+            },
+            attributeValues
+          );
+
+          finalClassification = decisionMatrixEvaluation.finalClassification;
+        }
+
+        // Save classification to session
+        const classificationToStore: Classification = {
+          category: finalClassification.category,
+          confidence: finalClassification.confidence,
+          rationale: finalClassification.rationale,
+          categoryProgression: finalClassification.categoryProgression,
+          futureOpportunities: finalClassification.futureOpportunities,
+          timestamp: new Date().toISOString(),
+          modelUsed: model,
+          llmProvider,
+          decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
+        };
+
+        session.classification = classificationToStore;
+        session.status = 'completed';
+        session.updatedAt = new Date().toISOString();
+        await sessionStorage.saveSession(session);
+        analyticsService.invalidateCache();
+        
+        // Log loop detection
+        await auditLogService.log({
+          sessionId,
+          timestamp: new Date().toISOString(),
+          eventType: 'clarification',
+          userId,
+          data: {
+            loopDetected: true,
+            reason: 'Multiple answer submissions with no questions',
+            emptyQuestionCount,
+            action: 'forced_classification'
+          },
+          piiScrubbed: false,
+          metadata: {
+            modelVersion: model,
+            llmProvider
+          }
+        });
+
+        // Log classification
+        await auditLogService.logClassification(
+          sessionId,
+          userId,
+          classificationToStore,
+          decisionMatrix?.version || null,
+          decisionMatrixEvaluation,
+          'Loop detected - forced classification',
+          JSON.stringify(classificationResult),
+          false,
+          {
+            modelVersion: model,
+            llmProvider,
+            loopDetected: true
+          }
+        );
+        
+        // Return classification
+        return res.json({
+          classification: classificationToStore,
+          loopDetected: true,
+          message: 'Clarification loop detected. Proceeding with classification based on available information.',
+          sessionId
+        });
+      }
+    }
+
     // Scrub PII from answers
     const scrubbedAnswers = await Promise.all(
       answers.map(a => piiService.scrubAndStore(a, sessionId, userId))
@@ -704,19 +839,20 @@ router.post('/clarify', async (req: Request, res: Response) => {
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
 
-    // Log clarification responses
+    // Log clarification responses (with questions if provided)
     await auditLogService.logClarification(
       sessionId,
       userId,
-      [],
+      questions || [],
       answers,
-      [],
+      questions || [],
       scrubbedAnswers.map(sa => sa.scrubbedText),
       scrubbedAnswers.some(sa => sa.hasPII),
       undefined,
       undefined,
       {
-        answerCount: answers.length
+        answerCount: answers.length,
+        questionCount: questions ? questions.length : 0
       }
     );
 
@@ -738,57 +874,154 @@ router.post('/clarify', async (req: Request, res: Response) => {
 
     // Check if more clarification is needed
     if (classificationResult.action === 'clarify') {
-      const clarificationResponse = await clarificationService.generateQuestions({
-        processDescription: latestConversation.processDescription,
-        classification: classificationResult.result,
-        conversationHistory: latestConversation.clarificationQA,
-        provider: llmProvider,
-        apiKey,
-        awsAccessKeyId,
-        awsSecretAccessKey,
-        awsSessionToken,
-        awsRegion,
-        model
-      });
+      // Detect clarification loops by checking recent audit logs
+      const recentLogs = await auditLogService.getLogsBySession(sessionId);
+      const clarificationLogs = recentLogs.filter(log => log.eventType === 'clarification');
+      
+      // Check for loop: 3+ consecutive clarifications with empty questions
+      const recentClarifications = clarificationLogs.slice(-3);
+      const emptyQuestionCount = recentClarifications.filter(
+        log => log.data.questions && log.data.questions.length === 0
+      ).length;
+      
+      if (emptyQuestionCount >= 2) {
+        console.warn(`[Clarification Loop Detected] Session ${sessionId} has ${emptyQuestionCount} consecutive empty question responses. Stopping clarification.`);
+        
+        // Force auto-classify to break the loop
+        classificationResult.action = 'auto_classify';
+        
+        // Log the loop detection
+        await auditLogService.log({
+          sessionId,
+          timestamp: new Date().toISOString(),
+          eventType: 'clarification',
+          userId,
+          data: {
+            loopDetected: true,
+            reason: 'Multiple consecutive empty question responses',
+            emptyQuestionCount,
+            action: 'forced_auto_classify'
+          },
+          piiScrubbed: false,
+          metadata: {
+            modelVersion: model,
+            llmProvider
+          }
+        });
+        
+        // Continue to auto-classify section below
+      } else {
+        // Generate clarification questions
+        const clarificationResponse = await clarificationService.generateQuestions({
+          processDescription: latestConversation.processDescription,
+          classification: classificationResult.result,
+          conversationHistory: latestConversation.clarificationQA,
+          provider: llmProvider,
+          apiKey,
+          awsAccessKeyId,
+          awsSecretAccessKey,
+          awsSessionToken,
+          awsRegion,
+          model
+        });
 
-      const questionTexts = clarificationResponse.questions.map(q => q.question);
-      const scrubbedQuestions = await Promise.all(
-        questionTexts.map(q => piiService.scrubOnly(q))
-      );
+        // Check if clarification service says to stop (shouldClarify = false or empty questions)
+        if (!clarificationResponse.shouldClarify || clarificationResponse.questions.length === 0) {
+          console.log(`[Clarification] Stopping clarification: ${clarificationResponse.reason}`);
+          
+          // Log that we're stopping clarification
+          await auditLogService.log({
+            sessionId,
+            timestamp: new Date().toISOString(),
+            eventType: 'clarification',
+            userId,
+            data: {
+              stoppedClarification: true,
+              reason: clarificationResponse.reason,
+              action: 'auto_classify'
+            },
+            piiScrubbed: false,
+            metadata: {
+              modelVersion: model,
+              llmProvider
+            }
+          });
+          
+          // Force auto-classify
+          classificationResult.action = 'auto_classify';
+          // Continue to auto-classify section below
+        } else {
+          // We have valid questions to ask
+          const questionTexts = clarificationResponse.questions.map(q => q.question);
+          const scrubbedQuestions = await Promise.all(
+            questionTexts.map(q => piiService.scrubOnly(q))
+          );
 
-      await auditLogService.logClarification(
-        sessionId,
-        userId,
-        questionTexts,
-        [],
-        scrubbedQuestions.map(sq => sq.scrubbedText),
-        [],
-        scrubbedQuestions.some(sq => sq.hasPII),
-        undefined,
-        undefined,
-        {
-          modelVersion: model,
-          llmProvider,
-          latencyMs: classificationLatency,
-          action: 'clarify'
+          await auditLogService.logClarification(
+            sessionId,
+            userId,
+            questionTexts,
+            [],
+            scrubbedQuestions.map(sq => sq.scrubbedText),
+            [],
+            scrubbedQuestions.some(sq => sq.hasPII),
+            undefined,
+            undefined,
+            {
+              modelVersion: model,
+              llmProvider,
+              latencyMs: classificationLatency,
+              action: 'clarify'
+            }
+          );
+
+          return res.json({
+            clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
+            totalQuestions: questionTexts.length,
+            sessionId
+          });
         }
-      );
-
-      return res.json({
-        clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
-        totalQuestions: questionTexts.length,
-        sessionId
-      });
+      }
     }
 
     // Check if manual review is needed
     if (classificationResult.action === 'manual_review') {
+      // Save classification to session even for manual review
+      const classificationToStore: Classification = {
+        category: classificationResult.result.category,
+        confidence: classificationResult.result.confidence,
+        rationale: classificationResult.result.rationale,
+        categoryProgression: classificationResult.result.categoryProgression,
+        futureOpportunities: classificationResult.result.futureOpportunities,
+        timestamp: new Date().toISOString(),
+        modelUsed: model,
+        llmProvider
+      };
+
+      session.classification = classificationToStore;
       session.status = 'manual_review';
       await sessionStorage.saveSession(session);
       analyticsService.invalidateCache();
 
+      // Log classification for manual review
+      await auditLogService.logClassification(
+        sessionId,
+        userId,
+        classificationToStore,
+        null,
+        null,
+        'Manual review required',
+        JSON.stringify(classificationResult.result),
+        false,
+        {
+          modelVersion: model,
+          llmProvider,
+          action: 'manual_review'
+        }
+      );
+
       return res.json({
-        classification: classificationResult.result,
+        classification: classificationToStore,
         requiresManualReview: true,
         message: 'Classification confidence is too low. Manual review required.',
         sessionId
