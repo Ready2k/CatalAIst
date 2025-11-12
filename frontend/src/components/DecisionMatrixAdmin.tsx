@@ -153,6 +153,123 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
     });
   };
 
+  const updateRule = (ruleId: string, updates: any) => {
+    if (!matrix) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.map(rule =>
+        rule.ruleId === ruleId ? { ...rule, ...updates } : rule
+      ),
+    });
+  };
+
+  const updateRuleCondition = (ruleId: string, conditionIndex: number, updates: any) => {
+    if (!matrix) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.map(rule => {
+        if (rule.ruleId === ruleId) {
+          const newConditions = [...rule.conditions];
+          newConditions[conditionIndex] = { ...newConditions[conditionIndex], ...updates };
+          return { ...rule, conditions: newConditions };
+        }
+        return rule;
+      }),
+    });
+  };
+
+  const addRuleCondition = (ruleId: string) => {
+    if (!matrix) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.map(rule => {
+        if (rule.ruleId === ruleId) {
+          return {
+            ...rule,
+            conditions: [
+              ...rule.conditions,
+              {
+                attribute: matrix.attributes[0]?.name || '',
+                operator: '==' as const,
+                value: ''
+              }
+            ]
+          };
+        }
+        return rule;
+      }),
+    });
+  };
+
+  const deleteRuleCondition = (ruleId: string, conditionIndex: number) => {
+    if (!matrix) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.map(rule => {
+        if (rule.ruleId === ruleId) {
+          return {
+            ...rule,
+            conditions: rule.conditions.filter((_, idx) => idx !== conditionIndex)
+          };
+        }
+        return rule;
+      }),
+    });
+  };
+
+  const updateRuleAction = (ruleId: string, updates: any) => {
+    if (!matrix) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.map(rule => {
+        if (rule.ruleId === ruleId) {
+          return {
+            ...rule,
+            action: { ...rule.action, ...updates }
+          };
+        }
+        return rule;
+      }),
+    });
+  };
+
+  const addNewRule = () => {
+    if (!matrix) return;
+    const newRuleId = `rule-${Date.now()}`;
+    const newRule = {
+      ruleId: newRuleId,
+      name: `New Rule ${matrix.rules.length + 1}`,
+      description: 'New rule description',
+      priority: 50,
+      active: true,
+      conditions: [
+        {
+          attribute: matrix.attributes[0]?.name || '',
+          operator: '==' as const,
+          value: ''
+        }
+      ],
+      action: {
+        type: 'adjust_confidence' as const,
+        confidenceAdjustment: 0,
+        rationale: 'Adjustment rationale'
+      }
+    };
+    setMatrix({
+      ...matrix,
+      rules: [...matrix.rules, newRule]
+    });
+  };
+
+  const deleteRule = (ruleId: string) => {
+    if (!matrix) return;
+    if (!window.confirm('Are you sure you want to delete this rule?')) return;
+    setMatrix({
+      ...matrix,
+      rules: matrix.rules.filter(rule => rule.ruleId !== ruleId)
+    });
+  };
+
   if (loading) {
     return (
       <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', textAlign: 'center' }}>
@@ -764,7 +881,26 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
         borderRadius: '8px',
         padding: '20px'
       }}>
-        <h3 style={{ marginTop: 0 }}>Rules ({matrix.rules.length})</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h3 style={{ margin: 0 }}>Rules ({matrix.rules.length})</h3>
+          {editMode && (
+            <button
+              onClick={addNewRule}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#28a745',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+            >
+              ➕ Add Rule
+            </button>
+          )}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {matrix.rules.map(rule => (
             <div key={rule.ruleId} style={{
@@ -773,9 +909,27 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
               borderRadius: '4px',
               borderLeft: `4px solid ${rule.active ? '#28a745' : '#6c757d'}`
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <div>
-                  <strong>{rule.name}</strong>
+              {/* Rule Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={rule.name}
+                      onChange={(e) => updateRule(rule.ruleId, { name: e.target.value })}
+                      style={{
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        padding: '4px 8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        width: '100%',
+                        maxWidth: '400px'
+                      }}
+                    />
+                  ) : (
+                    <strong>{rule.name}</strong>
+                  )}
                   <span style={{
                     marginLeft: '10px',
                     padding: '2px 8px',
@@ -784,46 +938,292 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
                     borderRadius: '4px',
                     fontSize: '12px'
                   }}>
-                    Priority: {rule.priority}
+                    Priority: {editMode ? (
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={rule.priority}
+                        onChange={(e) => updateRule(rule.ruleId, { priority: parseInt(e.target.value) })}
+                        style={{
+                          width: '50px',
+                          padding: '2px 4px',
+                          marginLeft: '4px',
+                          border: '1px solid #fff',
+                          borderRadius: '2px'
+                        }}
+                      />
+                    ) : rule.priority}
                   </span>
                 </div>
-                {editMode && (
-                  <button
-                    onClick={() => toggleRuleActive(rule.ruleId)}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {editMode && (
+                    <>
+                      <button
+                        onClick={() => toggleRuleActive(rule.ruleId)}
+                        style={{
+                          padding: '4px 12px',
+                          backgroundColor: rule.active ? '#dc3545' : '#28a745',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {rule.active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => deleteRule(rule.ruleId)}
+                        style={{
+                          padding: '4px 12px',
+                          backgroundColor: '#dc3545',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Rule Description */}
+              <div style={{ marginBottom: '10px' }}>
+                {editMode ? (
+                  <textarea
+                    value={rule.description}
+                    onChange={(e) => updateRule(rule.ruleId, { description: e.target.value })}
                     style={{
-                      padding: '4px 12px',
-                      backgroundColor: rule.active ? '#dc3545' : '#28a745',
-                      color: '#fff',
-                      border: 'none',
+                      width: '100%',
+                      padding: '8px',
+                      fontSize: '14px',
+                      border: '1px solid #ddd',
                       borderRadius: '4px',
-                      fontSize: '12px',
-                      cursor: 'pointer'
+                      minHeight: '60px',
+                      fontFamily: 'inherit'
                     }}
-                  >
-                    {rule.active ? 'Deactivate' : 'Activate'}
-                  </button>
+                  />
+                ) : (
+                  <div style={{ fontSize: '14px', color: '#666' }}>
+                    {rule.description}
+                  </div>
                 )}
               </div>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-                {rule.description}
-              </div>
-              <div style={{ fontSize: '13px', marginBottom: '8px' }}>
-                <strong>Conditions:</strong>
-                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+
+              {/* Conditions */}
+              <div style={{ fontSize: '13px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <strong>Conditions:</strong>
+                  {editMode && (
+                    <button
+                      onClick={() => addRuleCondition(rule.ruleId)}
+                      style={{
+                        padding: '2px 8px',
+                        backgroundColor: '#007bff',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '3px',
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Add Condition
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {rule.conditions.map((cond, idx) => (
-                    <li key={idx}>
-                      {cond.attribute} {cond.operator} {JSON.stringify(cond.value)}
-                    </li>
+                    <div key={idx} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px',
+                      backgroundColor: '#fff',
+                      borderRadius: '4px',
+                      border: '1px solid #e0e0e0'
+                    }}>
+                      {editMode ? (
+                        <>
+                          <select
+                            value={cond.attribute}
+                            onChange={(e) => updateRuleCondition(rule.ruleId, idx, { attribute: e.target.value })}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #ddd',
+                              borderRadius: '3px',
+                              flex: '1'
+                            }}
+                          >
+                            {matrix.attributes.map(attr => (
+                              <option key={attr.name} value={attr.name}>{attr.name}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={cond.operator}
+                            onChange={(e) => updateRuleCondition(rule.ruleId, idx, { operator: e.target.value })}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #ddd',
+                              borderRadius: '3px'
+                            }}
+                          >
+                            <option value="==">equals (==)</option>
+                            <option value="!=">not equals (!=)</option>
+                            <option value=">">greater than (&gt;)</option>
+                            <option value="<">less than (&lt;)</option>
+                            <option value=">=">greater than or equal (&gt;=)</option>
+                            <option value="<=">less than or equal (&lt;=)</option>
+                            <option value="in">in</option>
+                            <option value="not_in">not in</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={typeof cond.value === 'string' ? cond.value : JSON.stringify(cond.value)}
+                            onChange={(e) => {
+                              let value: any = e.target.value;
+                              try {
+                                value = JSON.parse(e.target.value);
+                              } catch {
+                                // Keep as string if not valid JSON
+                              }
+                              updateRuleCondition(rule.ruleId, idx, { value });
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #ddd',
+                              borderRadius: '3px',
+                              flex: '1'
+                            }}
+                          />
+                          <button
+                            onClick={() => deleteRuleCondition(rule.ruleId, idx)}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dc3545',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '3px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <span>
+                          {cond.attribute} {cond.operator} {JSON.stringify(cond.value)}
+                        </span>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
-              <div style={{ fontSize: '13px' }}>
-                <strong>Action:</strong> {rule.action.type}
-                {rule.action.targetCategory && ` → ${rule.action.targetCategory}`}
-                {rule.action.confidenceAdjustment && ` (${rule.action.confidenceAdjustment > 0 ? '+' : ''}${rule.action.confidenceAdjustment})`}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '5px', fontStyle: 'italic' }}>
-                {rule.action.rationale}
+
+              {/* Action */}
+              <div style={{ fontSize: '13px', padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e0e0e0' }}>
+                <strong>Action:</strong>
+                {editMode ? (
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <label style={{ minWidth: '80px', fontSize: '12px' }}>Type:</label>
+                      <select
+                        value={rule.action.type}
+                        onChange={(e) => updateRuleAction(rule.ruleId, { type: e.target.value })}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '3px',
+                          flex: '1'
+                        }}
+                      >
+                        <option value="adjust_confidence">Adjust Confidence</option>
+                        <option value="override">Override Category</option>
+                        <option value="flag_review">Flag for Review</option>
+                      </select>
+                    </div>
+                    {rule.action.type === 'override' && (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <label style={{ minWidth: '80px', fontSize: '12px' }}>Category:</label>
+                        <select
+                          value={rule.action.targetCategory || ''}
+                          onChange={(e) => updateRuleAction(rule.ruleId, { targetCategory: e.target.value })}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '3px',
+                            flex: '1'
+                          }}
+                        >
+                          <option value="">Select category...</option>
+                          <option value="Eliminate">Eliminate</option>
+                          <option value="Simplify">Simplify</option>
+                          <option value="Digitise">Digitise</option>
+                          <option value="RPA">RPA</option>
+                          <option value="AI Agent">AI Agent</option>
+                          <option value="Agentic AI">Agentic AI</option>
+                        </select>
+                      </div>
+                    )}
+                    {rule.action.type === 'adjust_confidence' && (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <label style={{ minWidth: '80px', fontSize: '12px' }}>Adjustment:</label>
+                        <input
+                          type="number"
+                          min="-100"
+                          max="100"
+                          value={rule.action.confidenceAdjustment || 0}
+                          onChange={(e) => updateRuleAction(rule.ruleId, { confidenceAdjustment: parseInt(e.target.value) })}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '3px',
+                            width: '80px'
+                          }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#666' }}>(-100 to +100)</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <label style={{ minWidth: '80px', fontSize: '12px', paddingTop: '4px' }}>Rationale:</label>
+                      <textarea
+                        value={rule.action.rationale || ''}
+                        onChange={(e) => updateRuleAction(rule.ruleId, { rationale: e.target.value })}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '3px',
+                          flex: '1',
+                          minHeight: '50px',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '4px' }}>
+                    <div>
+                      {rule.action.type}
+                      {rule.action.targetCategory && ` → ${rule.action.targetCategory}`}
+                      {rule.action.confidenceAdjustment !== undefined && ` (${rule.action.confidenceAdjustment > 0 ? '+' : ''}${rule.action.confidenceAdjustment})`}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666', marginTop: '5px', fontStyle: 'italic' }}>
+                      {rule.action.rationale}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

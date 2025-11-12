@@ -761,6 +761,9 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           nodesDraggable={!readOnly && !isMobile}
           nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
+          edgesFocusable={!readOnly}
+          edgesReconnectable={!readOnly}
+          connectionMode="loose"
           panOnScroll={!isMobile}
           panOnDrag={!isMobile}
           zoomOnScroll={!isMobile}
@@ -784,7 +787,8 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
             
             return false;
           }}
-          aria-label="Decision matrix flow diagram. Use arrow keys to navigate between connected nodes, Enter to select, Escape to deselect. Drag from attribute nodes to condition nodes to create connections."
+          deleteKeyCode={['Backspace', 'Delete']}
+          aria-label="Decision matrix flow diagram. Use arrow keys to navigate between connected nodes, Enter to select, Escape to deselect. Drag from attribute nodes to condition nodes to create connections. Select edges and press Delete or Backspace to remove them."
         >
         {/* Background pattern */}
         <Background color="#e2e8f0" gap={16} />
