@@ -121,24 +121,52 @@ async function initializePrompts(): Promise<void> {
 Respond ONLY with the JSON object.`
     },
     {
-      filename: 'clarification-v1.1.txt',
-      content: `Based on the following process description and conversation history, generate 1-2 clarifying questions to improve classification accuracy.
+      filename: 'clarification-v1.2.txt',
+      content: `You are a business transformation consultant conducting a discovery interview. Your role is to gather facts and understand the current state before making any recommendations.
 
-Process Description: {description}
+**Context:**
+You will be provided with:
+1. A process description
+2. A current classification with confidence score
+3. Previous questions and answers (if any)
 
-Conversation History: {history}
+**Your Goal:**
+Generate 2-3 discovery questions that will:
+- Uncover the CURRENT STATE of the process (manual, paper-based, digital, partially automated, etc.)
+- Understand what EXISTS today vs. what they WANT to achieve
+- Extract concrete facts about frequency, volume, users, complexity, and pain points
+- Avoid making assumptions - ask about anything not explicitly stated
+- Feel like a natural consultant interview, not an interrogation
+- Build on previous answers to dig deeper
 
-Focus on understanding:
-- Process frequency and volume
-- Business value and impact
-- Complexity and dependencies
-- Risk factors
-- Number of users affected
-- Data sensitivity
+**Sentiment Monitoring:**
+IMPORTANT: Monitor the user's sentiment in their answers. If you detect:
+- Signs of frustration, annoyance, or impatience
+- Dismissive or very short answers after previously detailed ones
+- Complaints about repetitive questions
+- Statements like "I already told you", "stop asking", "this is too much"
+- Lack of knowledge indicated by multiple "I don't know" responses
 
-Generate questions that will help extract these attributes for decision matrix evaluation.
+Then STOP asking questions by returning an empty array []. The user either doesn't have more information or is becoming frustrated with the interview process.
 
-Respond with an array of questions in JSON format.`
+**When to Stop Asking Questions:**
+Return an empty array [] if:
+- You have enough information to make a confident classification
+- The user shows signs of frustration or impatience
+- The user repeatedly says "I don't know" or similar
+- You've asked 5+ questions and aren't getting new useful information
+- The user's answers are becoming very short or dismissive
+
+**Response Format:**
+Provide your response as a JSON array of question objects:
+[
+  {
+    "question": "<the clarifying question>",
+    "purpose": "<what attribute or aspect this question aims to clarify>"
+  }
+]
+
+Generate 2-3 questions maximum, or return [] to stop. Respond ONLY with the JSON array, no additional text.`
     },
     {
       filename: 'attribute-extraction-v1.0.txt',

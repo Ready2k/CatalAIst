@@ -77,11 +77,18 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ onLoadAnalytics
   }, []);
 
   // Memoize filter options to prevent unnecessary re-renders
+  // We use string keys instead of the object itself to avoid unnecessary re-renders
+  const subjectsKey = filterOptions.subjects.join(',');
+  const modelsKey = filterOptions.models.join(',');
+  const categoriesKey = filterOptions.categories.join(',');
+  const statusesKey = filterOptions.statuses.join(',');
+  
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoizedFilterOptions = useMemo(() => filterOptions, [
-    filterOptions.subjects.join(','),
-    filterOptions.models.join(','),
-    filterOptions.categories.join(','),
-    filterOptions.statuses.join(',')
+    subjectsKey,
+    modelsKey,
+    categoriesKey,
+    statusesKey
   ]);
 
   // Load filtered metrics

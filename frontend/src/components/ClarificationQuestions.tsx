@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ClarificationQuestionsProps {
   questions: string[];
   currentQuestionIndex: number;
   totalQuestions: number;
-  onAnswer: (answer: string) => void;
+  onAnswer: (answer: string | string[]) => void;
   onSkipInterview?: () => void;
   onVoiceRecord?: () => void;
   isProcessing?: boolean;
@@ -21,27 +21,52 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
   isProcessing = false,
   showVoiceButton = true,
 }) => {
-  const [answer, setAnswer] = useState('');
-  const [error, setError] = useState('');
+  // Initialize answers array with empty strings for each question
+  const [answers, setAnswers] = useState<string[]>(questions.map(() => ''));
+  const [errors, setErrors] = useState<string[]>(questions.map(() => ''));
+
+  // Reset answers when questions change (new batch arrives)
+  useEffect(() => {
+    setAnswers(questions.map(() => ''));
+    setErrors(questions.map(() => ''));
+  }, [questions]);
+
+  const handleAnswerChange = (index: number, value: string) => {
+    const newAnswers = [...answers];
+    newAnswers[index] = value;
+    setAnswers(newAnswers);
+    
+    // Clear error for this question
+    const newErrors = [...errors];
+    newErrors[index] = '';
+    setErrors(newErrors);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    if (answer.trim().length < 1) {
-      setError('Please provide an answer');
+    
+    // Validate all answers
+    const newErrors = answers.map((answer, index) => 
+      answer.trim().length < 1 ? 'Please provide an answer' : ''
+    );
+    
+    setErrors(newErrors);
+    
+    // Check if any errors
+    if (newErrors.some(error => error !== '')) {
       return;
     }
 
-    onAnswer(answer);
-    setAnswer('');
+    // Submit all answers
+    onAnswer(answers);
+    
+    // Reset for next batch
+    setAnswers(questions.map(() => ''));
   };
-
-  const currentQuestion = questions[0] || '';
 
   return (
     <div style={{
-      maxWidth: '800px',
+      maxWidth: '900px',
       margin: '0 auto',
       padding: '20px'
     }}>
@@ -69,7 +94,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
             fontSize: '14px',
             fontWeight: 'bold'
           }}>
-            Question {currentQuestionIndex + 1} of {totalQuestions}
+            {questions.length} Question{questions.length > 1 ? 's' : ''} ({currentQuestionIndex + 1}-{currentQuestionIndex + questions.length} of {totalQuestions})
           </span>
         </div>
 
@@ -79,52 +104,70 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
           backgroundColor: '#fff',
           borderRadius: '2px',
           overflow: 'hidden',
-          marginBottom: '15px'
+          marginBottom: '20px'
         }}>
           <div style={{
-            width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%`,
+            width: `${((currentQuestionIndex + questions.length) / totalQuestions) * 100}%`,
             height: '100%',
             backgroundColor: '#ffc107',
             transition: 'width 0.3s ease'
           }} />
         </div>
 
-        <p style={{
-          fontSize: '18px',
-          color: '#333',
-          marginBottom: '20px',
-          lineHeight: '1.5'
-        }}>
-          {currentQuestion}
-        </p>
-
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '15px' }}>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Type your answer here..."
-              disabled={isProcessing}
-              style={{
-                width: '100%',
-                minHeight: '80px',
-                padding: '12px',
-                fontSize: '14px',
-                border: error ? '1px solid #dc3545' : '1px solid #ddd',
-                borderRadius: '4px',
-                boxSizing: 'border-box',
-                resize: 'vertical',
-                fontFamily: 'inherit'
-              }}
-            />
-            {error && (
-              <div style={{ color: '#dc3545', fontSize: '14px', marginTop: '5px' }}>
-                {error}
-              </div>
-            )}
-          </div>
+          {questions.map((question, index) => (
+            <div key={index} style={{ marginBottom: '25px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#333',
+                marginBottom: '10px'
+              }}>
+                {questions.length > 1 && (
+                  <span style={{
+                    display: 'inline-block',
+                    width: '24px',
+                    height: '24px',
+                    backgroundColor: '#007bff',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    textAlign: 'center',
+                    lineHeight: '24px',
+                    fontSize: '14px',
+                    marginRight: '10px'
+                  }}>
+                    {index + 1}
+                  </span>
+                )}
+                {question}
+              </label>
+              <textarea
+                value={answers[index]}
+                onChange={(e) => handleAnswerChange(index, e.target.value)}
+                placeholder="Type your answer here..."
+                disabled={isProcessing}
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  border: errors[index] ? '1px solid #dc3545' : '1px solid #ddd',
+                  borderRadius: '4px',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                  fontFamily: 'inherit'
+                }}
+              />
+              {errors[index] && (
+                <div style={{ color: '#dc3545', fontSize: '14px', marginTop: '5px' }}>
+                  {errors[index]}
+                </div>
+              )}
+            </div>
+          ))}
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
             <button
               type="submit"
               disabled={isProcessing}
@@ -146,10 +189,10 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
                 if (!isProcessing) e.currentTarget.style.backgroundColor = '#007bff';
               }}
             >
-              {isProcessing ? 'Processing...' : 'Submit Answer'}
+              {isProcessing ? 'Processing...' : `Submit ${questions.length > 1 ? 'All Answers' : 'Answer'}`}
             </button>
 
-            {showVoiceButton && onVoiceRecord && (
+            {showVoiceButton && onVoiceRecord && questions.length === 1 && (
               <button
                 type="button"
                 onClick={onVoiceRecord}

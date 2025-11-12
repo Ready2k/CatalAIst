@@ -291,7 +291,7 @@ class ApiService {
   }
 
   // Conversation endpoints
-  async addConversation(response: string, questions?: string[]): Promise<any> {
+  async addConversation(responses: string | string[], questions?: string[]): Promise<any> {
     if (!this.sessionId) {
       const error: ApiError = { message: 'No active session', status: 400 };
       throw error;
@@ -301,9 +301,12 @@ class ApiService {
       throw error;
     }
 
+    // Convert single response to array for consistency
+    const answers = Array.isArray(responses) ? responses : [responses];
+
     const body: any = {
       sessionId: this.sessionId,
-      answers: [response],
+      answers,
       questions: questions || [], // Send the questions that were asked
       model: this.llmConfig.model,
       provider: this.llmConfig.provider,

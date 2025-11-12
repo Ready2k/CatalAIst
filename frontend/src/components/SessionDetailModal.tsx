@@ -81,11 +81,6 @@ const SessionDetailModal: React.FC<SessionDetailModalProps> = ({ sessionId, onCl
     });
   }, [sessionId]);
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
-
   // Format confidence as percentage
   const formatConfidence = (confidence: number) => {
     return `${Math.round(confidence * 100)}%`;

@@ -109,10 +109,12 @@ router.get('/sessions', authenticateToken, requireRole('admin'), generalLimiter,
       });
     }
 
-    if (limit < 1 || limit > 100) {
+    // Allow higher limits for metrics calculation (up to 10000)
+    // Normal pagination should use 100 or less
+    if (limit < 1 || limit > 10000) {
       return res.status(400).json({
         error: 'Invalid pagination',
-        message: 'Limit must be between 1 and 100'
+        message: 'Limit must be between 1 and 10000'
       });
     }
 

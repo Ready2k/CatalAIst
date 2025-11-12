@@ -684,164 +684,8 @@ router.post('/clarify', async (req: Request, res: Response) => {
       });
     }
 
-    // Check for clarification loop BEFORE processing answers
-    // Get recent audit logs to check for patterns
-    const recentLogs = await auditLogService.getLogsBySession(sessionId);
-    const clarificationLogs = recentLogs.filter(log => log.eventType === 'clarification');
-    
-    // Track questions asked vs answered
-    let totalQuestionsAsked = 0;
-    let totalAnswersReceived = 0;
-    
-    // Look at last 3 clarification rounds
-    const recentClarifications = clarificationLogs.slice(-3);
-    for (const log of recentClarifications) {
-      const questionsAsked = log.data.questions?.length || 0;
-      const answersReceived = log.data.answers?.length || 0;
-      
-      totalQuestionsAsked += questionsAsked;
-      totalAnswersReceived += answersReceived;
-    }
-    
-    // Add current answers to the count
-    totalAnswersReceived += answers.length;
-    
-    // Calculate unanswered questions
-    const unansweredQuestions = totalQuestionsAsked - totalAnswersReceived;
-    
-    console.log(`[Clarification Tracking] Questions asked: ${totalQuestionsAsked}, Answers received: ${totalAnswersReceived}, Unanswered: ${unansweredQuestions}`);
-    
-    // If we're receiving answers but no questions were provided, check if this is a loop
-    if (!questions || questions.length === 0 || questions.every((q: string) => !q || q.trim() === '')) {
-      // Check for consecutive answer-only submissions (potential loop)
-      const emptyQuestionCount = recentClarifications.filter(
-        log => !log.data.questions || log.data.questions.length === 0
-      ).length;
-      
-      if (emptyQuestionCount >= 2) {
-        console.warn(`[Clarification Loop Detected] Session ${sessionId} has ${emptyQuestionCount} consecutive answer submissions with no questions. Forcing classification.`);
-        
-        // Force classification without asking more questions (with LLM data for audit)
-        const classificationWithLLM = await classificationService.classifyWithLLMData({
-          processDescription: latestConversation.processDescription,
-          conversationHistory: latestConversation.clarificationQA,
-          model,
-          provider: llmProvider,
-          apiKey,
-          awsAccessKeyId,
-          awsSecretAccessKey,
-          awsSessionToken,
-          awsRegion
-        });
-        
-        const classificationResult = classificationWithLLM.result;
-        
-        // Extract attributes for decision matrix
-        const extractedAttributes = await classificationService.extractAttributes(
-          latestConversation.processDescription,
-          latestConversation.clarificationQA,
-          {
-            processDescription: latestConversation.processDescription,
-            conversationHistory: latestConversation.clarificationQA,
-            model,
-            provider: llmProvider,
-            apiKey,
-            awsAccessKeyId,
-            awsSecretAccessKey,
-            awsSessionToken,
-            awsRegion
-          }
-        );
-
-        const attributeValues: { [key: string]: any } = {};
-        for (const [key, value] of Object.entries(extractedAttributes)) {
-          attributeValues[key] = value.value;
-        }
-
-        // Apply decision matrix if available
-        const decisionMatrix = await versionedStorage.getLatestDecisionMatrix();
-        let decisionMatrixEvaluation = null;
-        let finalClassification = classificationResult;
-
-        if (decisionMatrix) {
-          decisionMatrixEvaluation = evaluatorService.evaluateMatrix(
-            decisionMatrix,
-            {
-              ...classificationResult,
-              timestamp: new Date().toISOString(),
-              modelUsed: model,
-              llmProvider
-            },
-            attributeValues
-          );
-
-          finalClassification = decisionMatrixEvaluation.finalClassification;
-        }
-
-        // Save classification to session
-        const classificationToStore: Classification = {
-          category: finalClassification.category,
-          confidence: finalClassification.confidence,
-          rationale: finalClassification.rationale,
-          categoryProgression: finalClassification.categoryProgression,
-          futureOpportunities: finalClassification.futureOpportunities,
-          timestamp: new Date().toISOString(),
-          modelUsed: model,
-          llmProvider,
-          decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
-        };
-
-        session.classification = classificationToStore;
-        session.status = 'completed';
-        session.updatedAt = new Date().toISOString();
-        await sessionStorage.saveSession(session);
-        analyticsService.invalidateCache();
-        
-        // Log loop detection
-        await auditLogService.log({
-          sessionId,
-          timestamp: new Date().toISOString(),
-          eventType: 'clarification',
-          userId,
-          data: {
-            loopDetected: true,
-            reason: 'Multiple answer submissions with no questions',
-            emptyQuestionCount,
-            action: 'forced_classification'
-          },
-          piiScrubbed: false,
-          metadata: {
-            modelVersion: model,
-            llmProvider
-          }
-        });
-
-        // Log classification with actual LLM prompt and response
-        await auditLogService.logClassification(
-          sessionId,
-          userId,
-          classificationToStore,
-          decisionMatrix?.version || null,
-          decisionMatrixEvaluation,
-          classificationWithLLM.llmPrompt,
-          classificationWithLLM.llmResponse,
-          false,
-          {
-            modelVersion: model,
-            llmProvider,
-            loopDetected: true
-          }
-        );
-        
-        // Return classification
-        return res.json({
-          classification: classificationToStore,
-          loopDetected: true,
-          message: 'Clarification loop detected. Proceeding with classification based on available information.',
-          sessionId
-        });
-      }
-    }
+    // Note: Loop detection is handled later after we attempt to generate new questions
+    // This allows the LLM to naturally stop asking questions when it has enough information
 
     // Scrub PII from answers
     const scrubbedAnswers = await Promise.all(
@@ -863,15 +707,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
 
-    // Get the last clarification log to retrieve the questions that were asked
-    const lastClarificationLog = clarificationLogs.length > 0 
-      ? clarificationLogs[clarificationLogs.length - 1] 
-      : null;
-    
-    const questionsAsked = lastClarificationLog?.data.questions || [];
-    const questionsAskedCount = questionsAsked.length;
-    
-    // Log clarification responses with proper question tracking
+    // Log clarification responses
     await auditLogService.logClarification(
       sessionId,
       userId,
@@ -885,9 +721,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
       {
         answerCount: answers.length,
         questionCount: questions ? questions.length : 0,
-        questionsAskedPreviously: questionsAskedCount,  // Track questions from previous round
-        answeredCount: answers.length,
-        unansweredCount: Math.max(0, questionsAskedCount - answers.length)  // Track unanswered
+        conversationLength: latestConversation.clarificationQA.length
       }
     );
 
@@ -918,8 +752,6 @@ router.post('/clarify', async (req: Request, res: Response) => {
       
       // Count how many times we asked questions but got no new questions back
       let emptyQuestionRounds = 0;
-      let totalQuestionsAsked = 0;
-      let totalAnswersGiven = 0;
       
       for (const log of recentClarifications) {
         const questionsInLog = log.data.questions?.length || 0;
@@ -928,18 +760,12 @@ router.post('/clarify', async (req: Request, res: Response) => {
         if (questionsInLog === 0 && answersInLog > 0) {
           emptyQuestionRounds++;
         }
-        
-        totalQuestionsAsked += questionsInLog;
-        totalAnswersGiven += answersInLog;
       }
       
-      // Detect loop if:
-      // 1. We have 2+ rounds where answers were given but no questions asked, OR
-      // 2. We asked questions but they're not being answered (unanswered > 3)
-      const unansweredQuestions = totalQuestionsAsked - totalAnswersGiven;
-      
-      if (emptyQuestionRounds >= 2 || unansweredQuestions > 3) {
-        console.warn(`[Clarification Loop Detected] Session ${sessionId}: Empty question rounds: ${emptyQuestionRounds}, Unanswered questions: ${unansweredQuestions}. Stopping clarification.`);
+      // Detect loop if we have 2+ rounds where answers were given but no questions asked
+      // This indicates the LLM is stuck and not generating new questions
+      if (emptyQuestionRounds >= 2) {
+        console.warn(`[Clarification Loop Detected] Session ${sessionId}: Empty question rounds: ${emptyQuestionRounds}. Stopping clarification.`);
         
         // Force auto-classify to break the loop
         classificationResult.action = 'auto_classify';
@@ -952,13 +778,8 @@ router.post('/clarify', async (req: Request, res: Response) => {
           userId,
           data: {
             loopDetected: true,
-            reason: emptyQuestionRounds >= 2 
-              ? 'Multiple consecutive answer-only responses' 
-              : 'Too many unanswered questions',
+            reason: 'Multiple consecutive answer-only responses - LLM not generating questions',
             emptyQuestionRounds,
-            unansweredQuestions,
-            totalQuestionsAsked,
-            totalAnswersGiven,
             action: 'forced_auto_classify'
           },
           piiScrubbed: false,

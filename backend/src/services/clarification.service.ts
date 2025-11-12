@@ -36,6 +36,7 @@ export class ClarificationService {
   private versionedStorage: VersionedStorageService;
   private readonly DEFAULT_MODEL = 'gpt-4';
   private readonly CLARIFICATION_PROMPT_ID = 'clarification';
+  private readonly CLARIFICATION_PROMPT_VERSION = 'v1.2';
   private readonly SOFT_LIMIT_QUESTIONS = 8; // Soft limit - warn but allow
   private readonly HARD_LIMIT_QUESTIONS = 15; // Hard limit - stop interview
   private readonly MIN_QUESTIONS = 1;
@@ -180,16 +181,8 @@ export class ClarificationService {
       };
     }
 
-    // Check for user frustration (PRIORITY - stop immediately)
-    if (questionCount >= 2) {
-      const isFrustrated = this.detectUserFrustration(conversationHistory);
-      if (isFrustrated) {
-        return {
-          shouldStop: true,
-          reason: 'User showing signs of frustration - stopping interview'
-        };
-      }
-    }
+    // Note: User frustration detection is now handled by the LLM in the prompt
+    // The LLM will naturally stop asking questions if it detects negative sentiment
 
     // Check for repetitive questions (potential loop)
     if (questionCount >= 3) {
@@ -308,58 +301,9 @@ export class ClarificationService {
     return unknownCount >= 2;
   }
 
-  /**
-   * Detect user frustration or negative sentiment in answers
-   * @param conversationHistory - Q&A history
-   * @returns True if user shows signs of frustration
-   */
-  private detectUserFrustration(
-    conversationHistory: Array<{ question: string; answer: string }>
-  ): boolean {
-    if (conversationHistory.length === 0) {
-      return false;
-    }
-
-    // Check last 3 answers for frustration indicators
-    const recentAnswers = conversationHistory.slice(-3);
-    
-    const frustrationPatterns = [
-      // Direct frustration
-      /\b(frustrat|annoying|annoyed|irritat|tired of|sick of|enough)\b/i,
-      // Repetition complaints
-      /\b(already (said|told|answered|responded)|repeat|again\?|same question)\b/i,
-      // Dismissive responses
-      /\b(whatever|fine|sure|ok ok|yeah yeah|stop asking)\b/i,
-      // Short dismissive answers after longer ones
-      /^(yes|no|ok|fine|sure|idk)\.?$/i,
-      // Explicit complaints
-      /\b(why (do you|are you) (keep )?ask|stop|this is|too many)\b/i,
-      // Sarcasm indicators
-      /\b(obviously|clearly|as i (said|mentioned)|like i said)\b/i
-    ];
-
-    let frustrationCount = 0;
-    let shortAnswerCount = 0;
-
-    for (const qa of recentAnswers) {
-      const answer = qa.answer.toLowerCase().trim();
-      
-      // Check for frustration patterns
-      if (frustrationPatterns.some(pattern => pattern.test(answer))) {
-        frustrationCount++;
-      }
-
-      // Check for increasingly short answers (sign of disengagement)
-      if (answer.length < 20) {
-        shortAnswerCount++;
-      }
-    }
-
-    // Frustrated if:
-    // - Any explicit frustration detected
-    // - All recent answers are very short (disengagement)
-    return frustrationCount >= 1 || shortAnswerCount >= 3;
-  }
+  // Note: Frustration detection is now handled by the LLM via the prompt
+  // The LLM monitors sentiment and will naturally stop asking questions if it detects
+  // frustration, impatience, or lack of knowledge from the user
 
   /**
    * Detect if questions are becoming repetitive

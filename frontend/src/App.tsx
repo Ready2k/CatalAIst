@@ -126,12 +126,18 @@ function App() {
     }
   };
 
-  const handleClarificationAnswer = async (answer: string) => {
+  const handleClarificationAnswer = async (answer: string | string[]) => {
     setError('');
     setIsProcessing(true);
     try {
-      // Send the answer along with the questions that were asked
-      const response = await apiService.addConversation(answer, clarificationQuestions);
+      // Convert single answer to array for consistency
+      const answers = Array.isArray(answer) ? answer : [answer];
+      
+      // Send the answers along with the questions that were asked
+      const response = await apiService.addConversation(answers, clarificationQuestions);
+      
+      // Update question count
+      setQuestionCount(prev => prev + answers.length);
       
       // Check if we need more clarification
       if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
