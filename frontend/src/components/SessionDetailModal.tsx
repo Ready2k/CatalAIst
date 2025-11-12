@@ -433,6 +433,73 @@ const ClassificationTab: React.FC<{
   getCategoryColor: (category: TransformationCategory) => string;
   formatConfidence: (confidence: number) => string;
 }> = ({ session, getCategoryColor, formatConfidence }) => {
+  const [reclassifying, setReclassifying] = useState(false);
+  const [reclassifyResult, setReclassifyResult] = useState<any>(null);
+  const [reclassifyError, setReclassifyError] = useState('');
+
+  const handleReclassify = async () => {
+    if (!window.confirm('Are you sure you want to reclassify this session with the current decision matrix?')) {
+      return;
+    }
+
+    setReclassifying(true);
+    setReclassifyError('');
+    setReclassifyResult(null);
+
+    try {
+      const token = sessionStorage.getItem('authToken');
+      const credentials = JSON.parse(sessionStorage.getItem('llmCredentials') || '{}');
+
+      const requestBody: any = {
+        sessionId: session.sessionId,
+        useOriginalModel: true,
+        reason: 'Admin reclassification from UI'
+      };
+
+      // Add credentials based on provider
+      if (session.classification?.llmProvider === 'bedrock') {
+        requestBody.provider = 'bedrock';
+        requestBody.awsAccessKeyId = credentials.awsAccessKeyId;
+        requestBody.awsSecretAccessKey = credentials.awsSecretAccessKey;
+        if (credentials.awsSessionToken) {
+          requestBody.awsSessionToken = credentials.awsSessionToken;
+        }
+        if (credentials.awsRegion) {
+          requestBody.awsRegion = credentials.awsRegion;
+        }
+      } else {
+        requestBody.apiKey = credentials.apiKey;
+      }
+
+      const response = await fetch('/api/process/reclassify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reclassify session');
+      }
+
+      const result = await response.json();
+      setReclassifyResult(result);
+
+      // Reload the page after 3 seconds to show updated classification
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (err: any) {
+      setReclassifyError(err.message || 'Failed to reclassify session');
+      console.error('Reclassify error:', err);
+    } finally {
+      setReclassifying(false);
+    }
+  };
+
   if (!session.classification) {
     return (
       <div style={emptyStateStyle}>
@@ -445,6 +512,111 @@ const ClassificationTab: React.FC<{
 
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h3 style={{ marginTop: 0 }}>Classification Details</h3>
+        <button
+          onClick={handleReclassify}
+          disabled={reclassifying}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: reclassifying ? '#6c757d' : '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: reclassifying ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+            transition: 'background-color 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            if (!reclassifying) {
+              e.currentTarget.style.backgroundColor = '#0056b3';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!reclassifying) {
+              e.currentTarget.style.backgroundColor = '#007bff';
+            }
+          }}
+        >
+          {reclassifying ? '🔄 Reclassifying...' : '🔄 Reclassify'}
+        </button>
+      </div>
+
+      {/* Reclassification Result */}
+      {reclassifyResult && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: reclassifyResult.changed ? '#d4edda' : '#d1ecf1',
+          border: `1px solid ${reclassifyResult.changed ? '#c3e6cb' : '#bee5eb'}`,
+          borderRadius: '4px',
+          marginBottom: '20px'
+        }}>
+          <h4 style={{ marginTop: 0, color: reclassifyResult.changed ? '#155724' : '#0c5460' }}>
+            {reclassifyResult.changed ? '✅ Classification Changed!' : 'ℹ️ Classification Unchanged'}
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '15px', alignItems: 'center' }}>
+            <div>
+              <strong>Original:</strong>
+              <div style={{ marginTop: '5px' }}>
+                <span style={{
+                  ...categoryBadgeStyle,
+                  backgroundColor: getCategoryColor(reclassifyResult.original.category as TransformationCategory),
+                }}>
+                  {reclassifyResult.original.category}
+                </span>
+                <div style={{ marginTop: '5px', fontSize: '14px' }}>
+                  Confidence: {Math.round(reclassifyResult.original.confidence * 100)}%
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Matrix: {reclassifyResult.original.matrixVersion}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: '24px', color: '#007bff' }}>→</div>
+            <div>
+              <strong>New:</strong>
+              <div style={{ marginTop: '5px' }}>
+                <span style={{
+                  ...categoryBadgeStyle,
+                  backgroundColor: getCategoryColor(reclassifyResult.new.category as TransformationCategory),
+                }}>
+                  {reclassifyResult.new.category}
+                </span>
+                <div style={{ marginTop: '5px', fontSize: '14px' }}>
+                  Confidence: {Math.round(reclassifyResult.new.confidence * 100)}%
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Matrix: {reclassifyResult.new.matrixVersion}
+                </div>
+              </div>
+            </div>
+          </div>
+          {reclassifyResult.confidenceDelta !== 0 && (
+            <div style={{ marginTop: '10px', fontSize: '14px' }}>
+              Confidence change: {reclassifyResult.confidenceDelta > 0 ? '+' : ''}{(reclassifyResult.confidenceDelta * 100).toFixed(1)}%
+            </div>
+          )}
+          <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+            Page will reload in 3 seconds to show updated classification...
+          </div>
+        </div>
+      )}
+
+      {/* Reclassification Error */}
+      {reclassifyError && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#f8d7da',
+          border: '1px solid #f5c6cb',
+          borderRadius: '4px',
+          marginBottom: '20px',
+          color: '#721c24'
+        }}>
+          <strong>Error:</strong> {reclassifyError}
+        </div>
+      )}
+
       <h3 style={{ marginTop: 0 }}>Classification Details</h3>
 
       <div style={fieldGroupStyle}>
