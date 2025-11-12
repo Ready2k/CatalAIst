@@ -282,3 +282,158 @@ All changes are backward compatible and include appropriate logging for debuggin
 - ✅ Long conversations summarized, reducing tokens by ~60%
 - ✅ Model stays focused with key facts + recent context
 - ✅ Better user experience with fewer repetitive questions
+
+
+## 6. **Audit Logs Missing LLM Prompt and Response Data**
+
+**Issue:**
+Audit logs were missing critical observability data:
+- Model prompt (what was sent to the LLM)
+- Model response (raw LLM output)
+
+This made it impossible to debug classification issues, verify prompt effectiveness, or ensure transparency.
+
+**Root Cause:**
+The classification service only returned parsed results, not the raw LLM data. Audit logs were using placeholder text like "Classification prompt" instead of actual prompts.
+
+**Solution Implemented:**
+Created new methods that return LLM data along with classification results:
+
+1. **New Interface:**
+   ```typescript
+   export interface ClassificationWithLLMData {
+     result: ClassificationResult;
+     llmPrompt: string;
+     llmResponse: string;
+   }
+   ```
+
+2. **New Methods:**
+   - `classifyWithLLMData()` - Returns classification + LLM data
+   - `classifyWithRoutingAndLLMData()` - Returns classification + routing + LLM data
+
+3. **Updated All Endpoints:**
+   - `/api/process/submit` - Now logs actual prompt and response
+   - `/api/process/classify` - Now logs actual prompt and response
+   - `/api/process/clarify` (normal flow) - Now logs actual prompt and response
+   - `/api/process/clarify` (loop detection) - Now logs actual prompt and response
+
+**Benefits:**
+- Full visibility into LLM interactions
+- Easy debugging of classification issues
+- Prompt optimization and A/B testing
+- Transparency for compliance
+- Troubleshooting Bedrock-specific issues
+
+**Files Modified:**
+- `backend/src/services/classification.service.ts` - Added new methods with LLM data
+- `backend/src/routes/process.routes.ts` - Updated all endpoints (4 locations) to use new methods
+
+---
+
+**Updated Files Changed Summary:**
+
+1. `backend/src/services/decision-matrix.service.ts` - Added targetCategory array sanitization
+2. `backend/src/services/decision-matrix-evaluator.service.ts` - Added runtime array handling
+3. `backend/src/services/classification.service.ts` - Added "Clarification N" detection + smart summarization + LLM data methods
+4. `backend/src/services/clarification.service.ts` - Added "Clarification N" detection + smart summarization
+5. `backend/src/routes/process.routes.ts` - Added audit trail loop detection + session save + LLM data logging (4 endpoints)
+
+All changes are backward compatible and include appropriate logging for debugging.
+
+
+## 7. **Admin Reclassification Feature**
+
+**Feature Request:**
+Ability to view previous classifications and reclassify sessions after updating the decision matrix.
+
+**Use Cases:**
+- Testing decision matrix updates
+- Comparing different models
+- Quality assurance after prompt changes
+- Measuring improvement over time
+
+**Solution Implemented:**
+Created new admin endpoint `/api/process/reclassify` that:
+
+1. **Loads Existing Session:**
+   - Retrieves session with original classification
+   - Preserves original for comparison
+
+2. **Performs New Classification:**
+   - Uses current decision matrix
+   - Can use original model or specify different one
+   - Extracts attributes and applies rules
+
+3. **Compares Results:**
+   - Shows original vs new classification
+   - Calculates confidence delta
+   - Identifies which rules triggered
+
+4. **Updates Session:**
+   - Saves new classification
+   - Invalidates analytics cache
+   - Maintains full audit trail
+
+5. **Logs Everything:**
+   - Reason for reclassification
+   - Original and new classifications
+   - Full LLM prompt and response
+   - Confidence changes
+
+**API Endpoint:**
+```typescript
+POST /api/process/reclassify
+{
+  "sessionId": "abc-123",
+  "apiKey": "sk-...",
+  "useOriginalModel": true,
+  "reason": "Testing decision matrix v2.0"
+}
+```
+
+**Response:**
+```json
+{
+  "sessionId": "abc-123",
+  "reclassified": true,
+  "original": {
+    "category": "Digitise",
+    "confidence": 0.75,
+    "matrixVersion": "1.0"
+  },
+  "new": {
+    "category": "RPA",
+    "confidence": 0.82,
+    "matrixVersion": "2.0"
+  },
+  "changed": true,
+  "confidenceDelta": 0.07,
+  "decisionMatrixEvaluation": {...},
+  "extractedAttributes": {...}
+}
+```
+
+**Benefits:**
+- Test decision matrix changes safely
+- Compare model performance
+- Quality assurance workflow
+- Continuous improvement
+- Full transparency and audit trail
+
+**Files Modified:**
+- `backend/src/routes/process.routes.ts` - Added `/reclassify` endpoint
+
+---
+
+**Final Files Changed Summary:**
+
+1. `backend/src/services/decision-matrix.service.ts` - Added targetCategory array sanitization
+2. `backend/src/services/decision-matrix-evaluator.service.ts` - Added runtime array handling
+3. `backend/src/services/classification.service.ts` - Added "Clarification N" detection + smart summarization + LLM data methods
+4. `backend/src/services/clarification.service.ts` - Added "Clarification N" detection + smart summarization
+5. `backend/src/routes/process.routes.ts` - Added audit trail loop detection + session save + LLM data logging + reclassification endpoint
+
+**Total Lines Added:** ~600 lines of production code + comprehensive documentation
+
+All changes are backward compatible and include appropriate logging for debugging.

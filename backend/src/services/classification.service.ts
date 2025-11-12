@@ -10,6 +10,12 @@ export interface ClassificationResult {
   futureOpportunities: string;
 }
 
+export interface ClassificationWithLLMData {
+  result: ClassificationResult;
+  llmPrompt: string;
+  llmResponse: string;
+}
+
 export type ConfidenceAction = 'auto_classify' | 'clarify' | 'manual_review';
 
 export interface ClassificationWithAction {
@@ -96,6 +102,52 @@ export class ClassificationService {
   }
 
   /**
+   * Classify with LLM prompt and response data for audit logging
+   * @param request - Classification request with process description and context
+   * @returns Classification result with LLM prompt and response
+   */
+  async classifyWithLLMData(request: ClassificationRequest): Promise<ClassificationWithLLMData> {
+    try {
+      const model = request.model || this.DEFAULT_MODEL;
+      
+      // Build LLM config
+      const config = this.llmService.buildConfig({
+        provider: request.provider,
+        model,
+        apiKey: request.apiKey,
+        awsAccessKeyId: request.awsAccessKeyId,
+        awsSecretAccessKey: request.awsSecretAccessKey,
+        awsSessionToken: request.awsSessionToken,
+        awsRegion: request.awsRegion,
+      });
+
+      // Validate model is supported
+      if (!this.llmService.isModelSupported(model, config)) {
+        throw new Error(`Unsupported model: ${model} for provider: ${config.provider}`);
+      }
+
+      const messages = await this.buildClassificationMessages(
+        request.processDescription,
+        request.conversationHistory,
+        model
+      );
+
+      const response = await this.llmService.chat(messages, model, config);
+
+      // Build prompt string for logging
+      const promptString = messages.map(m => `[${m.role}]: ${m.content}`).join('\n\n');
+
+      return {
+        result: this.parseClassificationResponse(response.content),
+        llmPrompt: promptString,
+        llmResponse: response.content
+      };
+    } catch (error) {
+      throw this.handleClassificationError(error);
+    }
+  }
+
+  /**
    * Classify with confidence-based routing
    * @param request - Classification request
    * @returns Classification result with recommended action
@@ -111,6 +163,27 @@ export class ClassificationService {
     return {
       result,
       action
+    };
+  }
+
+  /**
+   * Classify with confidence-based routing and LLM data for audit logging
+   * @param request - Classification request
+   * @returns Classification result with recommended action and LLM data
+   */
+  async classifyWithRoutingAndLLMData(request: ClassificationRequest): Promise<ClassificationWithAction & { llmPrompt: string; llmResponse: string }> {
+    const classificationWithLLM = await this.classifyWithLLMData(request);
+    const action = this.determineAction(
+      classificationWithLLM.result.confidence,
+      request.processDescription,
+      request.conversationHistory || []
+    );
+    
+    return {
+      result: classificationWithLLM.result,
+      action,
+      llmPrompt: classificationWithLLM.llmPrompt,
+      llmResponse: classificationWithLLM.llmResponse
     };
   }
 

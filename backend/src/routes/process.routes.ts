@@ -167,9 +167,9 @@ router.post('/submit', async (req: Request, res: Response) => {
     // Invalidate analytics cache on new session
     analyticsService.invalidateCache();
 
-    // Perform classification
+    // Perform classification (with LLM data for audit)
     const classificationStartTime = Date.now();
-    const classificationResult = await classificationService.classifyWithRouting({
+    const classificationResult = await classificationService.classifyWithRoutingAndLLMData({
       processDescription: scrubbedInput.scrubbedText,
       conversationHistory: [],
       model,
@@ -324,15 +324,15 @@ router.post('/submit', async (req: Request, res: Response) => {
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
 
-    // Log classification with decision matrix info
+    // Log classification with decision matrix info and actual LLM data
     await auditLogService.logClassification(
       session.sessionId,
       userId,
       finalClassification,
       decisionMatrix?.version || null,
       decisionMatrixEvaluation,
-      'Classification prompt',
-      JSON.stringify(classificationResult.result),
+      classificationResult.llmPrompt,
+      classificationResult.llmResponse,
       false,
       {
         modelVersion: model,
@@ -425,9 +425,9 @@ router.post('/classify', async (req: Request, res: Response) => {
     // Build conversation history
     const conversationHistory = latestConversation.clarificationQA;
 
-    // Perform classification
+    // Perform classification (with LLM data for audit)
     const classificationStartTime = Date.now();
-    const classificationResult = await classificationService.classifyWithRouting({
+    const classificationResult = await classificationService.classifyWithRoutingAndLLMData({
       processDescription: latestConversation.processDescription,
       conversationHistory,
       model,
@@ -575,15 +575,15 @@ router.post('/classify', async (req: Request, res: Response) => {
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
 
-    // Log classification with decision matrix info
+    // Log classification with decision matrix info and actual LLM data
     await auditLogService.logClassification(
       sessionId,
       userId,
       finalClassification,
       decisionMatrix?.version || null,
       decisionMatrixEvaluation,
-      'Classification prompt', // In real implementation, include actual prompt
-      JSON.stringify(classificationResult.result),
+      classificationResult.llmPrompt,
+      classificationResult.llmResponse,
       false, // PII already scrubbed in input
       {
         modelVersion: model,
@@ -699,8 +699,8 @@ router.post('/clarify', async (req: Request, res: Response) => {
       if (emptyQuestionCount >= 2) {
         console.warn(`[Clarification Loop Detected] Session ${sessionId} has ${emptyQuestionCount} consecutive answer submissions with no questions. Forcing classification.`);
         
-        // Force classification without asking more questions
-        const classificationResult = await classificationService.classify({
+        // Force classification without asking more questions (with LLM data for audit)
+        const classificationWithLLM = await classificationService.classifyWithLLMData({
           processDescription: latestConversation.processDescription,
           conversationHistory: latestConversation.clarificationQA,
           model,
@@ -711,6 +711,8 @@ router.post('/clarify', async (req: Request, res: Response) => {
           awsSessionToken,
           awsRegion
         });
+        
+        const classificationResult = classificationWithLLM.result;
         
         // Extract attributes for decision matrix
         const extractedAttributes = await classificationService.extractAttributes(
@@ -792,15 +794,15 @@ router.post('/clarify', async (req: Request, res: Response) => {
           }
         });
 
-        // Log classification
+        // Log classification with actual LLM prompt and response
         await auditLogService.logClassification(
           sessionId,
           userId,
           classificationToStore,
           decisionMatrix?.version || null,
           decisionMatrixEvaluation,
-          'Loop detected - forced classification',
-          JSON.stringify(classificationResult),
+          classificationWithLLM.llmPrompt,
+          classificationWithLLM.llmResponse,
           false,
           {
             modelVersion: model,
@@ -856,9 +858,9 @@ router.post('/clarify', async (req: Request, res: Response) => {
       }
     );
 
-    // Perform classification with updated conversation history
+    // Perform classification with updated conversation history (with LLM data for audit)
     const classificationStartTime = Date.now();
-    const classificationResult = await classificationService.classifyWithRouting({
+    const classificationResult = await classificationService.classifyWithRoutingAndLLMData({
       processDescription: latestConversation.processDescription,
       conversationHistory: latestConversation.clarificationQA,
       model,
@@ -1093,8 +1095,8 @@ router.post('/clarify', async (req: Request, res: Response) => {
       finalClassification,
       decisionMatrix?.version || null,
       decisionMatrixEvaluation,
-      'Classification prompt',
-      JSON.stringify(classificationResult.result),
+      classificationResult.llmPrompt,
+      classificationResult.llmResponse,
       false,
       {
         modelVersion: model,
@@ -1116,6 +1118,235 @@ router.post('/clarify', async (req: Request, res: Response) => {
     console.error('Error recording clarification:', error);
     res.status(500).json({
       error: 'Failed to record clarification',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/process/reclassify
+ * Admin endpoint to reclassify a session with current decision matrix
+ * Useful after updating decision matrix rules or prompts
+ * Requirements: Admin authentication, existing session
+ */
+router.post('/reclassify', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  
+  try {
+    const {
+      sessionId,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      provider,
+      userId = 'admin',
+      model,
+      useOriginalModel = true, // Use the model from original classification
+      reason = 'Admin reclassification' // Reason for reclassification
+    } = req.body;
+
+    // Validate session ID
+    if (!sessionId) {
+      return res.status(400).json({
+        error: 'Missing session ID',
+        message: 'Session ID is required for reclassification'
+      });
+    }
+
+    // Load existing session
+    const session = await sessionStorage.loadSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        error: 'Session not found',
+        sessionId
+      });
+    }
+
+    // Check if session has a conversation
+    const latestConversation = session.conversations[session.conversations.length - 1];
+    if (!latestConversation) {
+      return res.status(400).json({
+        error: 'No conversation found',
+        message: 'Session has no conversation to reclassify'
+      });
+    }
+
+    // Store original classification for comparison
+    const originalClassification = session.classification;
+    if (!originalClassification) {
+      return res.status(400).json({
+        error: 'No classification found',
+        message: 'Session has not been classified yet'
+      });
+    }
+
+    // Determine which model to use
+    const modelToUse = useOriginalModel ? session.modelUsed : (model || session.modelUsed);
+    const llmProvider = provider || originalClassification.llmProvider || 'openai';
+
+    // Validate credentials based on provider
+    if (llmProvider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          error: 'Missing AWS credentials',
+          message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
+        });
+      }
+    } else if (!apiKey) {
+      return res.status(400).json({
+        error: 'Missing API key',
+        message: 'OpenAI API key is required'
+      });
+    }
+
+    console.log(`[Reclassify] Starting reclassification for session ${sessionId}`);
+    console.log(`[Reclassify] Original: ${originalClassification.category} (${originalClassification.confidence})`);
+    console.log(`[Reclassify] Using model: ${modelToUse}, provider: ${llmProvider}`);
+
+    // Perform new classification with LLM data
+    const classificationStartTime = Date.now();
+    const classificationWithLLM = await classificationService.classifyWithLLMData({
+      processDescription: latestConversation.processDescription,
+      conversationHistory: latestConversation.clarificationQA,
+      model: modelToUse,
+      provider: llmProvider,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
+    });
+
+    const classificationLatency = Date.now() - classificationStartTime;
+    const newClassificationResult = classificationWithLLM.result;
+
+    // Extract attributes for decision matrix
+    const extractedAttributes = await classificationService.extractAttributes(
+      latestConversation.processDescription,
+      latestConversation.clarificationQA,
+      {
+        processDescription: latestConversation.processDescription,
+        conversationHistory: latestConversation.clarificationQA,
+        model: modelToUse,
+        provider: llmProvider,
+        apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion
+      }
+    );
+
+    const attributeValues: { [key: string]: any } = {};
+    for (const [key, value] of Object.entries(extractedAttributes)) {
+      attributeValues[key] = value.value;
+    }
+
+    // Apply current decision matrix
+    const decisionMatrix = await versionedStorage.getLatestDecisionMatrix();
+    let decisionMatrixEvaluation = null;
+    let finalClassification = newClassificationResult;
+
+    if (decisionMatrix) {
+      decisionMatrixEvaluation = evaluatorService.evaluateMatrix(
+        decisionMatrix,
+        {
+          ...newClassificationResult,
+          timestamp: new Date().toISOString(),
+          modelUsed: modelToUse,
+          llmProvider
+        },
+        attributeValues
+      );
+
+      finalClassification = decisionMatrixEvaluation.finalClassification;
+      
+      console.log(`[Reclassify] After decision matrix: ${finalClassification.category} (${finalClassification.confidence})`);
+    }
+
+    // Create new classification object
+    const newClassificationToStore: Classification = {
+      category: finalClassification.category,
+      confidence: finalClassification.confidence,
+      rationale: finalClassification.rationale,
+      categoryProgression: finalClassification.categoryProgression,
+      futureOpportunities: finalClassification.futureOpportunities,
+      timestamp: new Date().toISOString(),
+      modelUsed: modelToUse,
+      llmProvider,
+      decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
+    };
+
+    // Update session with new classification
+    session.classification = newClassificationToStore;
+    session.updatedAt = new Date().toISOString();
+    await sessionStorage.saveSession(session);
+    analyticsService.invalidateCache();
+
+    // Log reclassification with comparison
+    await auditLogService.log({
+      sessionId,
+      timestamp: new Date().toISOString(),
+      eventType: 'classification',
+      userId,
+      data: {
+        reclassification: true,
+        reason,
+        originalClassification: {
+          category: originalClassification.category,
+          confidence: originalClassification.confidence,
+          matrixVersion: originalClassification.decisionMatrixEvaluation?.matrixVersion
+        },
+        newClassification: {
+          category: newClassificationToStore.category,
+          confidence: newClassificationToStore.confidence,
+          matrixVersion: decisionMatrix?.version
+        },
+        changed: originalClassification.category !== newClassificationToStore.category,
+        confidenceDelta: newClassificationToStore.confidence - originalClassification.confidence
+      },
+      modelPrompt: classificationWithLLM.llmPrompt,
+      modelResponse: classificationWithLLM.llmResponse,
+      piiScrubbed: false,
+      metadata: {
+        modelVersion: modelToUse,
+        llmProvider,
+        latencyMs: classificationLatency,
+        decisionMatrixVersion: decisionMatrix?.version
+      }
+    });
+
+    // Determine if classification changed
+    const categoryChanged = originalClassification.category !== newClassificationToStore.category;
+    const confidenceDelta = newClassificationToStore.confidence - originalClassification.confidence;
+
+    console.log(`[Reclassify] Complete - Changed: ${categoryChanged}, Confidence Δ: ${confidenceDelta.toFixed(3)}`);
+
+    res.json({
+      sessionId,
+      reclassified: true,
+      original: {
+        category: originalClassification.category,
+        confidence: originalClassification.confidence,
+        matrixVersion: originalClassification.decisionMatrixEvaluation?.matrixVersion || 'none'
+      },
+      new: {
+        category: newClassificationToStore.category,
+        confidence: newClassificationToStore.confidence,
+        matrixVersion: decisionMatrix?.version || 'none'
+      },
+      changed: categoryChanged,
+      confidenceDelta,
+      decisionMatrixEvaluation,
+      extractedAttributes,
+      responseTime: Date.now() - startTime
+    });
+  } catch (error) {
+    console.error('Error reclassifying session:', error);
+    res.status(500).json({
+      error: 'Failed to reclassify session',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
