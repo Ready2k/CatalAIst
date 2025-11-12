@@ -59,6 +59,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [error, setError] = useState('');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(COMMON_SUBJECTS);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [wasProcessing, setWasProcessing] = useState(false);
 
   // Load subjects from API on mount
   React.useEffect(() => {
@@ -78,6 +79,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     };
     loadSubjects();
   }, []);
+
+  // Clear form when processing completes
+  React.useEffect(() => {
+    if (wasProcessing && !isProcessing) {
+      // Processing just finished, clear the form
+      setDescription('');
+      setSubject('');
+      setCustomSubject('');
+      setShowCustomSubject(false);
+    }
+    setWasProcessing(isProcessing);
+  }, [isProcessing, wasProcessing]);
 
   const validateDescription = (text: string): boolean => {
     if (text.trim().length < 10) {
@@ -122,10 +135,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
       
       onSubmit(description, finalSubject);
-      setDescription('');
-      setSubject('');
-      setCustomSubject('');
-      setShowCustomSubject(false);
+      // Don't clear the input immediately - let the parent component handle it
+      // This allows users to see their text while processing
     }
   };
 

@@ -24,12 +24,22 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
   // Initialize answers array with empty strings for each question
   const [answers, setAnswers] = useState<string[]>(questions.map(() => ''));
   const [errors, setErrors] = useState<string[]>(questions.map(() => ''));
+  const [wasProcessing, setWasProcessing] = useState(false);
 
   // Reset answers when questions change (new batch arrives)
   useEffect(() => {
     setAnswers(questions.map(() => ''));
     setErrors(questions.map(() => ''));
   }, [questions]);
+
+  // Clear answers when processing completes
+  useEffect(() => {
+    if (wasProcessing && !isProcessing) {
+      // Processing just finished, clear the answers
+      setAnswers(questions.map(() => ''));
+    }
+    setWasProcessing(isProcessing);
+  }, [isProcessing, wasProcessing, questions]);
 
   const handleAnswerChange = (index: number, value: string) => {
     const newAnswers = [...answers];
@@ -60,8 +70,8 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
     // Submit all answers
     onAnswer(answers);
     
-    // Reset for next batch
-    setAnswers(questions.map(() => ''));
+    // Don't clear immediately - let the useEffect handle it when processing completes
+    // This allows users to see their answers while processing
   };
 
   return (

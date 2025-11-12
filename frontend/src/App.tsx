@@ -205,7 +205,7 @@ function App() {
     setError('');
     try {
       await apiService.submitClassificationFeedback(true);
-      setWorkflowState('feedback');
+      // Don't change workflow state yet - let the user rate first
     } catch (err: any) {
       setError(err.message || 'Failed to submit feedback');
     }
@@ -215,7 +215,7 @@ function App() {
     setError('');
     try {
       await apiService.submitClassificationFeedback(false, correctedCategory);
-      setWorkflowState('feedback');
+      // Don't change workflow state yet - let the user rate first
     } catch (err: any) {
       setError(err.message || 'Failed to submit correction');
     }
@@ -225,8 +225,8 @@ function App() {
     setError('');
     try {
       await apiService.submitRating(rating, comments);
-      // Reset to start new session
-      resetWorkflow();
+      // Now transition to feedback complete state
+      setWorkflowState('feedback');
     } catch (err: any) {
       setError(err.message || 'Failed to submit rating');
     }
