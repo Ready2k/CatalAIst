@@ -11,6 +11,7 @@ import {
   applyEdgeChanges,
   useReactFlow,
   ReactFlowProvider,
+  ConnectionMode,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -763,7 +764,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           elementsSelectable={!readOnly}
           edgesFocusable={!readOnly}
           edgesReconnectable={!readOnly}
-          connectionMode="loose"
+          connectionMode={ConnectionMode.Loose}
           panOnScroll={!isMobile}
           panOnDrag={!isMobile}
           zoomOnScroll={!isMobile}
