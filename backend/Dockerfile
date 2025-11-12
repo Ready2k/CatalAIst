@@ -10,8 +10,12 @@ COPY backend/package*.json ./
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy built application and shared types
+# Copy built application
 COPY backend/dist ./dist
+
+# Copy compiled shared module to the location where backend expects it
+# Backend imports from '../../../shared/dist' which resolves to /app/dist/shared/dist
+COPY shared/dist ./dist/shared/dist
 
 # Copy test script
 COPY backend/test-security.sh ./test-security.sh
