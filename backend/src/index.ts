@@ -146,9 +146,9 @@ const llmLimiter = rateLimit({
 // Auth rate limiter (prevent brute force)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 login attempts per 15 minutes
+  max: 10, // 10 attempts per 15 minutes (allows for logout/login cycles)
   message: {
-    error: 'Too many login attempts',
+    error: 'Too many authentication attempts',
     message: 'Please try again later'
   },
   standardHeaders: true,

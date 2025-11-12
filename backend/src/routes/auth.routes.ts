@@ -37,10 +37,9 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    // Only allow admin role if explicitly set and user is admin
-    const userRole = role === 'admin' ? 'admin' : 'user';
-
-    const user = await userService.createUser(username, password, userRole);
+    // Always create new users as 'user' role
+    // Admin role can only be assigned by existing admins via the user management API
+    const user = await userService.createUser(username, password, 'user');
 
     // Don't return password hash
     const { passwordHash, ...safeUser } = user;
