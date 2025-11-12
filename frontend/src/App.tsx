@@ -130,7 +130,8 @@ function App() {
     setError('');
     setIsProcessing(true);
     try {
-      const response = await apiService.addConversation(answer);
+      // Send the answer along with the questions that were asked
+      const response = await apiService.addConversation(answer, clarificationQuestions);
       
       // Check if we need more clarification
       if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
