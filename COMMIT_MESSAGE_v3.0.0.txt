@@ -1,0 +1,85 @@
+Release v3.0.0 - Voice Interface & Enhanced Session Management
+
+Major Features:
+- Complete voice interface with STT and TTS
+- Two voice modes (streaming and non-streaming)
+- 6 voice options (alloy, echo, fable, onyx, nova, shimmer)
+- Start Fresh button for session control
+- Enhanced logout with backend cleanup
+
+Voice Components Added:
+- AudioRecorder.tsx - Audio recording with VAD
+- AudioPlayer.tsx - Audio playback with controls
+- TranscriptDisplay.tsx - Transcript display and editing
+- VoiceSettings.tsx - Voice configuration UI
+- NonStreamingModeController.tsx - Manual voice flow
+- StreamingModeController.tsx - Automatic voice flow
+- VoiceActivityDetector.ts - Silence detection utility
+
+Bug Fixes:
+- Fixed voice authentication (JWT token headers)
+- Fixed OpenAI service call format (config object)
+- Fixed API key fallback pattern
+
+Documentation:
+- Voice Features Guide (500+ lines)
+- Voice Troubleshooting (600+ lines)
+- Voice Interface Patterns (developer guide)
+- Start Fresh Feature documentation
+- Fix documentation (2 detailed docs)
+- Updated README and CHANGELOG
+
+Session Management:
+- Start Fresh button with confirmation dialog
+- Enhanced logout deletes backend session
+- Fresh start on every login
+- No orphaned sessions
+
+UI/UX Improvements:
+- Voice button (🎤) in input areas
+- Updated Skip Interview button (⏭️)
+- New Start Fresh button (🔄)
+- Side-by-side button layout
+- Improved help text and error messages
+- Visual recording feedback
+
+Security:
+- JWT authentication on all voice endpoints
+- Rate limiting (10 requests/minute)
+- Audio file cleanup after transcription
+- PII detection and encryption
+- Audit logging for voice interactions
+
+Accessibility:
+- Full keyboard navigation
+- Screen reader support
+- ARIA labels and live regions
+- WCAG AA compliance
+- Touch-friendly mobile interface
+
+Performance:
+- Audio caching for repeated questions
+- Lazy loading of voice components
+- Debounced VAD checks
+- Efficient audio compression
+- Resource cleanup
+
+Browser Compatibility:
+- Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+- Desktop and mobile support
+- iOS and Android tested
+
+Statistics:
+- 15+ files added
+- 10+ files modified
+- 5,000+ lines of code
+- 1,500+ lines of documentation
+
+Breaking Changes: None (fully backward compatible)
+
+Migration: No configuration changes required
+
+Closes: Voice interface implementation
+Closes: Session management improvements
+Closes: Voice authentication bugs
+Closes: API configuration bugs

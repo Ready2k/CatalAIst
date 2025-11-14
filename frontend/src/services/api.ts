@@ -396,30 +396,70 @@ class ApiService {
 
   // Voice endpoints
   async transcribeAudio(audioFile: File): Promise<{ transcription: string }> {
-    if (!this.apiKey) {
-      const error: ApiError = { message: 'No API key set', status: 401 };
+    // Get API key from llmConfig if not set directly
+    const apiKey = this.apiKey || this.llmConfig?.apiKey;
+    
+    if (!apiKey) {
+      console.error('Transcription failed: No API key available', {
+        hasApiKey: !!this.apiKey,
+        hasLLMConfig: !!this.llmConfig,
+        llmConfigApiKey: !!this.llmConfig?.apiKey
+      });
+      const error: ApiError = { message: 'No API key configured. Please reconfigure your LLM provider in the Configuration tab.', status: 401 };
       throw error;
     }
 
     if (!this.sessionId) {
-      const error: ApiError = { message: 'No active session', status: 400 };
+      console.error('Transcription failed: No session ID', {
+        sessionId: this.sessionId
+      });
+      const error: ApiError = { message: 'No active session. Please reconfigure your LLM provider in the Configuration tab.', status: 400 };
       throw error;
     }
 
+    console.log('Transcribing audio with:', {
+      hasApiKey: !!apiKey,
+      apiKey: apiKey?.substring(0, 10) + '...', // Show first 10 chars for debugging
+      hasSessionId: !!this.sessionId,
+      sessionId: this.sessionId,
+      provider: this.llmConfig?.provider
+    });
+
     const formData = new FormData();
     formData.append('audio', audioFile);
-    formData.append('apiKey', this.apiKey);
+    formData.append('apiKey', apiKey);
     formData.append('sessionId', this.sessionId);
+    
+    // Debug: Log what we're sending
+    console.log('FormData contents:', {
+      audioFileName: audioFile.name,
+      audioSize: audioFile.size,
+      apiKeyLength: apiKey.length,
+      sessionIdLength: this.sessionId.length
+    });
+
+    // Get auth token for protected endpoint
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
     const response = await fetch(`${API_BASE_URL}/api/voice/transcribe`, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Transcription failed' }));
+      console.error('Transcription API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
       const apiError: ApiError = {
-        message: errorData.message || 'Transcription failed',
+        message: errorData.message || errorData.error || 'Transcription failed',
         status: response.status,
       };
       throw apiError;
@@ -429,24 +469,42 @@ class ApiService {
   }
 
   async synthesizeSpeech(text: string): Promise<Blob> {
-    if (!this.apiKey) {
-      const error: ApiError = { message: 'No API key set', status: 401 };
+    // Get API key from llmConfig if not set directly
+    const apiKey = this.apiKey || this.llmConfig?.apiKey;
+    
+    if (!apiKey) {
+      console.error('Speech synthesis failed: No API key available', {
+        hasApiKey: !!this.apiKey,
+        hasLLMConfig: !!this.llmConfig,
+        llmConfigApiKey: !!this.llmConfig?.apiKey
+      });
+      const error: ApiError = { message: 'No API key configured. Please reconfigure your LLM provider in the Configuration tab.', status: 401 };
       throw error;
     }
 
     if (!this.sessionId) {
-      const error: ApiError = { message: 'No active session', status: 400 };
+      console.error('Speech synthesis failed: No session ID', {
+        sessionId: this.sessionId
+      });
+      const error: ApiError = { message: 'No active session. Please reconfigure your LLM provider in the Configuration tab.', status: 400 };
       throw error;
+    }
+
+    // Get auth token for protected endpoint
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_BASE_URL}/api/voice/synthesize`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ 
         text,
-        apiKey: this.apiKey,
+        apiKey,
         sessionId: this.sessionId
       }),
     });

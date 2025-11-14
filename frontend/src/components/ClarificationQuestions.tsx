@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import AudioPlayer from './voice/AudioPlayer';
+import NonStreamingModeController from './voice/NonStreamingModeController';
+import StreamingModeController from './voice/StreamingModeController';
 
 interface ClarificationQuestionsProps {
   questions: string[];
@@ -6,9 +9,11 @@ interface ClarificationQuestionsProps {
   totalQuestions: number;
   onAnswer: (answer: string | string[]) => void;
   onSkipInterview?: () => void;
+  onStartFresh?: () => void;
   onVoiceRecord?: () => void;
   isProcessing?: boolean;
   showVoiceButton?: boolean;
+  streamingMode?: boolean;
 }
 
 const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
@@ -17,14 +22,19 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
   totalQuestions,
   onAnswer,
   onSkipInterview,
+  onStartFresh,
   onVoiceRecord,
   isProcessing = false,
   showVoiceButton = true,
+  streamingMode = false,
 }) => {
   // Initialize answers array with empty strings for each question
   const [answers, setAnswers] = useState<string[]>(questions.map(() => ''));
   const [errors, setErrors] = useState<string[]>(questions.map(() => ''));
   const [wasProcessing, setWasProcessing] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceQuestionIndex, setVoiceQuestionIndex] = useState<number | null>(null);
+  const [forceNonStreaming, setForceNonStreaming] = useState(false);
 
   // Reset answers when questions change (new batch arrives)
   useEffect(() => {
@@ -72,6 +82,29 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
     
     // Don't clear immediately - let the useEffect handle it when processing completes
     // This allows users to see their answers while processing
+  };
+
+  const handleVoiceClick = (index: number) => {
+    setVoiceQuestionIndex(index);
+    setShowVoiceModal(true);
+  };
+
+  const handleVoiceTranscription = (text: string) => {
+    if (voiceQuestionIndex !== null) {
+      handleAnswerChange(voiceQuestionIndex, text);
+    }
+    setShowVoiceModal(false);
+    setVoiceQuestionIndex(null);
+  };
+
+  const handleVoiceCancel = () => {
+    setShowVoiceModal(false);
+    setVoiceQuestionIndex(null);
+    setForceNonStreaming(false);
+  };
+
+  const handleSwitchToNonStreaming = () => {
+    setForceNonStreaming(true);
   };
 
   return (
@@ -127,31 +160,66 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
         <form onSubmit={handleSubmit}>
           {questions.map((question, index) => (
             <div key={index} style={{ marginBottom: '25px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                color: '#333',
-                marginBottom: '10px'
-              }}>
-                {questions.length > 1 && (
-                  <span style={{
-                    display: 'inline-block',
-                    width: '24px',
-                    height: '24px',
-                    backgroundColor: '#007bff',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    textAlign: 'center',
-                    lineHeight: '24px',
-                    fontSize: '14px',
-                    marginRight: '10px'
-                  }}>
-                    {index + 1}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#333',
+                  flex: 1,
+                }}>
+                  {questions.length > 1 && (
+                    <span style={{
+                      display: 'inline-block',
+                      width: '24px',
+                      height: '24px',
+                      backgroundColor: '#007bff',
+                      color: '#fff',
+                      borderRadius: '50%',
+                      textAlign: 'center',
+                      lineHeight: '24px',
+                      fontSize: '14px',
+                      marginRight: '10px'
+                    }}>
+                      {index + 1}
+                    </span>
+                  )}
+                  {question}
+                </label>
+                {showVoiceButton && (
+                  <button
+                    type="button"
+                    onClick={() => handleVoiceClick(index)}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: isProcessing ? '#6c757d' : '#28a745',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      marginLeft: '10px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    🎤 Voice
+                  </button>
                 )}
-                {question}
-              </label>
+              </div>
+              
+              {/* Audio Player for question playback */}
+              {showVoiceButton && (
+                <div style={{ marginBottom: '10px' }}>
+                  <AudioPlayer
+                    text={question}
+                    autoPlay={false}
+                    onError={(err) => console.warn('Audio playback error:', err)}
+                  />
+                </div>
+              )}
+              
               <textarea
                 value={answers[index]}
                 onChange={(e) => handleAnswerChange(index, e.target.value)}
@@ -202,37 +270,26 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
               {isProcessing ? 'Processing...' : `Submit ${questions.length > 1 ? 'All Answers' : 'Answer'}`}
             </button>
 
-            {showVoiceButton && onVoiceRecord && questions.length === 1 && (
-              <button
-                type="button"
-                onClick={onVoiceRecord}
-                disabled={isProcessing}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: isProcessing ? '#6c757d' : '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-                onMouseOver={(e) => {
-                  if (!isProcessing) e.currentTarget.style.backgroundColor = '#218838';
-                }}
-                onMouseOut={(e) => {
-                  if (!isProcessing) e.currentTarget.style.backgroundColor = '#28a745';
-                }}
-              >
-                🎤 Voice
-              </button>
-            )}
           </div>
         </form>
       </div>
+
+      {/* Voice Modal */}
+      {showVoiceModal && voiceQuestionIndex !== null && (
+        (streamingMode && !forceNonStreaming) ? (
+          <StreamingModeController
+            onTranscriptionComplete={handleVoiceTranscription}
+            onCancel={handleVoiceCancel}
+            currentQuestion={questions[voiceQuestionIndex]}
+            onSwitchToNonStreaming={handleSwitchToNonStreaming}
+          />
+        ) : (
+          <NonStreamingModeController
+            onTranscriptionComplete={handleVoiceTranscription}
+            onCancel={handleVoiceCancel}
+          />
+        )
+      )}
 
       <div style={{
         textAlign: 'center',
@@ -249,44 +306,81 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
           )}
         </p>
         
-        {onSkipInterview && (
+        {(onSkipInterview || onStartFresh) && (
           <div>
-            <button
-              onClick={onSkipInterview}
-              disabled={isProcessing}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: 'transparent',
-                color: '#dc3545',
-                border: '2px solid #dc3545',
-                borderRadius: '4px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => {
-                if (!isProcessing) {
-                  e.currentTarget.style.backgroundColor = '#dc3545';
-                  e.currentTarget.style.color = '#fff';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (!isProcessing) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = '#dc3545';
-                }
-              }}
-            >
-              Skip Interview & Classify Now
-            </button>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {onSkipInterview && (
+                <button
+                  onClick={onSkipInterview}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'transparent',
+                    color: '#dc3545',
+                    border: '2px solid #dc3545',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = '#dc3545';
+                      e.currentTarget.style.color = '#fff';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = '#dc3545';
+                    }
+                  }}
+                >
+                  ⏭️ Skip Interview & Classify Now
+                </button>
+              )}
+              {onStartFresh && (
+                <button
+                  onClick={onStartFresh}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'transparent',
+                    color: '#6c757d',
+                    border: '2px solid #6c757d',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = '#6c757d';
+                      e.currentTarget.style.color = '#fff';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = '#6c757d';
+                    }
+                  }}
+                >
+                  🔄 Start Fresh
+                </button>
+              )}
+            </div>
             <p style={{ 
               fontSize: '12px', 
               color: '#999', 
               marginTop: '8px',
               fontStyle: 'italic'
             }}>
-              Use this if the LLM is stuck in a loop or you want to proceed with available information
+              {onSkipInterview && 'Skip: Proceed with available information'}
+              {onSkipInterview && onStartFresh && ' • '}
+              {onStartFresh && 'Start Fresh: Clear session and begin again'}
             </p>
           </div>
         )}

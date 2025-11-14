@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import NonStreamingModeController from './voice/NonStreamingModeController';
+import StreamingModeController from './voice/StreamingModeController';
 
 interface ChatInterfaceProps {
   onSubmit: (description: string, subject?: string) => void;
   onVoiceRecord?: () => void;
   isProcessing?: boolean;
   showVoiceButton?: boolean;
+  streamingMode?: boolean;
 }
 
 // Common business subjects
@@ -51,6 +54,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onVoiceRecord,
   isProcessing = false,
   showVoiceButton = true,
+  streamingMode = false,
 }) => {
   const [description, setDescription] = useState('');
   const [subject, setSubject] = useState('');
@@ -60,6 +64,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [availableSubjects, setAvailableSubjects] = useState<string[]>(COMMON_SUBJECTS);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [wasProcessing, setWasProcessing] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [forceNonStreaming, setForceNonStreaming] = useState(false);
 
   // Load subjects from API on mount
   React.useEffect(() => {
@@ -138,6 +144,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       // Don't clear the input immediately - let the parent component handle it
       // This allows users to see their text while processing
     }
+  };
+
+  const handleVoiceTranscription = (text: string) => {
+    setDescription(text);
+    setShowVoiceModal(false);
+    // Auto-submit after voice input
+    if (validateDescription(text)) {
+      const finalSubject = showCustomSubject && customSubject.trim() 
+        ? customSubject.trim() 
+        : subject || undefined;
+      onSubmit(text, finalSubject);
+    }
+  };
+
+  const handleVoiceCancel = () => {
+    setShowVoiceModal(false);
+    setForceNonStreaming(false);
+  };
+
+  const handleSwitchToNonStreaming = () => {
+    setForceNonStreaming(true);
   };
 
   return (
@@ -275,10 +302,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             {isProcessing ? 'Processing...' : 'Submit'}
           </button>
 
-          {showVoiceButton && onVoiceRecord && (
+          {showVoiceButton && (
             <button
               type="button"
-              onClick={onVoiceRecord}
+              onClick={() => setShowVoiceModal(true)}
               disabled={isProcessing}
               style={{
                 padding: '12px 24px',
@@ -305,6 +332,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           )}
         </div>
       </form>
+
+      {/* Voice Modal */}
+      {showVoiceModal && (
+        (streamingMode && !forceNonStreaming) ? (
+          <StreamingModeController
+            onTranscriptionComplete={handleVoiceTranscription}
+            onCancel={handleVoiceCancel}
+            onSwitchToNonStreaming={handleSwitchToNonStreaming}
+          />
+        ) : (
+          <NonStreamingModeController
+            onTranscriptionComplete={handleVoiceTranscription}
+            onCancel={handleVoiceCancel}
+          />
+        )
+      )}
     </div>
   );
 };

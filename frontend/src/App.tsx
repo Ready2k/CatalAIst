@@ -29,25 +29,46 @@ function App() {
   const [currentView, setCurrentView] = useState<AppView>('main');
   const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
-  const [voiceEnabled] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
+  
+  // Voice configuration state
+  const [voiceConfig, setVoiceConfig] = useState<{
+    enabled: boolean;
+    voiceType: string;
+    streamingMode: boolean;
+    apiKey?: string;
+  } | null>(null);
+  
+  // Derived voice enabled flag for convenience
+  const voiceEnabled = voiceConfig?.enabled || false;
   
   // Workflow data
   const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(0);
   const [classification, setClassification] = useState<Classification | null>(null);
 
-  // Check for existing auth token on mount
+  // Check for existing auth token and voice config on mount
   useEffect(() => {
     const token = sessionStorage.getItem('authToken');
     const storedUsername = sessionStorage.getItem('username');
     const storedRole = sessionStorage.getItem('userRole');
+    const storedVoiceConfig = sessionStorage.getItem('voiceConfig');
     
     if (token && storedUsername) {
       setIsAuthenticated(true);
       setUsername(storedUsername);
       setUserRole(storedRole || 'user');
+      
+      // Restore voice configuration if available
+      if (storedVoiceConfig) {
+        try {
+          const parsedVoiceConfig = JSON.parse(storedVoiceConfig);
+          setVoiceConfig(parsedVoiceConfig);
+        } catch (err) {
+          console.warn('Failed to parse stored voice config:', err);
+        }
+      }
     }
   }, []);
 
@@ -58,13 +79,25 @@ function App() {
     setUserRole(role);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Delete active session from backend before clearing local state
+    const sessionId = apiService.getSessionId();
+    if (sessionId) {
+      try {
+        await apiService.deleteSession(sessionId);
+      } catch (err) {
+        console.warn('Failed to delete session on logout:', err);
+        // Continue with logout even if session deletion fails
+      }
+    }
+    
     sessionStorage.clear();
     setIsAuthenticated(false);
     setUsername('');
     setUserRole('');
     setHasConfig(false);
     setLLMConfig(null);
+    setVoiceConfig(null); // Clear voice configuration
     apiService.clearSession();
   };
 
@@ -72,6 +105,14 @@ function App() {
   if (!isAuthenticated) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
+
+  // Helper function to determine if voice button should be shown
+  const shouldShowVoiceButton = (): boolean => {
+    return hasConfig && 
+           voiceConfig !== null && 
+           voiceConfig.enabled && 
+           (workflowState === 'input' || workflowState === 'clarification');
+  };
 
   const handleConfigSubmit = async (config: LLMConfig) => {
     setError('');
@@ -90,6 +131,32 @@ function App() {
       
       setLLMConfig(config);
       setHasConfig(true);
+      
+      // Set voice configuration based on provider
+      if (config.provider === 'openai') {
+        // Auto-enable voice for OpenAI
+        setVoiceConfig({
+          enabled: true,
+          voiceType: config.voiceType || 'alloy',
+          streamingMode: config.streamingMode || false,
+          apiKey: config.apiKey
+        });
+        // Store in session storage for persistence
+        sessionStorage.setItem('voiceConfig', JSON.stringify({
+          enabled: true,
+          voiceType: config.voiceType || 'alloy',
+          streamingMode: config.streamingMode || false
+        }));
+      } else {
+        // Auto-disable voice for Bedrock
+        setVoiceConfig({
+          enabled: false,
+          voiceType: 'alloy',
+          streamingMode: false
+        });
+        // Clear voice config from session storage
+        sessionStorage.removeItem('voiceConfig');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to create session');
     } finally {
@@ -168,6 +235,42 @@ function App() {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to skip interview');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleStartFresh = async () => {
+    // Confirm with user before clearing session
+    if (!window.confirm('Are you sure you want to start fresh? This will clear your current session and all progress.')) {
+      return;
+    }
+
+    setError('');
+    setIsProcessing(true);
+    try {
+      // Delete current session from backend
+      const sessionId = apiService.getSessionId();
+      if (sessionId) {
+        await apiService.deleteSession(sessionId);
+      }
+      
+      // Clear local state
+      setClarificationQuestions([]);
+      setQuestionCount(0);
+      setClassification(null);
+      setWorkflowState('input');
+      
+      // Create new session
+      if (llmConfig) {
+        if (llmConfig.provider === 'openai' && llmConfig.apiKey) {
+          await apiService.createSession(llmConfig.apiKey, llmConfig.model);
+        } else {
+          await apiService.createSession('', llmConfig.model);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to start fresh');
     } finally {
       setIsProcessing(false);
     }
@@ -533,7 +636,8 @@ function App() {
                   onSubmit={handleProcessSubmit}
                   onVoiceRecord={() => setShowVoiceRecorder(true)}
                   isProcessing={isProcessing}
-                  showVoiceButton={true}
+                  showVoiceButton={shouldShowVoiceButton()}
+                  streamingMode={voiceConfig?.streamingMode || false}
                 />
               )}
 
@@ -544,9 +648,11 @@ function App() {
               totalQuestions={questionCount}
               onAnswer={handleClarificationAnswer}
               onSkipInterview={handleSkipInterview}
+              onStartFresh={handleStartFresh}
               onVoiceRecord={() => setShowVoiceRecorder(true)}
               isProcessing={isProcessing}
-              showVoiceButton={true}
+              showVoiceButton={shouldShowVoiceButton()}
+              streamingMode={voiceConfig?.streamingMode || false}
             />
           )}
 

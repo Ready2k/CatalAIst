@@ -100,7 +100,10 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
     const fileStream = require('fs').createReadStream(audioFilePath);
 
     // Transcribe using OpenAI Whisper
-    const transcriptionResult = await openaiService.transcribe(fileStream, apiKey);
+    const transcriptionResult = await openaiService.transcribe(fileStream, { 
+      provider: 'openai',
+      apiKey 
+    });
 
     const latencyMs = Date.now() - startTime;
 
@@ -218,7 +221,10 @@ router.post('/synthesize', async (req: Request, res: Response) => {
       // Not in cache, synthesize new audio
       const startTime = Date.now();
       
-      audioBuffer = await openaiService.synthesize(text, voice as any, apiKey);
+      audioBuffer = await openaiService.synthesize(text, voice as any, { 
+        provider: 'openai',
+        apiKey 
+      });
       
       const latencyMs = Date.now() - startTime;
 

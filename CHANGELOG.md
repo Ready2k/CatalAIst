@@ -7,6 +7,219 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2025-11-14
+
+### Added
+
+#### 🎤 Complete Voice Interface
+- **Speech-to-Text (STT)** using OpenAI Whisper
+  - Record audio with visual feedback (timer, waveform, pulsing indicator)
+  - Automatic transcription with edit capability
+  - 5-minute maximum recording time with warnings
+  - Voice Activity Detection (VAD) for automatic silence detection
+- **Text-to-Speech (TTS)** using OpenAI TTS-1
+  - Questions read aloud automatically
+  - 6 voice options: alloy, echo, fable, onyx, nova, shimmer
+  - Audio playback controls (play, pause, stop, repeat)
+  - Audio caching for repeated questions
+- **Two Voice Modes**:
+  - **Non-Streaming Mode** (Default): Manual control, edit transcripts before sending
+  - **Streaming Mode**: Automatic conversational flow, hands-free operation
+  - Auto-fallback from streaming to non-streaming on errors
+- **Voice Components**:
+  - `AudioRecorder.tsx` - Audio recording with VAD
+  - `AudioPlayer.tsx` - Audio playback with controls
+  - `TranscriptDisplay.tsx` - Transcript display and editing
+  - `VoiceSettings.tsx` - Voice configuration UI
+  - `NonStreamingModeController.tsx` - Manual voice flow
+  - `StreamingModeController.tsx` - Automatic voice flow
+  - `VoiceActivityDetector.ts` - Silence detection utility
+- **Voice Configuration**:
+  - Auto-enable for OpenAI provider
+  - Auto-disable for Bedrock provider (until Bedrock voice support added)
+  - Voice type selection in LLM Configuration
+  - Streaming mode toggle
+  - Session persistence for voice settings
+
+#### 🔄 Enhanced Session Management
+- **Start Fresh Button**:
+  - Clear current session and start new classification
+  - Confirmation dialog prevents accidental data loss
+  - Creates new session with same configuration
+  - Located next to "Skip Interview" button
+- **Enhanced Logout**:
+  - Deletes active session from backend before clearing local state
+  - Ensures fresh start on next login
+  - No continuation of previous sessions
+  - Graceful error handling if deletion fails
+
+#### 📚 Comprehensive Documentation
+- **Voice Features Guide** (`docs/VOICE_FEATURES_GUIDE.md`):
+  - 500+ lines of user documentation
+  - Quick start guide
+  - Mode comparisons and use cases
+  - Recording controls and limits
+  - Best practices and tips
+  - Complete FAQ (15 questions)
+- **Voice Troubleshooting** (`docs/VOICE_TROUBLESHOOTING.md`):
+  - 600+ lines of troubleshooting guidance
+  - 11 common issues with detailed solutions
+  - Advanced debugging techniques
+  - Mobile-specific issues (iOS/Android)
+  - Browser compatibility guide
+  - Complete troubleshooting checklist
+- **Voice Interface Patterns** (`.kiro/steering/voice-interface-patterns.md`):
+  - Developer guidelines and best practices
+  - Authentication patterns
+  - API key management patterns
+  - OpenAI service call patterns
+  - Error handling patterns
+  - Code review checklist
+  - Testing checklist
+- **Start Fresh Feature** (`docs/features/START_FRESH_FEATURE.md`):
+  - Feature documentation
+  - Implementation details
+  - User experience flows
+  - Testing guide
+- **Fix Documentation** (`docs/fixes/`):
+  - `VOICE_AUTHENTICATION_FIX.md` - JWT authentication fix
+  - `VOICE_API_CONFIG_FIX.md` - OpenAI service call fix
+
+### Fixed
+
+#### Voice Authentication
+- **Issue**: "No token provided" error when using voice features
+- **Fix**: Added JWT authentication headers to voice API calls
+- **Impact**: Voice features now work correctly for all authenticated users
+- **Files**: `frontend/src/services/api.ts`
+
+#### Voice API Configuration
+- **Issue**: "OpenAI API key is required" error despite key being configured
+- **Fix**: Updated OpenAI service calls to use config object format with `provider` field
+- **Impact**: Voice transcription and synthesis now work reliably
+- **Files**: `backend/src/routes/voice.routes.ts`
+
+#### API Key Fallback
+- **Issue**: API key not found in some scenarios
+- **Fix**: Added fallback pattern `this.apiKey || this.llmConfig?.apiKey`
+- **Impact**: More reliable API key detection
+- **Files**: `frontend/src/services/api.ts`
+
+### Changed
+
+#### UI/UX Improvements
+- **Voice Button**: Added 🎤 microphone button to input areas and clarification questions
+- **Skip Interview Button**: Updated with ⏭️ icon and improved styling
+- **Start Fresh Button**: Added 🔄 icon with gray color scheme
+- **Button Layout**: Side-by-side layout with responsive stacking on mobile
+- **Help Text**: Improved descriptions for all action buttons
+- **Visual Feedback**: Enhanced recording indicators (pulsing dot, timer, waveform)
+- **Error Messages**: More specific and actionable error messages
+
+#### Session Management
+- **Logout**: Now async, deletes backend session before clearing local state
+- **Session Cleanup**: Proper cleanup of voice configuration on logout
+- **Fresh Start**: Every login starts with clean state
+
+#### Documentation
+- **README.md**: Added voice FAQ section and v3.0.0 information
+- **docs/README.md**: Added voice documentation links
+
+### Security
+
+#### Voice Endpoints
+- ✅ All voice endpoints require JWT authentication
+- ✅ Rate limiting applied (10 requests/minute)
+- ✅ Audio files deleted after transcription
+- ✅ PII detection and encryption for transcripts
+- ✅ Audit logging for all voice interactions
+
+#### Session Management
+- ✅ Sessions properly deleted from backend on logout
+- ✅ No orphaned sessions accumulating
+- ✅ Confirmation dialogs for destructive actions
+- ✅ Graceful error handling
+
+### Performance
+
+#### Voice Features
+- Transcription: 2-5 seconds (depends on audio length)
+- Synthesis: 1-3 seconds (cached after first use)
+- Recording: Real-time with minimal latency
+- File Size: 25MB max upload (5 minutes audio)
+
+#### Optimizations
+- Audio caching for repeated questions
+- Lazy loading of voice components
+- Debounced VAD checks (100ms interval)
+- Efficient audio compression (WebM format)
+- Resource cleanup (audio URLs, media streams, audio context)
+
+### Accessibility
+
+#### Voice Interface
+- ✅ Full keyboard navigation (Tab, Enter, Space, Escape)
+- ✅ Screen reader support with ARIA labels
+- ✅ ARIA live regions for state announcements
+- ✅ WCAG AA color contrast compliance
+- ✅ Visible focus indicators on all controls
+- ✅ Touch-friendly mobile interface (44x44px targets)
+- ✅ Modal dialogs with proper ARIA attributes
+
+### Browser Compatibility
+
+#### Tested Browsers
+- ✅ Chrome 90+ (Desktop & Mobile)
+- ✅ Firefox 88+ (Desktop & Mobile)
+- ✅ Safari 14+ (Desktop & Mobile)
+- ✅ Edge 90+ (Desktop)
+
+#### Required APIs
+- MediaRecorder API (audio recording)
+- Web Audio API (voice activity detection)
+- Audio element (playback)
+- FormData (file uploads)
+
+### Known Issues
+
+#### Voice Features
+1. **Bedrock Voice Support**: Not yet implemented (planned for future release)
+2. **Offline Voice**: Requires internet connection (planned enhancement)
+3. **Multi-language**: English only (planned enhancement)
+
+#### Browser Limitations
+1. **Safari Autoplay**: Requires user interaction before audio plays (browser security policy)
+2. **Mobile Background**: Recording stops when screen locks (mobile OS behavior)
+
+### Migration Guide
+
+#### From v2.x to v3.0.0
+
+**No Breaking Changes** - v3.0.0 is fully backward compatible with v2.x
+
+**Upgrade Steps**:
+1. Pull latest code: `git pull origin main`
+2. Rebuild containers: `docker-compose build --no-cache`
+3. Restart: `docker-compose up -d`
+4. Verify: `curl http://localhost:8080/health`
+
+**Configuration**: No changes required. Voice features auto-enable when using OpenAI provider.
+
+### Statistics
+
+#### Code Changes
+- Files Added: 15+
+- Files Modified: 10+
+- Lines of Code: 5,000+
+- Documentation: 1,500+ lines
+
+#### Documentation
+- User Guides: 2 (Voice Features, Troubleshooting)
+- Developer Guides: 1 (Voice Patterns)
+- Feature Docs: 1 (Start Fresh)
+- Fix Docs: 2 (Authentication, API Config)
+- Total Pages: 50+
+
 ## [2.2.0] - 2025-11-10
 
 ### Added

@@ -551,3 +551,6 @@ export const FilteredMetricsSchema = z.object({
 
 // Export validation utilities
 export * from './validation';
+
+// Export voice types
+export * from './voice.types';

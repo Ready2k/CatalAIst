@@ -39,7 +39,8 @@ This directory contains all project documentation organized by category.
 - `INTELLIGENT_INTERVIEW_DESIGN.md` - Core design documentation
 - `SESSION_801AB993_ANALYSIS.md` - Session analysis
 - `evaluation.md` - Evaluation documentation
-- `SETUP_COMPLETE.md` - Setup completion guide
+- `VOICE_FEATURES_GUIDE.md` - Complete voice interface user guide
+- `VOICE_TROUBLESHOOTING.md` - Voice features troubleshooting guide
 
 ## 🚀 Quick Start
 
@@ -53,6 +54,8 @@ New to the project? Start here:
 - **Setting up locally**: See [setup/LOCAL_DEVELOPMENT.md](setup/LOCAL_DEVELOPMENT.md)
 - **Deploying to production**: See [deployment/PRODUCTION_DEPLOYMENT.md](deployment/PRODUCTION_DEPLOYMENT.md)
 - **Configuring security**: See [security/](security/)
+- **Using voice features**: See [VOICE_FEATURES_GUIDE.md](VOICE_FEATURES_GUIDE.md)
+- **Troubleshooting voice**: See [VOICE_TROUBLESHOOTING.md](VOICE_TROUBLESHOOTING.md)
 - **Checking latest changes**: See [releases/CHANGELOG.md](releases/CHANGELOG.md)
 - **Troubleshooting ports**: See [setup/PORT_TROUBLESHOOTING.md](setup/PORT_TROUBLESHOOTING.md)
 

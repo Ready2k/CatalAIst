@@ -6,6 +6,20 @@ This design document outlines the technical architecture and implementation appr
 
 The design leverages existing OpenAI Whisper (STT) and TTS APIs, extends the current LLMConfiguration component, and introduces new voice control components that integrate seamlessly with the existing classification workflow.
 
+### Modular Architecture Philosophy
+
+This implementation is designed with **future reusability** in mind. The voice interface components are structured to be easily extracted into standalone packages for use in other projects. The architecture follows these principles:
+
+1. **Clean Separation**: Voice logic is isolated in dedicated directories (`backend/src/services/voice/`, `frontend/src/components/voice/`)
+2. **Provider Abstraction**: Voice providers (OpenAI, AWS Polly/Transcribe) use a common interface for easy swapping
+3. **Reusable Components**: React components are self-contained with minimal CatalAIst-specific dependencies
+4. **Environment Agnostic**: Works in both development mode (`npm run dev`) and Docker containers
+
+**Future Extraction Path:**
+- Backend voice services → `@catalai/voice-service-api` NPM package
+- Frontend voice components → `@catalai/voice-components` NPM package
+- Other projects can then `npm install` these packages and integrate voice capabilities with minimal effort
+
 ## Architecture
 
 ### High-Level Architecture
@@ -67,6 +81,50 @@ The design leverages existing OpenAI Whisper (STT) and TTS APIs, extends the cur
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+## Modular Directory Structure
+
+To support future extraction, voice-related code is organized in dedicated directories:
+
+```
+backend/src/
+├── services/
+│   ├── voice/                          # Modular voice services (future package)
+│   │   ├── voice.service.ts            # Main orchestrator
+│   │   ├── voice.interface.ts          # Provider contract
+│   │   └── providers/
+│   │       ├── openai-voice.provider.ts
+│   │       └── aws-voice.provider.ts   # Future: Polly/Transcribe
+│   ├── llm.service.ts                  # Existing (uses voice service)
+│   └── openai.service.ts               # Existing (implements voice provider)
+
+frontend/src/
+├── components/
+│   ├── voice/                          # Reusable voice components (future package)
+│   │   ├── StreamingModeController.tsx
+│   │   ├── NonStreamingModeController.tsx
+│   │   ├── AudioPlayer.tsx
+│   │   ├── AudioRecorder.tsx
+│   │   ├── TranscriptDisplay.tsx
+│   │   ├── VoiceSettings.tsx
+│   │   └── hooks/
+│   │       ├── useVoiceRecording.ts
+│   │       ├── useVoicePlayback.ts
+│   │       └── useVoiceConfig.ts
+│   ├── ChatInterface.tsx               # Existing (integrates voice)
+│   ├── ClarificationQuestions.tsx      # Existing (integrates voice)
+│   └── LLMConfiguration.tsx            # Existing (includes voice settings)
+
+shared/
+├── types/
+│   └── voice.types.ts                  # Voice-specific types (future package)
+```
+
+**Benefits:**
+- ✅ Easy to copy to other projects
+- ✅ Clear boundaries for extraction
+- ✅ Minimal coupling with CatalAIst-specific code
+- ✅ Works in both npm dev mode and Docker
 
 ## Components and Interfaces
 
@@ -820,23 +878,53 @@ describe('VoiceActivityDetector', () => {
    - Implement provider abstraction layer
    - Support multiple voice providers simultaneously
 
-2. **Advanced Features:**
+2. **Package Extraction:**
+   - Extract `backend/src/services/voice/` → `@catalai/voice-service-api`
+   - Extract `frontend/src/components/voice/` → `@catalai/voice-components`
+   - Publish to NPM for reuse in other projects
+   - Create integration examples and documentation
+
+3. **Advanced Features:**
    - Voice biometrics for user identification
    - Multi-language support
    - Custom wake words for hands-free operation
    - Voice commands for navigation
 
-3. **Analytics:**
+4. **Analytics:**
    - Voice usage metrics
    - Transcription accuracy tracking
    - User preference analysis
    - A/B testing streaming vs non-streaming adoption
 
-4. **Accessibility:**
+5. **Accessibility:**
    - Adjustable speech rate
    - Adjustable voice pitch
    - High-contrast mode for visual indicators
    - Haptic feedback for mobile devices
+
+### Standalone Voice Service (Future Consideration)
+
+For projects requiring independent scaling or multi-project voice services:
+
+```
+voice-service/ (Separate Docker container)
+├── API endpoints for STT/TTS
+├── Provider abstraction (OpenAI, AWS, Azure)
+├── Audio processing/streaming
+├── Session management
+└── WebSocket for real-time streaming
+
+Projects connect via:
+- REST API for transcription/synthesis
+- WebSocket for streaming conversations
+- Shared authentication tokens
+```
+
+**Decision Point:** Extract to standalone service when:
+- Multiple projects need voice capabilities
+- Voice service requires independent scaling
+- Centralized voice analytics are needed
+- Cost optimization through shared infrastructure
 
 ## Appendix
 

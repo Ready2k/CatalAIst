@@ -1,6 +1,6 @@
 # CatalAIst - AI-Powered Process Classification System
 
-**Version 2.3.0** - Production-Ready with Bedrock Fixes & Admin Reclassification
+**Version 3.0.0** - Voice Interface & Enhanced Session Management
 
 CatalAIst is an intelligent system that classifies business processes into transformation categories using AI, helping organizations identify the best approach for process improvement.
 
@@ -28,6 +28,39 @@ This will:
 - **Frontend:** http://localhost:80
 - **Backend API:** http://localhost:8080
 - **Health Check:** http://localhost:8080/health
+
+---
+
+## ✨ What's New in v3.0
+
+### 🎤 Complete Voice Interface
+
+- **Speech-to-Text** - Record audio and get instant transcription using OpenAI Whisper
+- **Text-to-Speech** - Questions read aloud automatically using OpenAI TTS
+- **Two Modes:**
+  - **Non-Streaming** (Default) - Manual control, edit transcripts before sending
+  - **Streaming** - Automatic conversational flow, hands-free operation
+- **6 Voice Options** - Choose from alloy, echo, fable, onyx, nova, shimmer
+- **Visual Feedback** - Recording timer, waveform display, color-coded warnings
+- **Auto-Fallback** - Switches to non-streaming mode on errors
+- **Full Accessibility** - Keyboard navigation, screen reader support, WCAG AA compliant
+
+**Documentation:** See [Voice Features Guide](docs/VOICE_FEATURES_GUIDE.md) and [Troubleshooting](docs/VOICE_TROUBLESHOOTING.md)
+
+### 🔄 Enhanced Session Management
+
+- **Start Fresh Button** - Clear current session and begin new classification
+- **Enhanced Logout** - Deletes active session from backend for clean state
+- **Better Control** - Easy to start over or switch between classifications
+- **Confirmation Dialogs** - Prevents accidental data loss
+
+### 🐛 Critical Bug Fixes
+
+- **Voice Authentication** - Fixed JWT token authentication for voice endpoints
+- **API Configuration** - Fixed OpenAI service call format for voice features
+- **API Key Fallback** - Improved API key detection and error handling
+
+**Access:** Voice button (🎤) appears when using OpenAI provider
 
 ---
 
@@ -427,6 +460,8 @@ All documentation has been organized in the `/docs` directory:
 - **[docs/security/](docs/security/)** - Security configuration and audits
 - **[docs/releases/](docs/releases/)** - Release notes and changelogs
 - **[docs/fixes/](docs/fixes/)** - Bug fixes and improvements
+- **[docs/VOICE_FEATURES_GUIDE.md](docs/VOICE_FEATURES_GUIDE.md)** - Complete voice interface guide
+- **[docs/VOICE_TROUBLESHOOTING.md](docs/VOICE_TROUBLESHOOTING.md)** - Voice troubleshooting guide
 
 See **[docs/README.md](docs/README.md)** for the complete documentation index.
 
@@ -468,12 +503,81 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ⚠️ **Only use in development/testing!** See [backend/docs/SELF_SIGNED_CERTIFICATES.md](backend/docs/SELF_SIGNED_CERTIFICATES.md) for production solutions.
 
+**Voice features not working**
+
+See the comprehensive [Voice Troubleshooting Guide](docs/VOICE_TROUBLESHOOTING.md) for:
+- Microphone permission issues
+- Transcription failures
+- Audio playback problems
+- Browser compatibility
+- Network issues
+
 ### Getting Help
 
 1. Check documentation in root directory
 2. View logs: `docker-compose logs -f backend`
 3. Run health check: `curl http://localhost:8080/health`
 4. Check issues on GitHub
+
+---
+
+## ❓ Voice Features FAQ
+
+### Getting Started
+
+**Q: How do I enable voice features?**  
+A: Voice is automatically enabled when you select OpenAI as your LLM provider. Just enter your API key and you'll see the 🎤 microphone button.
+
+**Q: Can I use voice with AWS Bedrock?**  
+A: Not yet. Voice features currently require OpenAI. Bedrock support is planned for a future release.
+
+**Q: Do I need special hardware?**  
+A: Just a working microphone. Built-in laptop/phone microphones work fine.
+
+### Using Voice
+
+**Q: What's the difference between streaming and non-streaming mode?**  
+A: 
+- **Non-streaming (default)**: Manual control, edit transcripts before sending
+- **Streaming**: Automatic conversational flow, hands-free operation
+
+See the [Voice Features Guide](docs/VOICE_FEATURES_GUIDE.md) for detailed comparison.
+
+**Q: How long can I record?**  
+A: Maximum 5 minutes per recording. This is sufficient for most descriptions. You can record in segments if needed.
+
+**Q: Can I edit transcripts before submitting?**  
+A: Yes, in non-streaming mode. Streaming mode auto-submits for conversational flow.
+
+**Q: Can I switch between voice and text?**  
+A: Yes! Text input is always available. Use whichever is more convenient.
+
+### Troubleshooting
+
+**Q: Why can't I see the microphone button?**  
+A: Voice requires OpenAI provider. Check your configuration and ensure you've entered an API key.
+
+**Q: Why does my browser ask for microphone permission?**  
+A: This is a security feature. Grant permission to use voice features.
+
+**Q: Why is transcription inaccurate?**  
+A: Speak clearly in a quiet environment. You can edit transcripts in non-streaming mode before submitting.
+
+**Q: Why does streaming mode keep stopping?**  
+A: It detects 2 seconds of silence. Speak continuously or switch to non-streaming mode for manual control.
+
+### Privacy & Cost
+
+**Q: Is my voice data stored?**  
+A: No. Audio is transcribed and then deleted. Only text transcripts are stored (with PII encryption).
+
+**Q: Does voice cost extra?**  
+A: Voice uses your OpenAI API credits. STT costs ~$0.006/minute, TTS costs ~$0.015/1K characters.
+
+**Q: Is voice data encrypted?**  
+A: Yes. Transcripts follow the same PII detection and encryption as text input.
+
+For more questions, see the complete [Voice Features Guide](docs/VOICE_FEATURES_GUIDE.md).
 
 ---
 
@@ -565,6 +669,18 @@ Contributions are welcome! Please:
 ---
 
 ## 📈 Version History
+
+### v3.0.0 (2025-11-14) - Voice Interface & Session Management
+
+- ✅ Complete voice interface (STT + TTS)
+- ✅ Two voice modes (streaming and non-streaming)
+- ✅ 6 voice options to choose from
+- ✅ Start Fresh button for session control
+- ✅ Enhanced logout with backend cleanup
+- ✅ Comprehensive voice documentation (1,500+ lines)
+- ✅ Critical bug fixes for voice features
+- ✅ Full accessibility compliance
+- ✅ Developer patterns and guidelines
 
 ### v2.3.0 (2025-11-12) - Bedrock Fixes & Reclassification
 

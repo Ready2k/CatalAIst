@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { VoiceType } from '../../../shared/types';
+import VoiceSettings from './voice/VoiceSettings';
 
 interface LLMConfigurationProps {
   onConfigSubmit: (config: LLMConfig) => void;
@@ -15,6 +17,10 @@ export interface LLMConfig {
   awsSecretAccessKey?: string;
   awsSessionToken?: string;
   awsRegion?: string;
+  // Voice Settings (NEW)
+  voiceEnabled?: boolean;        // Auto-set based on provider
+  voiceType?: VoiceType;         // Voice selection for TTS
+  streamingMode?: boolean;       // Auto-play questions (streaming mode)
 }
 
 const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) => {
@@ -36,6 +42,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   const [awsSecretAccessKey, setAwsSecretAccessKey] = useState('');
   const [awsSessionToken, setAwsSessionToken] = useState('');
   const [awsRegion, setAwsRegion] = useState('us-east-1');
+  
+  // Voice Settings (NEW)
+  const [voiceType, setVoiceType] = useState<VoiceType>('alloy');
+  const [streamingMode, setStreamingMode] = useState(false);
   
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -187,6 +197,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           provider: 'openai',
           model,
           apiKey,
+          // Voice settings (auto-enabled for OpenAI)
+          voiceEnabled: true,
+          voiceType,
+          streamingMode,
         });
       }
     } else {
@@ -198,6 +212,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           awsSecretAccessKey,
           awsSessionToken: awsSessionToken || undefined,
           awsRegion,
+          // Voice settings (disabled for Bedrock in this release)
+          voiceEnabled: false,
+          voiceType: 'alloy',
+          streamingMode: false,
         });
       }
     }
@@ -541,6 +559,16 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             </div>
           )}
         </div>
+
+        {/* Voice Settings - Only show for OpenAI provider */}
+        {provider === 'openai' && (
+          <VoiceSettings
+            voiceType={voiceType}
+            streamingMode={streamingMode}
+            onVoiceTypeChange={setVoiceType}
+            onStreamingModeChange={setStreamingMode}
+          />
+        )}
         
         <button
           type="submit"
@@ -553,7 +581,8 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             borderRadius: '4px',
             fontSize: '16px',
             fontWeight: 'bold',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            marginTop: '20px'
           }}
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}

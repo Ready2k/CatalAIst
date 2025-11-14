@@ -4,6 +4,15 @@
 
 This specification defines the enhancement of the CatalAIst voice interface to provide a natural, conversational experience for process classification. The system will support two modes: a streaming conversational mode (like a phone call) and a non-streaming mode with manual controls. Voice capabilities will be automatically enabled based on LLM provider support (OpenAI supports voice, AWS Bedrock does not in this release).
 
+### Modular Architecture
+
+The voice interface is designed with future reusability in mind. All voice-related code will be organized in dedicated directories to facilitate extraction into standalone NPM packages for use in other projects. The implementation will:
+
+- Work in both development mode (`npm run dev`) and Docker containers
+- Maintain clean separation between voice logic and CatalAIst-specific code
+- Use provider abstraction to support multiple voice services (OpenAI now, AWS Polly/Transcribe later)
+- Enable easy copying to other projects or publishing as reusable packages
+
 ## Glossary
 
 - **Voice Interface**: The audio input/output system that allows users to speak and hear responses
