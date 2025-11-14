@@ -30,7 +30,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onError,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -90,7 +89,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       
       audio.addEventListener('ended', () => {
         setIsPlaying(false);
-        setIsPaused(false);
         setCurrentTime(0);
         if (progressIntervalRef.current) {
           clearInterval(progressIntervalRef.current);
@@ -125,7 +123,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     
     audioRef.current.play().then(() => {
       setIsPlaying(true);
-      setIsPaused(false);
       
       // Start progress tracking
       progressIntervalRef.current = setInterval(() => {
@@ -147,7 +144,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     
     audioRef.current.pause();
     setIsPlaying(false);
-    setIsPaused(true);
     
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -160,7 +156,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     audioRef.current.pause();
     audioRef.current.currentTime = 0;
     setIsPlaying(false);
-    setIsPaused(false);
     setCurrentTime(0);
     
     if (progressIntervalRef.current) {
