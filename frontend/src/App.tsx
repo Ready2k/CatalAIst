@@ -747,7 +747,8 @@ function App() {
           onLoadSuggestions={() => apiService.getSuggestions()}
           onApproveSuggestion={(id) => apiService.approveSuggestion(id)}
           onRejectSuggestion={(id, notes) => apiService.rejectSuggestion(id, notes)}
-          onTriggerAnalysis={() => apiService.triggerAnalysis()}
+          onTriggerAnalysis={(options) => apiService.triggerAnalysis(options)}
+          onValidateMatrix={(options) => apiService.validateMatrix(options)}
         />
       )}
 

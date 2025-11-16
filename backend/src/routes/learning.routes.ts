@@ -207,7 +207,7 @@ router.post('/suggestions/:id/reject', async (req: Request, res: Response) => {
 
 /**
  * POST /api/learning/analyze
- * Manually trigger learning analysis
+ * Manually trigger learning analysis with progress tracking
  * Requirements: 12.4, 24.1, 25.1, 25.2, 25.3, 25.4
  */
 router.post('/analyze', async (req: Request, res: Response) => {
@@ -223,7 +223,8 @@ router.post('/analyze', async (req: Request, res: Response) => {
       awsSessionToken,
       awsRegion,
       startDate, 
-      endDate, 
+      endDate,
+      misclassificationsOnly = true, // Default to misclassifications only
       userId = 'admin' 
     } = req.body;
     
@@ -246,8 +247,13 @@ router.post('/analyze', async (req: Request, res: Response) => {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
     
-    // Perform analysis
-    const analysis = await learningAnalysisService.analyzeFeedback('manual', start, end);
+    // Perform analysis with progress tracking
+    const analysis = await learningAnalysisService.analyzeFeedback(
+      'manual', 
+      start, 
+      end,
+      misclassificationsOnly
+    );
     
     // Generate suggestions using LLM
     const llmConfig = {
@@ -277,13 +283,14 @@ router.post('/analyze', async (req: Request, res: Response) => {
         triggeredBy: 'manual',
         overallAgreementRate: analysis.findings.overallAgreementRate,
         suggestionsGenerated: suggestions.length,
-        dataRange: analysis.dataRange
+        dataRange: analysis.dataRange,
+        misclassificationsOnly
       },
       modelPrompt: 'Learning analysis prompt',
       modelResponse: JSON.stringify(suggestions),
       piiScrubbed: false,
       metadata: {
-        llmProvider: 'openai',
+        llmProvider: provider,
         latencyMs: Date.now() - startTime
       }
     });
@@ -394,6 +401,168 @@ router.get('/check-threshold', async (req: Request, res: Response) => {
     console.error('Error checking threshold:', error);
     res.status(500).json({
       error: 'Failed to check threshold',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/learning/validate-matrix
+ * Test matrix improvements by re-classifying a random sample of misclassified sessions
+ */
+router.post('/validate-matrix', async (req: Request, res: Response) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      provider = 'openai',
+      model,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion,
+      userId = 'admin'
+    } = req.body;
+
+    // Validate credentials based on provider
+    if (provider === 'openai' && !apiKey) {
+      return res.status(400).json({
+        error: 'API key is required',
+        message: 'Please provide an OpenAI API key for validation testing'
+      });
+    }
+
+    if (provider === 'bedrock' && (!awsAccessKeyId || !awsSecretAccessKey)) {
+      return res.status(400).json({
+        error: 'AWS credentials are required',
+        message: 'Please provide AWS credentials for validation testing with Bedrock'
+      });
+    }
+
+    // Parse dates if provided
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    // Get current matrix version
+    const currentMatrix = await versionedStorage.getLatestDecisionMatrix();
+    if (!currentMatrix) {
+      return res.status(404).json({
+        error: 'No active decision matrix found'
+      });
+    }
+
+    // Create classification service for re-testing
+    const llmConfig = {
+      provider,
+      model,
+      apiKey,
+      awsAccessKeyId,
+      awsSecretAccessKey,
+      awsSessionToken,
+      awsRegion
+    };
+
+    // Import ClassificationService
+    const { ClassificationService } = await import('../services/classification.service');
+    const classificationService = new ClassificationService(versionedStorage);
+
+    // Perform validation testing
+    const validationResult = await learningAnalysisService.validateMatrixImprovements(
+      start,
+      end,
+      currentMatrix.version,
+      classificationService
+    );
+
+    // Log validation test
+    await auditLogService.log({
+      sessionId: 'system',
+      timestamp: new Date().toISOString(),
+      eventType: 'classification',
+      userId,
+      data: {
+        action: 'matrix_validation_test',
+        testId: validationResult.testId,
+        matrixVersion: currentMatrix.version,
+        sampleSize: validationResult.sampleSize,
+        improvementRate: validationResult.results.improvementRate,
+        improved: validationResult.results.improved,
+        unchanged: validationResult.results.unchanged,
+        worsened: validationResult.results.worsened,
+        startDate,
+        endDate
+      },
+      piiScrubbed: false,
+      metadata: {
+        llmProvider: provider
+      }
+    });
+
+    res.json({
+      message: 'Validation test completed',
+      result: validationResult
+    });
+  } catch (error: any) {
+    console.error('Error performing validation test:', error);
+    res.status(500).json({
+      error: 'Failed to perform validation test',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/learning/validation-tests
+ * Get all validation test results
+ */
+router.get('/validation-tests', async (req: Request, res: Response) => {
+  try {
+    const testIds = await learningAnalysisService.listValidationTests();
+    
+    const tests = [];
+    for (const id of testIds) {
+      const test = await learningAnalysisService.loadValidationTest(id);
+      if (test) {
+        tests.push(test);
+      }
+    }
+    
+    res.json({
+      tests,
+      count: tests.length
+    });
+  } catch (error: any) {
+    console.error('Error fetching validation tests:', error);
+    res.status(500).json({
+      error: 'Failed to fetch validation tests',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/learning/validation-tests/:id
+ * Get a specific validation test by ID
+ */
+router.get('/validation-tests/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const test = await learningAnalysisService.loadValidationTest(id);
+    
+    if (!test) {
+      return res.status(404).json({
+        error: 'Validation test not found',
+        testId: id
+      });
+    }
+    
+    res.json(test);
+  } catch (error: any) {
+    console.error('Error fetching validation test:', error);
+    res.status(500).json({
+      error: 'Failed to fetch validation test',
       message: error.message
     });
   }

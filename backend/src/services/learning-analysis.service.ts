@@ -7,6 +7,40 @@ import {
 import { SessionStorageService } from './session-storage.service';
 import { JsonStorageService } from './storage.service';
 
+export interface AnalysisProgress {
+  stage: 'collecting' | 'analyzing' | 'validating' | 'complete';
+  message: string;
+  current: number;
+  total: number;
+  percentage: number;
+}
+
+export interface ValidationTestResult {
+  testId: string;
+  testedAt: string;
+  matrixVersion: string;
+  sampleSize: number;
+  samplePercentage: number;
+  results: {
+    totalTested: number;
+    improved: number;
+    unchanged: number;
+    worsened: number;
+    improvementRate: number;
+    details: Array<{
+      sessionId: string;
+      originalCategory: string;
+      originalConfidence: number;
+      newCategory: string;
+      newConfidence: number;
+      correctCategory: string;
+      wasCorrectBefore: boolean;
+      isCorrectNow: boolean;
+      outcome: 'improved' | 'unchanged' | 'worsened';
+    }>;
+  };
+}
+
 /**
  * Feedback analysis service for AI Learning Engine
  * Collects misclassifications, calculates agreement rates, and identifies patterns
@@ -14,6 +48,7 @@ import { JsonStorageService } from './storage.service';
 export class LearningAnalysisService {
   private sessionStorage: SessionStorageService;
   private jsonStorage: JsonStorageService;
+  private readonly BATCH_SIZE = 100; // Process sessions in batches
 
   constructor(
     sessionStorage: SessionStorageService,
@@ -24,40 +59,76 @@ export class LearningAnalysisService {
   }
 
   /**
-   * Collect all sessions with feedback for analysis
+   * Collect sessions with feedback for analysis (with batching and progress)
+   * @param startDate - Optional start date filter
+   * @param endDate - Optional end date filter
+   * @param misclassificationsOnly - If true, only return sessions where feedback.confirmed === false
+   * @param onProgress - Optional callback for progress updates
    */
   async collectSessionsWithFeedback(
     startDate?: Date,
-    endDate?: Date
+    endDate?: Date,
+    misclassificationsOnly: boolean = false,
+    onProgress?: (progress: AnalysisProgress) => void
   ): Promise<Session[]> {
     const sessionIds = await this.sessionStorage.listSessions();
     const sessionsWithFeedback: Session[] = [];
+    
+    let processed = 0;
+    const total = sessionIds.length;
 
-    for (const sessionId of sessionIds) {
-      try {
-        const session = await this.sessionStorage.loadSession(sessionId);
-        
-        if (!session || !session.feedback || !session.classification) {
-          continue;
-        }
-
-        // Filter by date range if provided
-        if (startDate || endDate) {
-          const sessionDate = new Date(session.createdAt);
+    // Process in batches to avoid memory issues
+    for (let i = 0; i < sessionIds.length; i += this.BATCH_SIZE) {
+      const batch = sessionIds.slice(i, i + this.BATCH_SIZE);
+      
+      for (const sessionId of batch) {
+        try {
+          const session = await this.sessionStorage.loadSession(sessionId);
           
-          if (startDate && sessionDate < startDate) {
+          if (!session || !session.feedback || !session.classification) {
+            processed++;
             continue;
           }
-          
-          if (endDate && sessionDate > endDate) {
+
+          // Filter by date range if provided
+          if (startDate || endDate) {
+            const sessionDate = new Date(session.createdAt);
+            
+            if (startDate && sessionDate < startDate) {
+              processed++;
+              continue;
+            }
+            
+            if (endDate && sessionDate > endDate) {
+              processed++;
+              continue;
+            }
+          }
+
+          // Filter by misclassifications only if requested
+          if (misclassificationsOnly && session.feedback.confirmed === true) {
+            processed++;
             continue;
           }
-        }
 
-        sessionsWithFeedback.push(session);
-      } catch (error) {
-        console.error(`Error loading session ${sessionId}:`, error);
-        // Continue with other sessions
+          sessionsWithFeedback.push(session);
+          processed++;
+        } catch (error) {
+          console.error(`Error loading session ${sessionId}:`, error);
+          processed++;
+          // Continue with other sessions
+        }
+      }
+
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          stage: 'collecting',
+          message: `Collecting sessions: ${sessionsWithFeedback.length} found (${processed}/${total} checked)`,
+          current: processed,
+          total,
+          percentage: Math.round((processed / total) * 100)
+        });
       }
     }
 
@@ -353,20 +424,97 @@ export class LearningAnalysisService {
   }
 
   /**
-   * Perform complete feedback analysis
+   * Perform complete feedback analysis with progress tracking
+   * @param triggeredBy - How the analysis was triggered
+   * @param startDate - Optional start date filter
+   * @param endDate - Optional end date filter
+   * @param misclassificationsOnly - If true, only analyze misclassifications
+   * @param onProgress - Optional callback for progress updates
    */
   async analyzeFeedback(
     triggeredBy: 'automatic' | 'manual',
     startDate?: Date,
-    endDate?: Date
+    endDate?: Date,
+    misclassificationsOnly: boolean = false,
+    onProgress?: (progress: AnalysisProgress) => void
   ): Promise<LearningAnalysis> {
-    const sessions = await this.collectSessionsWithFeedback(startDate, endDate);
+    // Stage 1: Collect sessions
+    const sessions = await this.collectSessionsWithFeedback(
+      startDate, 
+      endDate, 
+      misclassificationsOnly,
+      onProgress
+    );
+
+    if (sessions.length === 0) {
+      throw new Error('No sessions with feedback found in the specified date range');
+    }
+
+    // Stage 2: Analyze patterns
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Analyzing patterns and calculating metrics...',
+        current: 0,
+        total: 5,
+        percentage: 0
+      });
+    }
 
     const overallAgreementRate = this.calculateOverallAgreementRate(sessions);
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Calculated overall agreement rate',
+        current: 1,
+        total: 5,
+        percentage: 20
+      });
+    }
+
     const categoryAgreementRates = this.calculateAgreementRateByCategory(sessions);
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Calculated category agreement rates',
+        current: 2,
+        total: 5,
+        percentage: 40
+      });
+    }
+
     const commonMisclassifications = this.identifyMisclassifications(sessions);
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Identified common misclassifications',
+        current: 3,
+        total: 5,
+        percentage: 60
+      });
+    }
+
     const subjectConsistency = this.analyzeSubjectConsistency(sessions);
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Analyzed subject consistency',
+        current: 4,
+        total: 5,
+        percentage: 80
+      });
+    }
+
     const identifiedPatterns = this.identifyPatterns(sessions, commonMisclassifications);
+    if (onProgress) {
+      onProgress({
+        stage: 'analyzing',
+        message: 'Identified patterns',
+        current: 5,
+        total: 5,
+        percentage: 100
+      });
+    }
 
     const analysis: LearningAnalysis = {
       analysisId: randomUUID(),
@@ -458,5 +606,225 @@ export class LearningAnalysisService {
       categories: categoriesBelowThreshold,
       overallRate
     };
+  }
+
+  /**
+   * Calculate optimal sample size for validation testing
+   * Ensures at least 10% of sessions, with a minimum of 10 and maximum of 1000
+   */
+  calculateSampleSize(totalSessions: number): number {
+    const tenPercent = Math.ceil(totalSessions * 0.1);
+    return Math.max(10, Math.min(1000, tenPercent));
+  }
+
+  /**
+   * Get random sample of sessions for validation testing
+   */
+  getRandomSample<T>(array: T[], sampleSize: number): T[] {
+    if (sampleSize >= array.length) {
+      return [...array];
+    }
+
+    const shuffled = [...array];
+    
+    // Fisher-Yates shuffle
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled.slice(0, sampleSize);
+  }
+
+  /**
+   * Validate matrix improvements by re-testing a sample of sessions
+   * This tests if the current matrix would classify the sampled sessions correctly
+   * 
+   * @param startDate - Optional start date filter
+   * @param endDate - Optional end date filter
+   * @param matrixVersion - Version of matrix to test against
+   * @param classificationService - Service to re-classify sessions
+   * @param onProgress - Optional callback for progress updates
+   */
+  async validateMatrixImprovements(
+    startDate: Date | undefined,
+    endDate: Date | undefined,
+    matrixVersion: string,
+    classificationService: any, // ClassificationService
+    onProgress?: (progress: AnalysisProgress) => void
+  ): Promise<ValidationTestResult> {
+    // Collect all sessions with feedback in date range (misclassifications only)
+    const allSessions = await this.collectSessionsWithFeedback(
+      startDate,
+      endDate,
+      true, // misclassifications only
+      onProgress
+    );
+
+    if (allSessions.length === 0) {
+      throw new Error('No misclassified sessions found in the specified date range');
+    }
+
+    // Calculate sample size (at least 10% of sessions)
+    const sampleSize = this.calculateSampleSize(allSessions.length);
+    const samplePercentage = Math.round((sampleSize / allSessions.length) * 100);
+
+    // Get random sample
+    const sampleSessions = this.getRandomSample(allSessions, sampleSize);
+
+    if (onProgress) {
+      onProgress({
+        stage: 'validating',
+        message: `Testing ${sampleSize} sessions (${samplePercentage}% sample)...`,
+        current: 0,
+        total: sampleSize,
+        percentage: 0
+      });
+    }
+
+    // Re-classify each session and compare results
+    const details: ValidationTestResult['results']['details'] = [];
+    let improved = 0;
+    let unchanged = 0;
+    let worsened = 0;
+
+    for (let i = 0; i < sampleSessions.length; i++) {
+      const session = sampleSessions[i];
+      const originalCategory = session.classification!.category;
+      const originalConfidence = session.classification!.confidence;
+      const correctCategory = session.feedback!.correctedCategory!;
+
+      try {
+        // Get the last conversation's process description
+        const lastConv = session.conversations[session.conversations.length - 1];
+        
+        // Build conversation history from all conversations
+        const conversationHistory: Array<{ question: string; answer: string }> = [];
+        for (const conv of session.conversations) {
+          if (conv.clarificationQA && conv.clarificationQA.length > 0) {
+            conversationHistory.push(...conv.clarificationQA);
+          }
+        }
+        
+        // Re-classify using current matrix
+        const newClassification = await classificationService.classify({
+          processDescription: lastConv.processDescription,
+          conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined
+        });
+
+        const newCategory = newClassification.category;
+        const newConfidence = newClassification.confidence;
+
+        const wasCorrectBefore = originalCategory === correctCategory;
+        const isCorrectNow = newCategory === correctCategory;
+
+        let outcome: 'improved' | 'unchanged' | 'worsened';
+        
+        if (!wasCorrectBefore && isCorrectNow) {
+          outcome = 'improved';
+          improved++;
+        } else if (wasCorrectBefore && !isCorrectNow) {
+          outcome = 'worsened';
+          worsened++;
+        } else {
+          outcome = 'unchanged';
+          unchanged++;
+        }
+
+        details.push({
+          sessionId: session.sessionId,
+          originalCategory,
+          originalConfidence,
+          newCategory,
+          newConfidence,
+          correctCategory,
+          wasCorrectBefore,
+          isCorrectNow,
+          outcome
+        });
+
+        if (onProgress) {
+          onProgress({
+            stage: 'validating',
+            message: `Testing session ${i + 1}/${sampleSize}...`,
+            current: i + 1,
+            total: sampleSize,
+            percentage: Math.round(((i + 1) / sampleSize) * 100)
+          });
+        }
+      } catch (error) {
+        console.error(`Error re-classifying session ${session.sessionId}:`, error);
+        // Skip this session
+      }
+    }
+
+    const improvementRate = details.length > 0 
+      ? Math.round((improved / details.length) * 100) 
+      : 0;
+
+    const result: ValidationTestResult = {
+      testId: randomUUID(),
+      testedAt: new Date().toISOString(),
+      matrixVersion,
+      sampleSize,
+      samplePercentage,
+      results: {
+        totalTested: details.length,
+        improved,
+        unchanged,
+        worsened,
+        improvementRate,
+        details
+      }
+    };
+
+    // Save validation test result
+    await this.saveValidationTest(result);
+
+    return result;
+  }
+
+  /**
+   * Save validation test result to storage
+   */
+  async saveValidationTest(result: ValidationTestResult): Promise<void> {
+    const relativePath = `learning/validation-${result.testId}.json`;
+    await this.jsonStorage.writeJson(relativePath, result);
+  }
+
+  /**
+   * Load validation test result from storage
+   */
+  async loadValidationTest(testId: string): Promise<ValidationTestResult | null> {
+    const relativePath = `learning/validation-${testId}.json`;
+    
+    try {
+      const exists = await this.jsonStorage.exists(relativePath);
+      if (!exists) {
+        return null;
+      }
+
+      return await this.jsonStorage.readJson<ValidationTestResult>(relativePath);
+    } catch (error) {
+      console.error(`Error loading validation test ${testId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * List all validation tests
+   */
+  async listValidationTests(): Promise<string[]> {
+    try {
+      const files = await this.jsonStorage.listFiles('learning');
+      return files
+        .filter(f => f.startsWith('validation-') && f.endsWith('.json'))
+        .map(f => f.replace('validation-', '').replace('.json', ''))
+        .sort()
+        .reverse(); // Most recent first
+    } catch (error) {
+      console.error('Error listing validation tests:', error);
+      return [];
+    }
   }
 }

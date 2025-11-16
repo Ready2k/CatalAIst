@@ -600,7 +600,11 @@ class ApiService {
     });
   }
 
-  async triggerAnalysis(): Promise<any> {
+  async triggerAnalysis(options: {
+    startDate?: string;
+    endDate?: string;
+    misclassificationsOnly?: boolean;
+  } = {}): Promise<any> {
     if (!this.llmConfig) {
       const error: ApiError = { message: 'No LLM configuration set. Please configure your provider in the Configuration tab.', status: 400 };
       throw error;
@@ -609,7 +613,12 @@ class ApiService {
     const body: any = {
       provider: this.llmConfig.provider,
       model: this.llmConfig.model,
+      userId: sessionStorage.getItem('username') || 'admin',
+      misclassificationsOnly: options.misclassificationsOnly ?? true
     };
+
+    if (options.startDate) body.startDate = options.startDate;
+    if (options.endDate) body.endDate = options.endDate;
 
     if (this.llmConfig.provider === 'openai') {
       if (!this.llmConfig.apiKey) {
@@ -805,6 +814,51 @@ class ApiService {
     }
 
     return await response.blob();
+  }
+
+  // Matrix validation endpoints
+  async validateMatrix(options: {
+    startDate?: string;
+    endDate?: string;
+  } = {}): Promise<any> {
+    if (!this.llmConfig) {
+      throw new Error('LLM configuration not set');
+    }
+
+    const body: any = {
+      provider: this.llmConfig.provider,
+      model: this.llmConfig.model,
+      userId: sessionStorage.getItem('username') || 'admin'
+    };
+
+    if (options.startDate) body.startDate = options.startDate;
+    if (options.endDate) body.endDate = options.endDate;
+
+    // Add credentials based on provider
+    if (this.llmConfig.provider === 'openai') {
+      body.apiKey = this.llmConfig.apiKey;
+    } else {
+      body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
+      body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
+      body.awsSessionToken = this.llmConfig.awsSessionToken;
+      body.awsRegion = this.llmConfig.awsRegion;
+    }
+
+    const response = await this.request<any>('/api/learning/validate-matrix', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+
+    return response.result;
+  }
+
+  async getValidationTests(): Promise<any[]> {
+    const response = await this.request<any>('/api/learning/validation-tests');
+    return response.tests || [];
+  }
+
+  async getValidationTest(testId: string): Promise<any> {
+    return this.request(`/api/learning/validation-tests/${testId}`);
   }
 }
 
