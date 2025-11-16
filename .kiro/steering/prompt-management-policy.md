@@ -63,9 +63,33 @@ When adding any new LLM interaction:
    }
    ```
 
+### Automatic Version Bumping
+
+When a prompt is saved via the Prompt Manager UI:
+
+- **First save**: Creates version `1.0`
+- **Subsequent saves**: Automatically bumps the patch version (e.g., `1.0` → `1.0.1` → `1.0.2`)
+- **Manual versioning**: You can specify a version explicitly if needed (e.g., for major changes: `2.0`)
+
+**Version Format**: Semantic versioning (`major.minor.patch`)
+- **Patch bump** (automatic): Small edits, typo fixes, minor improvements
+- **Minor bump** (manual): New features, significant improvements
+- **Major bump** (manual): Breaking changes, complete rewrites
+
+**Example version history**:
+```
+classification-v1.0.txt      (initial version)
+classification-v1.0.1.txt    (fixed typo)
+classification-v1.0.2.txt    (improved wording)
+classification-v1.1.0.txt    (added new category guidance)
+classification-v2.0.0.txt    (complete rewrite)
+```
+
 ### Why This Matters
 
 - **Auditability**: All prompt changes are versioned and tracked
+- **A/B Testing**: Previous versions are retained for comparison
+- **Rollback**: Can revert to previous versions if needed
 - **Tunability**: Admins can improve prompts without code deployment
 - **Consistency**: All prompts follow the same management pattern
 - **Transparency**: Users can see exactly what prompts are being used

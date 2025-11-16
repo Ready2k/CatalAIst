@@ -108,10 +108,42 @@ export class VersionedStorageService {
 
   /**
    * Save a versioned prompt template
+   * Automatically bumps the patch version if no version is provided
    */
   async savePrompt(promptId: string, content: string, version?: string): Promise<string> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const versionStr = version || timestamp;
+    let versionStr: string;
+    
+    if (version) {
+      // Use provided version
+      versionStr = version;
+    } else {
+      // Auto-bump version based on latest version
+      const existingVersions = await this.listPromptVersions(promptId);
+      
+      if (existingVersions.length === 0) {
+        // First version
+        versionStr = '1.0';
+      } else {
+        // Get latest version and bump patch number
+        const latestVersion = existingVersions[0]; // Already sorted descending
+        const parts = latestVersion.split('.');
+        
+        if (parts.length >= 2) {
+          // Semantic version (e.g., "1.0" or "1.0.1")
+          const major = parseInt(parts[0]) || 1;
+          const minor = parseInt(parts[1]) || 0;
+          const patch = parts.length > 2 ? parseInt(parts[2]) || 0 : 0;
+          
+          // Bump patch version
+          versionStr = `${major}.${minor}.${patch + 1}`;
+        } else {
+          // Fallback to timestamp if version format is unexpected
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          versionStr = timestamp;
+        }
+      }
+    }
+    
     const fileName = `${promptId}-v${versionStr}.txt`;
     const relativePath = `prompts/${fileName}`;
     
