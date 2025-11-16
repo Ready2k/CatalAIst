@@ -467,12 +467,13 @@ router.post('/validate-matrix', async (req: Request, res: Response) => {
     const { ClassificationService } = await import('../services/classification.service');
     const classificationService = new ClassificationService(versionedStorage);
 
-    // Perform validation testing
+    // Perform validation testing with LLM config
     const validationResult = await learningAnalysisService.validateMatrixImprovements(
       start,
       end,
       currentMatrix.version,
-      classificationService
+      classificationService,
+      llmConfig
     );
 
     // Log validation test

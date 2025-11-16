@@ -8,6 +8,9 @@ interface DecisionMatrixAdminProps {
   onLoadVersion: (version: string) => Promise<DecisionMatrix>;
   onUpdateMatrix: (matrix: DecisionMatrix) => Promise<DecisionMatrix>;
   onGenerateMatrix: () => Promise<{ matrix: DecisionMatrix }>;
+  onExportMatrix: (version?: string) => Promise<Blob>;
+  onExportAllVersions: () => Promise<Blob>;
+  onImportMatrix: (matrixData: any, replaceExisting: boolean) => Promise<any>;
 }
 
 const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
@@ -16,6 +19,9 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   onLoadVersion,
   onUpdateMatrix,
   onGenerateMatrix,
+  onExportMatrix,
+  onExportAllVersions,
+  onImportMatrix,
 }) => {
   const [matrix, setMatrix] = useState<DecisionMatrix | null>(null);
   const [versions, setVersions] = useState<string[]>([]);
@@ -29,6 +35,11 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const [viewMode, setViewMode] = useState<'list' | 'flow'>('list');
   const [showHelp, setShowHelp] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importFileContent, setImportFileContent] = useState<any>(null);
+  const [replaceExisting, setReplaceExisting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -72,6 +83,103 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleExport = async (version?: string) => {
+    setExporting(true);
+    setError('');
+    try {
+      const blob = await onExportMatrix(version);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `decision-matrix-v${version || matrix?.version || 'latest'}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setSuccessMessage('Decision matrix exported successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to export decision matrix');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    setExporting(true);
+    setError('');
+    try {
+      const blob = await onExportAllVersions();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `decision-matrices-all-versions-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setSuccessMessage('All decision matrix versions exported successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to export decision matrices');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = JSON.parse(e.target?.result as string);
+        setImportFileContent(content);
+        setShowImportDialog(true);
+        setError('');
+      } catch (err) {
+        setError('Invalid JSON file. Please select a valid decision matrix export file.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleImport = async () => {
+    if (!importFileContent) return;
+
+    setImporting(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      const response = await onImportMatrix(importFileContent, replaceExisting);
+      setSuccessMessage(`Decision matrix imported successfully! New version: ${response.newVersion}`);
+      setShowImportDialog(false);
+      setImportFileContent(null);
+      setReplaceExisting(false);
+      await loadData(); // Reload to show imported matrix
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err: any) {
+      if (err.status === 409) {
+        // Matrix already exists - show option to replace
+        setError(err.message + ' Check "Replace Existing" to import anyway.');
+      } else {
+        setError(err.message || 'Failed to import decision matrix');
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleCancelImport = () => {
+    setShowImportDialog(false);
+    setImportFileContent(null);
+    setReplaceExisting(false);
+    setError('');
   };
 
   const loadSpecificVersion = async (version: string) => {
@@ -490,6 +598,47 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
             ❓ Help
           </button>
 
+          {/* Export Button */}
+          <button
+            onClick={() => handleExport()}
+            disabled={exporting}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#10b981',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}
+            title="Export current version"
+          >
+            {exporting ? '⏳' : '📥'} Export
+          </button>
+
+          {/* Import Button */}
+          <label style={{
+            padding: '8px 16px',
+            backgroundColor: '#3b82f6',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'inline-block'
+          }}
+          title="Import decision matrix">
+            📤 Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+          </label>
+
           {/* Edit/Save/Cancel Buttons */}
           {!editMode ? (
             <button
@@ -577,6 +726,121 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
         </div>
       )}
 
+      {/* Import Dialog */}
+      {showImportDialog && importFileContent && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            padding: '30px',
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <h3 style={{ marginTop: 0 }}>Import Decision Matrix</h3>
+            
+            <div style={{
+              backgroundColor: '#f8f9fa',
+              padding: '15px',
+              borderRadius: '4px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ marginBottom: '10px' }}>
+                <strong>File Details:</strong>
+              </div>
+              <div style={{ fontSize: '14px', color: '#666' }}>
+                <div>Version: {importFileContent.matrix?.version || importFileContent.version || 'Unknown'}</div>
+                <div>Rules: {importFileContent.matrix?.rules?.length || importFileContent.rules?.length || 0}</div>
+                <div>Attributes: {importFileContent.matrix?.attributes?.length || importFileContent.attributes?.length || 0}</div>
+                {importFileContent.exportedAt && (
+                  <div>Exported: {new Date(importFileContent.exportedAt).toLocaleString()}</div>
+                )}
+              </div>
+            </div>
+
+            {matrix && (
+              <div style={{
+                backgroundColor: '#fff3cd',
+                padding: '15px',
+                borderRadius: '4px',
+                marginBottom: '20px',
+                border: '1px solid #ffc107'
+              }}>
+                <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#856404' }}>
+                  ⚠️ Matrix Already Exists
+                </div>
+                <div style={{ fontSize: '14px', color: '#856404', marginBottom: '15px' }}>
+                  Current version: {matrix.version}. Importing will create a new version.
+                </div>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#856404'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={replaceExisting}
+                    onChange={(e) => setReplaceExisting(e.target.checked)}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span>Replace existing matrix (create new version)</span>
+                </label>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelImport}
+                disabled={importing}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: importing ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={importing || (matrix && !replaceExisting)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: importing ? '#6c757d' : (matrix && !replaceExisting) ? '#6c757d' : '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: (importing || (matrix && !replaceExisting)) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600'
+                }}
+              >
+                {importing ? '⏳ Importing...' : '✓ Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Help Menu Dropdown */}
       {showHelp && (
         <div style={{
@@ -638,6 +902,37 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             📖 Show Legend
+          </button>
+          <div style={{
+            height: '1px',
+            backgroundColor: '#e2e8f0',
+            margin: '4px 0'
+          }} />
+          <button
+            onClick={() => {
+              setShowHelp(false);
+              handleExportAll();
+            }}
+            disabled={exporting}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              color: '#1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              opacity: exporting ? 0.5 : 1
+            }}
+            onMouseEnter={(e) => !exporting && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            📦 Export All Versions
           </button>
           <div style={{
             height: '1px',

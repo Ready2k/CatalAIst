@@ -644,6 +644,7 @@ export class LearningAnalysisService {
    * @param endDate - Optional end date filter
    * @param matrixVersion - Version of matrix to test against
    * @param classificationService - Service to re-classify sessions
+   * @param llmConfig - LLM configuration for re-classification
    * @param onProgress - Optional callback for progress updates
    */
   async validateMatrixImprovements(
@@ -651,6 +652,15 @@ export class LearningAnalysisService {
     endDate: Date | undefined,
     matrixVersion: string,
     classificationService: any, // ClassificationService
+    llmConfig: {
+      provider: 'openai' | 'bedrock';
+      model?: string;
+      apiKey?: string;
+      awsAccessKeyId?: string;
+      awsSecretAccessKey?: string;
+      awsSessionToken?: string;
+      awsRegion?: string;
+    },
     onProgress?: (progress: AnalysisProgress) => void
   ): Promise<ValidationTestResult> {
     // Collect all sessions with feedback in date range (misclassifications only)
@@ -706,10 +716,17 @@ export class LearningAnalysisService {
           }
         }
         
-        // Re-classify using current matrix
+        // Re-classify using current matrix with LLM credentials
         const newClassification = await classificationService.classify({
           processDescription: lastConv.processDescription,
-          conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined
+          conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined,
+          provider: llmConfig.provider,
+          model: llmConfig.model,
+          apiKey: llmConfig.apiKey,
+          awsAccessKeyId: llmConfig.awsAccessKeyId,
+          awsSecretAccessKey: llmConfig.awsSecretAccessKey,
+          awsSessionToken: llmConfig.awsSessionToken,
+          awsRegion: llmConfig.awsRegion
         });
 
         const newCategory = newClassification.category;
@@ -754,7 +771,17 @@ export class LearningAnalysisService {
         }
       } catch (error) {
         console.error(`Error re-classifying session ${session.sessionId}:`, error);
-        // Skip this session
+        // Skip this session and continue with others
+        // Still report progress
+        if (onProgress) {
+          onProgress({
+            stage: 'validating',
+            message: `Testing session ${i + 1}/${sampleSize} (1 failed, continuing...)`,
+            current: i + 1,
+            total: sampleSize,
+            percentage: Math.round(((i + 1) / sampleSize) * 100)
+          });
+        }
       }
     }
 

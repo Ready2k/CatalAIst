@@ -66,6 +66,14 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
   // UI state
   const [showDateFilters, setShowDateFilters] = useState(false);
   const [showValidationPrompt, setShowValidationPrompt] = useState(false);
+  
+  // Progress tracking
+  const [validationProgress, setValidationProgress] = useState<{
+    current: number;
+    total: number;
+    percentage: number;
+    message: string;
+  } | null>(null);
 
   const loadSuggestions = React.useCallback(async () => {
     setLoading(true);
@@ -110,13 +118,40 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
     setValidating(true);
     setError('');
     setShowValidationPrompt(false);
+    setValidationProgress({ current: 0, total: 100, percentage: 0, message: 'Preparing validation test...' });
+    
     try {
+      // Start progress simulation
+      const progressInterval = setInterval(() => {
+        setValidationProgress(prev => {
+          if (!prev || prev.percentage >= 95) return prev;
+          const newPercentage = Math.min(prev.percentage + 5, 95);
+          return {
+            ...prev,
+            percentage: newPercentage,
+            message: newPercentage < 30 
+              ? 'Collecting misclassified sessions...'
+              : newPercentage < 60
+              ? 'Selecting random sample...'
+              : 'Re-classifying sessions with current matrix...'
+          };
+        });
+      }, 500);
+
       const result = await onValidateMatrix({
         startDate: startDate || undefined,
         endDate: endDate || undefined
       });
+      
+      clearInterval(progressInterval);
+      setValidationProgress({ current: 100, total: 100, percentage: 100, message: 'Validation complete!' });
+      
+      // Show final progress briefly before clearing
+      setTimeout(() => setValidationProgress(null), 1000);
+      
       setValidationResult(result);
     } catch (err: any) {
+      setValidationProgress(null);
       setError(err.message || 'Failed to validate matrix');
     } finally {
       setValidating(false);
@@ -312,6 +347,7 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
             </button>
             <button
               onClick={() => setShowValidationPrompt(false)}
+              disabled={validating}
               style={{
                 flex: 1,
                 padding: '12px',
@@ -321,11 +357,57 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
                 borderRadius: '4px',
                 fontSize: '16px',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: validating ? 'not-allowed' : 'pointer'
               }}
             >
               Skip for Now
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Progress */}
+      {validating && validationProgress && (
+        <div style={{
+          backgroundColor: '#e7f3ff',
+          border: '2px solid #007bff',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{ marginTop: 0, color: '#004085' }}>🔄 Testing Matrix...</h3>
+          <p style={{ marginBottom: '15px', color: '#004085', fontSize: '14px' }}>
+            {validationProgress.message}
+          </p>
+          
+          {/* Progress Bar */}
+          <div style={{
+            width: '100%',
+            height: '30px',
+            backgroundColor: '#fff',
+            borderRadius: '15px',
+            overflow: 'hidden',
+            marginBottom: '10px',
+            border: '1px solid #007bff'
+          }}>
+            <div style={{
+              width: `${validationProgress.percentage}%`,
+              height: '100%',
+              backgroundColor: '#007bff',
+              transition: 'width 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}>
+              {validationProgress.percentage}%
+            </div>
+          </div>
+          
+          <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
+            This may take a few moments depending on the sample size...
           </div>
         </div>
       )}

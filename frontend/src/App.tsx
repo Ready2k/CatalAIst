@@ -739,6 +739,9 @@ function App() {
           onLoadVersion={(version) => apiService.getDecisionMatrixVersion(version)}
           onUpdateMatrix={(matrix) => apiService.updateDecisionMatrix(matrix)}
           onGenerateMatrix={() => apiService.generateDecisionMatrix()}
+          onExportMatrix={(version) => apiService.exportDecisionMatrix(version)}
+          onExportAllVersions={() => apiService.exportAllDecisionMatrixVersions()}
+          onImportMatrix={(matrixData, replaceExisting) => apiService.importDecisionMatrix(matrixData, replaceExisting)}
         />
       )}
 

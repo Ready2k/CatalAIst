@@ -580,6 +580,66 @@ class ApiService {
     });
   }
 
+  async exportDecisionMatrix(version?: string): Promise<Blob> {
+    const params = version ? `?version=${version}` : '';
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/decision-matrix/export${params}`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Export failed' }));
+      const apiError: ApiError = {
+        message: errorData.message || 'Export failed',
+        status: response.status,
+      };
+      throw apiError;
+    }
+
+    return await response.blob();
+  }
+
+  async exportAllDecisionMatrixVersions(): Promise<Blob> {
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/decision-matrix/export/all-versions`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Export failed' }));
+      const apiError: ApiError = {
+        message: errorData.message || 'Export failed',
+        status: response.status,
+      };
+      throw apiError;
+    }
+
+    return await response.blob();
+  }
+
+  async importDecisionMatrix(matrixData: any, replaceExisting: boolean = false): Promise<any> {
+    return this.request('/api/decision-matrix/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        matrix: matrixData,
+        replaceExisting,
+        userId: sessionStorage.getItem('username') || 'admin'
+      }),
+    });
+  }
+
   // Learning endpoints
   async getSuggestions(): Promise<any> {
     const response = await this.request<any>('/api/learning/suggestions');
