@@ -88,6 +88,8 @@ class ApiService {
     if (config.apiKey) {
       this.apiKey = config.apiKey;
     }
+    // Store credentials in sessionStorage for reclassify and other admin operations
+    sessionStorage.setItem('llmCredentials', JSON.stringify(config));
   }
 
   getLLMConfig(): LLMConfig | null {
@@ -98,6 +100,8 @@ class ApiService {
     this.apiKey = null;
     this.sessionId = null;
     this.llmConfig = null;
+    // Clear credentials from sessionStorage
+    sessionStorage.removeItem('llmCredentials');
   }
 
   private async request<T>(

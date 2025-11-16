@@ -443,7 +443,13 @@ const ClassificationTab: React.FC<{
 
     try {
       const token = sessionStorage.getItem('authToken');
-      const credentials = JSON.parse(sessionStorage.getItem('llmCredentials') || '{}');
+      const credentialsStr = sessionStorage.getItem('llmCredentials');
+      
+      if (!credentialsStr) {
+        throw new Error('No LLM credentials found. Please reconfigure your LLM provider in the Configuration tab.');
+      }
+      
+      const credentials = JSON.parse(credentialsStr);
 
       const requestBody: any = {
         sessionId: session.sessionId,
@@ -456,6 +462,11 @@ const ClassificationTab: React.FC<{
         requestBody.provider = 'bedrock';
         requestBody.awsAccessKeyId = credentials.awsAccessKeyId;
         requestBody.awsSecretAccessKey = credentials.awsSecretAccessKey;
+        
+        if (!credentials.awsAccessKeyId || !credentials.awsSecretAccessKey) {
+          throw new Error('AWS credentials are incomplete. Please reconfigure your AWS Bedrock provider in the Configuration tab.');
+        }
+        
         if (credentials.awsSessionToken) {
           requestBody.awsSessionToken = credentials.awsSessionToken;
         }
@@ -464,6 +475,10 @@ const ClassificationTab: React.FC<{
         }
       } else {
         requestBody.apiKey = credentials.apiKey;
+        
+        if (!credentials.apiKey) {
+          throw new Error('OpenAI API key is missing. Please reconfigure your OpenAI provider in the Configuration tab.');
+        }
       }
 
       const response = await fetch('/api/process/reclassify', {

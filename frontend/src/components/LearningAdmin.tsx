@@ -216,6 +216,22 @@ const LearningAdmin: React.FC<LearningAdminProps> = ({
             📅 {showDateFilters ? 'Hide' : 'Show'} Filters
           </button>
           <button
+            onClick={handleValidateMatrix}
+            disabled={validating}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: validating ? '#6c757d' : '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: validating ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+          >
+            {validating ? '🔄 Testing...' : '🧪 Test Matrix'}
+          </button>
+          <button
             onClick={handleTriggerAnalysis}
             disabled={analyzing}
             style={{

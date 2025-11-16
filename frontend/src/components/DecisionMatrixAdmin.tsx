@@ -39,7 +39,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const [importing, setImporting] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFileContent, setImportFileContent] = useState<any>(null);
-  const [replaceExisting, setReplaceExisting] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(true); // Default to creating new version
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -138,6 +138,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
       try {
         const content = JSON.parse(e.target?.result as string);
         setImportFileContent(content);
+        setReplaceExisting(true); // Default to checked (create new version)
         setShowImportDialog(true);
         setError('');
       } catch (err) {
@@ -160,13 +161,13 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
       setSuccessMessage(`Decision matrix imported successfully! New version: ${response.newVersion}`);
       setShowImportDialog(false);
       setImportFileContent(null);
-      setReplaceExisting(false);
+      setReplaceExisting(true); // Reset to default
       await loadData(); // Reload to show imported matrix
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       if (err.status === 409) {
         // Matrix already exists - show option to replace
-        setError(err.message + ' Check "Replace Existing" to import anyway.');
+        setError(err.message + ' Check "Create new version" to import anyway.');
       } else {
         setError(err.message || 'Failed to import decision matrix');
       }
@@ -178,7 +179,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
   const handleCancelImport = () => {
     setShowImportDialog(false);
     setImportFileContent(null);
-    setReplaceExisting(false);
+    setReplaceExisting(true); // Reset to default (checked)
     setError('');
   };
 
@@ -770,19 +771,39 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
               </div>
             </div>
 
-            {matrix && (
+            {error && (
               <div style={{
-                backgroundColor: '#fff3cd',
+                backgroundColor: '#f8d7da',
                 padding: '15px',
                 borderRadius: '4px',
                 marginBottom: '20px',
-                border: '1px solid #ffc107'
+                border: '1px solid #f5c6cb'
               }}>
-                <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#856404' }}>
-                  ⚠️ Matrix Already Exists
+                <div style={{ marginBottom: '5px', fontWeight: 'bold', color: '#721c24' }}>
+                  ✗ Import Error
                 </div>
-                <div style={{ fontSize: '14px', color: '#856404', marginBottom: '15px' }}>
-                  Current version: {matrix.version}. Importing will create a new version.
+                <div style={{ fontSize: '14px', color: '#721c24', wordBreak: 'break-word' }}>
+                  {error}
+                </div>
+              </div>
+            )}
+
+            {matrix && (
+              <div style={{
+                backgroundColor: '#d1ecf1',
+                padding: '15px',
+                borderRadius: '4px',
+                marginBottom: '20px',
+                border: '1px solid #bee5eb'
+              }}>
+                <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#0c5460' }}>
+                  ℹ️ Matrix Already Exists
+                </div>
+                <div style={{ fontSize: '14px', color: '#0c5460', marginBottom: '15px' }}>
+                  Current version: {matrix.version}. Importing will create a new version (v{(() => {
+                    const [major, minor] = matrix.version.split('.').map(Number);
+                    return `${major}.${minor + 1}`;
+                  })()}).
                 </div>
                 <label style={{
                   display: 'flex',
@@ -790,7 +811,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
                   gap: '8px',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  color: '#856404'
+                  color: '#0c5460'
                 }}>
                   <input
                     type="checkbox"
@@ -798,7 +819,7 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
                     onChange={(e) => setReplaceExisting(e.target.checked)}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                  <span>Replace existing matrix (create new version)</span>
+                  <span>✓ Create new version from imported rules</span>
                 </label>
               </div>
             )}
@@ -822,14 +843,14 @@ const DecisionMatrixAdmin: React.FC<DecisionMatrixAdminProps> = ({
               </button>
               <button
                 onClick={handleImport}
-                disabled={importing || (matrix && !replaceExisting)}
+                disabled={importing}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: importing ? '#6c757d' : (matrix && !replaceExisting) ? '#6c757d' : '#28a745',
+                  backgroundColor: importing ? '#6c757d' : '#28a745',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: (importing || (matrix && !replaceExisting)) ? 'not-allowed' : 'pointer',
+                  cursor: importing ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
                   fontWeight: '600'
                 }}
