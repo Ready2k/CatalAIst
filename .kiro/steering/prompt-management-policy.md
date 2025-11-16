@@ -32,6 +32,8 @@ When adding any new LLM interaction:
      content: `Your default prompt content here...`
    }
    ```
+   
+   Note: Prompts are stored in `backend/data/prompts/` directory.
 
 3. **Register in prompts API** in `backend/src/routes/prompts.routes.ts`:
    ```typescript
@@ -76,7 +78,7 @@ When a prompt is saved via the Prompt Manager UI:
 - **Minor bump** (manual): New features, significant improvements
 - **Major bump** (manual): Breaking changes, complete rewrites
 
-**Example version history**:
+**Example version history** (stored in `backend/data/prompts/`):
 ```
 classification-v1.0.txt      (initial version)
 classification-v1.0.1.txt    (fixed typo)
@@ -84,6 +86,8 @@ classification-v1.0.2.txt    (improved wording)
 classification-v1.1.0.txt    (added new category guidance)
 classification-v2.0.0.txt    (complete rewrite)
 ```
+
+**Storage Location**: All prompts are stored in `backend/data/prompts/` and tracked in git.
 
 ### Why This Matters
 

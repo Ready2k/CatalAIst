@@ -15,18 +15,13 @@ frontend/build/
 .env.test.local
 .env.production.local
 
-# Data directory (contains user data)
-data/*
-!data/prompts/
-!data/prompts/.gitkeep
-
 # Backend data directory (runtime data)
-# Keep default prompts but exclude everything else
+# Keep versioned prompts but exclude everything else
 backend/data/*
 !backend/data/prompts/
 backend/data/prompts/*
 !backend/data/prompts/.gitkeep
-!backend/data/prompts/*-v1.*.txt
+!backend/data/prompts/*-v*.txt
 
 # IDE
 .vscode/

@@ -50,10 +50,10 @@ By default, the system automatically bumps the **patch** version. However, you c
 
 ## File Storage
 
-Prompts are stored in `data/prompts/` with this naming convention:
+Prompts are stored in `backend/data/prompts/` with this naming convention:
 
 ```
-data/prompts/
+backend/data/prompts/
 ├── classification-v1.0.txt
 ├── classification-v1.0.1.txt
 ├── classification-v1.0.2.txt
@@ -63,6 +63,8 @@ data/prompts/
 ├── clarification-v1.0.1.txt
 └── ...
 ```
+
+**Note**: This is the ONLY location where prompts are stored. The backend runs from the `backend/` directory, so `./data` resolves to `backend/data/`.
 
 ## Version History Example
 
@@ -245,7 +247,7 @@ This allows you to:
 3. Version number parsing issue
 
 **Solution**:
-- Check `data/prompts/` directory
+- Check `backend/data/prompts/` directory
 - Verify filename format: `{promptId}-v{version}.txt`
 - Check backend logs for errors
 
@@ -290,10 +292,10 @@ Every prompt change is logged:
 
 ### Backup Recommendations
 
-1. **Regular backups**: Backup `data/prompts/` directory daily
-2. **Version control**: Consider adding prompts to git (without sensitive data)
+1. **Regular backups**: Backup `backend/data/prompts/` directory daily
+2. **Version control**: Prompts are tracked in git via `.gitignore` pattern `!backend/data/prompts/*-v*.txt`
 3. **Export**: Periodically export all prompt versions
-4. **Disaster recovery**: Document how to restore from backup
+4. **Disaster recovery**: Restore from git or backup directory
 
 ## Future Enhancements
 
