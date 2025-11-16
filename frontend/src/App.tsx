@@ -12,11 +12,12 @@ import LearningAdmin from './components/LearningAdmin';
 import PromptAdmin from './components/PromptAdmin';
 import AuditTrail from './components/AuditTrail';
 import UserManagement from './components/UserManagement';
+import AdminReview from './components/AdminReview';
 import { apiService } from './services/api';
 import { Classification, TransformationCategory } from '../../shared/types';
 
-type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration' | 'users';
-type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback';
+type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration' | 'users' | 'admin-review';
+type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback' | 'submitted';
 
 function App() {
   // Authentication state
@@ -172,12 +173,18 @@ function App() {
       
       console.log('Submit response:', response);
       
+      // Check if user submitted (blind evaluation for regular users)
+      if (response.submitted) {
+        setWorkflowState('submitted');
+      }
       // Check if we need clarification
-      if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
+      else if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
         setClarificationQuestions(response.clarificationQuestions);
         setQuestionCount(response.totalQuestions || response.clarificationQuestions.length);
         setWorkflowState('clarification');
-      } else if (response.classification) {
+      } 
+      // Admin users get classification results
+      else if (response.classification) {
         setClassification(response.classification);
         setWorkflowState('result');
       } else {
@@ -206,10 +213,16 @@ function App() {
       // Update question count
       setQuestionCount(prev => prev + answers.length);
       
+      // Check if user submitted (blind evaluation for regular users)
+      if (response.submitted) {
+        setWorkflowState('submitted');
+      }
       // Check if we need more clarification
-      if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
+      else if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
         setClarificationQuestions(response.clarificationQuestions);
-      } else if (response.classification) {
+      } 
+      // Admin users get classification results
+      else if (response.classification) {
         setClassification(response.classification);
         setWorkflowState('result');
       }
@@ -420,91 +433,107 @@ function App() {
           >
             Configuration
           </button>
-          <button
-            onClick={() => setCurrentView('analytics')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: currentView === 'analytics' ? '#007bff' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Analytics
-          </button>
-          <button
-            onClick={() => setCurrentView('decision-matrix')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: currentView === 'decision-matrix' ? '#007bff' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Decision Matrix
-          </button>
-          <button
-            onClick={() => setCurrentView('learning')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: currentView === 'learning' ? '#007bff' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            AI Learning
-          </button>
-          <button
-            onClick={() => setCurrentView('prompts')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: currentView === 'prompts' ? '#007bff' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Prompts
-          </button>
-          <button
-            onClick={() => setCurrentView('audit')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: currentView === 'audit' ? '#007bff' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Audit Trail
-          </button>
           {userRole === 'admin' && (
-            <button
-              onClick={() => setCurrentView('users')}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: currentView === 'users' ? '#007bff' : 'transparent',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              Users
-            </button>
+            <>
+              <button
+                onClick={() => setCurrentView('analytics')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'analytics' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Analytics
+              </button>
+              <button
+                onClick={() => setCurrentView('decision-matrix')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'decision-matrix' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Decision Matrix
+              </button>
+              <button
+                onClick={() => setCurrentView('learning')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'learning' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                AI Learning
+              </button>
+              <button
+                onClick={() => setCurrentView('prompts')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'prompts' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Prompts
+              </button>
+              <button
+                onClick={() => setCurrentView('audit')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'audit' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Audit Trail
+              </button>
+              <button
+                onClick={() => setCurrentView('admin-review')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'admin-review' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Admin Review
+              </button>
+              <button
+                onClick={() => setCurrentView('users')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: currentView === 'users' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Users
+              </button>
+            </>
           )}
           <div style={{ 
             width: '1px', 
@@ -674,6 +703,43 @@ function App() {
             </>
           )}
 
+              {workflowState === 'submitted' && (
+                <div style={{
+                  maxWidth: '800px',
+                  margin: '50px auto',
+                  padding: '40px',
+                  backgroundColor: '#d4edda',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  border: '2px solid #28a745'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>✓</div>
+                  <h2 style={{ marginTop: 0, marginBottom: '15px', color: '#155724' }}>
+                    Thank You!
+                  </h2>
+                  <p style={{ fontSize: '18px', color: '#155724', marginBottom: '30px' }}>
+                    Your submission has been recorded and will be reviewed by an administrator.
+                  </p>
+                  <button
+                    onClick={resetWorkflow}
+                    style={{
+                      padding: '12px 24px',
+                      backgroundColor: '#28a745',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+                  >
+                    Submit Another Process
+                  </button>
+                </div>
+              )}
+
               {workflowState === 'feedback' && (
                 <>
                   <div style={{
@@ -776,6 +842,16 @@ function App() {
           onChangeRole={(userId, newRole) => apiService.changeUserRole(userId, newRole)}
           onResetPassword={(userId, newPassword) => apiService.resetUserPassword(userId, newPassword)}
           currentUserId={sessionStorage.getItem('userId') || ''}
+        />
+      )}
+
+      {currentView === 'admin-review' && userRole === 'admin' && (
+        <AdminReview
+          onLoadPendingReviews={() => apiService.getPendingReviews()}
+          onSubmitReview={(sessionId, approved, correctedCategory, reviewNotes) => 
+            apiService.submitAdminReview(sessionId, approved, correctedCategory, reviewNotes)
+          }
+          onLoadStats={() => apiService.getAdminReviewStats()}
         />
       )}
 

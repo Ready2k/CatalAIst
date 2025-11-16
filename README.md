@@ -33,6 +33,18 @@ This will:
 
 ## ✨ What's New in v3.0
 
+### 👥 Blind Evaluation Workflow (Human-in-the-Loop)
+
+- **User Submission** - Regular users submit processes without seeing AI results
+- **Thank You Message** - Users get confirmation without classification (reduces bias)
+- **Admin Review** - Admins review and approve/correct each classification
+- **Review Dashboard** - Statistics on pending, approved, and corrected reviews
+- **Quality Control** - Human oversight ensures classification accuracy
+- **Learning Data** - Admin corrections provide training data for AI improvement
+- **Role-Based Access** - Users see only Classifier/Configuration, Admins see all features
+
+**Documentation:** See [Blind Evaluation Workflow Guide](docs/BLIND_EVALUATION_WORKFLOW.md)
+
 ### 🎤 Complete Voice Interface
 
 - **Speech-to-Text** - Record audio and get instant transcription using OpenAI Whisper

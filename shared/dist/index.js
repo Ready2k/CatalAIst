@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FilteredMetricsSchema = exports.FilterOptionsSchema = exports.SessionListResponseSchema = exports.SessionListItemSchema = exports.PaginationParamsSchema = exports.SessionFiltersSchema = exports.AnalyticsMetricsSchema = exports.PIIMappingSchema = exports.AudioTranscriptionSchema = exports.LearningAnalysisSchema = exports.LearningSuggestionSchema = exports.DecisionMatrixSchema = exports.AttributeSchema = exports.RuleSchema = exports.RuleActionSchema = exports.ConditionSchema = exports.AuditLogEntrySchema = exports.SessionSchema = exports.UserRatingSchema = exports.FeedbackSchema = exports.ClassificationSchema = exports.DecisionMatrixEvaluationSchema = exports.ConversationSchema = exports.TransformationCategorySchema = void 0;
+exports.FilteredMetricsSchema = exports.FilterOptionsSchema = exports.SessionListResponseSchema = exports.SessionListItemSchema = exports.PaginationParamsSchema = exports.SessionFiltersSchema = exports.AnalyticsMetricsSchema = exports.PIIMappingSchema = exports.AudioTranscriptionSchema = exports.LearningAnalysisSchema = exports.LearningSuggestionSchema = exports.DecisionMatrixSchema = exports.AttributeSchema = exports.RuleSchema = exports.RuleActionSchema = exports.ConditionSchema = exports.AuditLogEntrySchema = exports.SessionSchema = exports.AdminReviewSchema = exports.UserRatingSchema = exports.FeedbackSchema = exports.ClassificationSchema = exports.DecisionMatrixEvaluationSchema = exports.ConversationSchema = exports.TransformationCategorySchema = void 0;
 // Shared TypeScript types for CatalAIst
 const zod_1 = require("zod");
 // Zod Validation Schemas
@@ -69,18 +69,27 @@ exports.UserRatingSchema = zod_1.z.object({
     comments: zod_1.z.string().optional(),
     timestamp: zod_1.z.string().datetime()
 });
+exports.AdminReviewSchema = zod_1.z.object({
+    reviewed: zod_1.z.boolean(),
+    reviewedBy: zod_1.z.string().optional(),
+    reviewedAt: zod_1.z.string().datetime().optional(),
+    approved: zod_1.z.boolean().optional(),
+    correctedCategory: exports.TransformationCategorySchema.optional(),
+    reviewNotes: zod_1.z.string().optional()
+});
 exports.SessionSchema = zod_1.z.object({
     sessionId: zod_1.z.string().uuid(),
     initiativeId: zod_1.z.string(),
     createdAt: zod_1.z.string().datetime(),
     updatedAt: zod_1.z.string().datetime(),
-    status: zod_1.z.enum(['active', 'completed', 'manual_review']),
+    status: zod_1.z.enum(['active', 'completed', 'manual_review', 'pending_admin_review']),
     modelUsed: zod_1.z.string(),
     subject: zod_1.z.string().optional(),
     conversations: zod_1.z.array(exports.ConversationSchema),
     classification: exports.ClassificationSchema.optional(),
     feedback: exports.FeedbackSchema.optional(),
-    userRating: exports.UserRatingSchema.optional()
+    userRating: exports.UserRatingSchema.optional(),
+    adminReview: exports.AdminReviewSchema.optional()
 });
 exports.AuditLogEntrySchema = zod_1.z.object({
     sessionId: zod_1.z.string().uuid(),
@@ -270,3 +279,5 @@ exports.FilteredMetricsSchema = zod_1.z.object({
 });
 // Export validation utilities
 __exportStar(require("./validation"), exports);
+// Export voice types
+__exportStar(require("./voice.types"), exports);

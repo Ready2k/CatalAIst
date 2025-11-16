@@ -11,6 +11,7 @@ import { VersionedStorageService } from '../services/versioned-storage.service';
 import { SubjectExtractionService } from '../services/subject-extraction.service';
 import { Session, Conversation, Classification } from '../../../shared/dist';
 import { analyticsService } from './analytics.routes';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -319,7 +320,14 @@ router.post('/submit', async (req: Request, res: Response) => {
     };
     
     session.classification = classificationToStore;
-    session.status = 'completed';
+    
+    // Determine session status based on user role
+    // Regular users (profile type) get pending_admin_review status (blind evaluation)
+    // Admins get completed status (they can see results immediately)
+    const authReq = req as AuthRequest;
+    const userRole = authReq.user?.role || 'user';
+    session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
+    
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -339,17 +347,30 @@ router.post('/submit', async (req: Request, res: Response) => {
         llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
-        action: 'auto_classify'
+        action: 'auto_classify',
+        userRole
       }
     );
 
-    res.json({
-      sessionId: session.sessionId,
-      classification: classificationToStore,
-      decisionMatrixEvaluation,
-      extractedAttributes,
-      responseTime: Date.now() - startTime
-    });
+    // For regular users, don't return the classification (blind evaluation)
+    // For admins, return the full classification
+    if (userRole === 'admin') {
+      res.json({
+        sessionId: session.sessionId,
+        classification: classificationToStore,
+        decisionMatrixEvaluation,
+        extractedAttributes,
+        responseTime: Date.now() - startTime
+      });
+    } else {
+      // Regular users get a thank you message without seeing the classification
+      res.json({
+        sessionId: session.sessionId,
+        message: 'Thank you for your time. Your submission has been recorded and will be reviewed.',
+        submitted: true,
+        responseTime: Date.now() - startTime
+      });
+    }
   } catch (error) {
     console.error('Error submitting process:', error);
     res.status(500).json({
@@ -570,7 +591,12 @@ router.post('/classify', async (req: Request, res: Response) => {
     };
     
     session.classification = classificationToStore;
-    session.status = 'completed';
+    
+    // Determine session status based on user role (blind evaluation for regular users)
+    const authReq = req as AuthRequest;
+    const userRole = authReq.user?.role || 'user';
+    session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
+    
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -592,18 +618,31 @@ router.post('/classify', async (req: Request, res: Response) => {
         decisionMatrixVersion: decisionMatrix?.version,
         action: forceClassify ? 'force_classify' : 'auto_classify',
         interviewSkipped: forceClassify,
-        questionsAsked: conversationHistory.length
+        questionsAsked: conversationHistory.length,
+        userRole
       }
     );
 
-    res.json({
-      action: 'auto_classify',
-      classification: classificationToStore,
-      decisionMatrixEvaluation,
-      extractedAttributes,
-      sessionId,
-      responseTime: Date.now() - startTime
-    });
+    // Return different responses based on user role
+    if (userRole === 'admin') {
+      res.json({
+        action: 'auto_classify',
+        classification: classificationToStore,
+        decisionMatrixEvaluation,
+        extractedAttributes,
+        sessionId,
+        responseTime: Date.now() - startTime
+      });
+    } else {
+      // Regular users get a thank you message without seeing the classification
+      res.json({
+        action: 'submitted',
+        sessionId,
+        message: 'Thank you for your time. Your submission has been recorded and will be reviewed.',
+        submitted: true,
+        responseTime: Date.now() - startTime
+      });
+    }
   } catch (error) {
     console.error('Error classifying process:', error);
     res.status(500).json({
@@ -962,7 +1001,12 @@ router.post('/clarify', async (req: Request, res: Response) => {
     };
     
     session.classification = classificationToStore;
-    session.status = 'completed';
+    
+    // Determine session status based on user role (blind evaluation for regular users)
+    const authReq = req as AuthRequest;
+    const userRole = authReq.user?.role || 'user';
+    session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
+    
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -981,17 +1025,29 @@ router.post('/clarify', async (req: Request, res: Response) => {
         llmProvider,
         latencyMs: Date.now() - startTime,
         decisionMatrixVersion: decisionMatrix?.version,
-        action: 'auto_classify'
+        action: 'auto_classify',
+        userRole
       }
     );
 
-    res.json({
-      classification: classificationToStore,
-      decisionMatrixEvaluation,
-      extractedAttributes,
-      sessionId,
-      responseTime: Date.now() - startTime
-    });
+    // Return different responses based on user role
+    if (userRole === 'admin') {
+      res.json({
+        classification: classificationToStore,
+        decisionMatrixEvaluation,
+        extractedAttributes,
+        sessionId,
+        responseTime: Date.now() - startTime
+      });
+    } else {
+      // Regular users get a thank you message without seeing the classification
+      res.json({
+        sessionId,
+        message: 'Thank you for your time. Your submission has been recorded and will be reviewed.',
+        submitted: true,
+        responseTime: Date.now() - startTime
+      });
+    }
   } catch (error) {
     console.error('Error recording clarification:', error);
     res.status(500).json({

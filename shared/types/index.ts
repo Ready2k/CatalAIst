@@ -14,13 +14,15 @@ export interface Session {
   initiativeId: string;
   createdAt: string;
   updatedAt: string;
-  status: 'active' | 'completed' | 'manual_review';
+  status: 'active' | 'completed' | 'manual_review' | 'pending_admin_review';
   modelUsed: string;
   subject?: string; // Business area/domain (e.g., "Finance", "HR", "Sales")
   conversations: Conversation[];
   classification?: Classification;
   feedback?: Feedback;
   userRating?: UserRating;
+  // Admin review fields for blind evaluation workflow
+  adminReview?: AdminReview;
 }
 
 export interface Conversation {
@@ -53,6 +55,15 @@ export interface UserRating {
   rating: 'up' | 'down';
   comments?: string;
   timestamp: string;
+}
+
+export interface AdminReview {
+  reviewed: boolean;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  approved?: boolean;
+  correctedCategory?: TransformationCategory;
+  reviewNotes?: string;
 }
 
 export interface AuditLogEntry {
@@ -331,18 +342,28 @@ export const UserRatingSchema = z.object({
   timestamp: z.string().datetime()
 });
 
+export const AdminReviewSchema = z.object({
+  reviewed: z.boolean(),
+  reviewedBy: z.string().optional(),
+  reviewedAt: z.string().datetime().optional(),
+  approved: z.boolean().optional(),
+  correctedCategory: TransformationCategorySchema.optional(),
+  reviewNotes: z.string().optional()
+});
+
 export const SessionSchema = z.object({
   sessionId: z.string().uuid(),
   initiativeId: z.string(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
-  status: z.enum(['active', 'completed', 'manual_review']),
+  status: z.enum(['active', 'completed', 'manual_review', 'pending_admin_review']),
   modelUsed: z.string(),
   subject: z.string().optional(),
   conversations: z.array(ConversationSchema),
   classification: ClassificationSchema.optional(),
   feedback: FeedbackSchema.optional(),
-  userRating: UserRatingSchema.optional()
+  userRating: UserRatingSchema.optional(),
+  adminReview: AdminReviewSchema.optional()
 });
 
 export const AuditLogEntrySchema = z.object({

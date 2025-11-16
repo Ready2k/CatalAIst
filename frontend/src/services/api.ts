@@ -920,6 +920,45 @@ class ApiService {
   async getValidationTest(testId: string): Promise<any> {
     return this.request(`/api/learning/validation-tests/${testId}`);
   }
+
+  // Admin Review Methods
+
+  async getPendingReviews(page: number = 1, limit: number = 20): Promise<{
+    sessions: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    return this.request(`/api/admin/pending-reviews?page=${page}&limit=${limit}`);
+  }
+
+  async submitAdminReview(
+    sessionId: string,
+    approved: boolean,
+    correctedCategory?: string,
+    reviewNotes?: string
+  ): Promise<void> {
+    await this.request(`/api/admin/review/${sessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        approved,
+        correctedCategory,
+        reviewNotes,
+        userId: sessionStorage.getItem('username') || 'admin'
+      })
+    });
+  }
+
+  async getAdminReviewStats(): Promise<{
+    pendingCount: number;
+    reviewedCount: number;
+    approvedCount: number;
+    correctedCount: number;
+    approvalRate: number;
+  }> {
+    return this.request('/api/admin/review-stats');
+  }
 }
 
 export const apiService = new ApiService();

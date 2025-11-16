@@ -165,6 +165,33 @@ export class SessionStorageService {
   }
 
   /**
+   * Get all sessions (for admin review)
+   */
+  async getAllSessions(): Promise<Session[]> {
+    try {
+      const sessionIds = await this.listSessions();
+      const sessions: Session[] = [];
+      
+      for (const sessionId of sessionIds) {
+        try {
+          const session = await this.loadSession(sessionId);
+          if (session) {
+            sessions.push(session);
+          }
+        } catch (error) {
+          console.error(`Failed to load session ${sessionId}:`, error);
+          // Continue with other sessions
+        }
+      }
+      
+      return sessions;
+    } catch (error) {
+      console.error('Failed to get all sessions:', error);
+      return [];
+    }
+  }
+
+  /**
    * Check if a session exists
    */
   async sessionExists(sessionId: string): Promise<boolean> {

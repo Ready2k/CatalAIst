@@ -5,13 +5,14 @@ export interface Session {
     initiativeId: string;
     createdAt: string;
     updatedAt: string;
-    status: 'active' | 'completed' | 'manual_review';
+    status: 'active' | 'completed' | 'manual_review' | 'pending_admin_review';
     modelUsed: string;
     subject?: string;
     conversations: Conversation[];
     classification?: Classification;
     feedback?: Feedback;
     userRating?: UserRating;
+    adminReview?: AdminReview;
 }
 export interface Conversation {
     conversationId: string;
@@ -43,6 +44,14 @@ export interface UserRating {
     rating: 'up' | 'down';
     comments?: string;
     timestamp: string;
+}
+export interface AdminReview {
+    reviewed: boolean;
+    reviewedBy?: string;
+    reviewedAt?: string;
+    approved?: boolean;
+    correctedCategory?: TransformationCategory;
+    reviewNotes?: string;
 }
 export interface AuditLogEntry {
     sessionId: string;
@@ -344,12 +353,34 @@ export declare const UserRatingSchema: z.ZodObject<{
     timestamp: string;
     comments?: string | undefined;
 }>;
+export declare const AdminReviewSchema: z.ZodObject<{
+    reviewed: z.ZodBoolean;
+    reviewedBy: z.ZodOptional<z.ZodString>;
+    reviewedAt: z.ZodOptional<z.ZodString>;
+    approved: z.ZodOptional<z.ZodBoolean>;
+    correctedCategory: z.ZodOptional<z.ZodEnum<["Eliminate", "Simplify", "Digitise", "RPA", "AI Agent", "Agentic AI"]>>;
+    reviewNotes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    reviewed: boolean;
+    correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+    approved?: boolean | undefined;
+    reviewedBy?: string | undefined;
+    reviewedAt?: string | undefined;
+    reviewNotes?: string | undefined;
+}, {
+    reviewed: boolean;
+    correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+    approved?: boolean | undefined;
+    reviewedBy?: string | undefined;
+    reviewedAt?: string | undefined;
+    reviewNotes?: string | undefined;
+}>;
 export declare const SessionSchema: z.ZodObject<{
     sessionId: z.ZodString;
     initiativeId: z.ZodString;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
-    status: z.ZodEnum<["active", "completed", "manual_review"]>;
+    status: z.ZodEnum<["active", "completed", "manual_review", "pending_admin_review"]>;
     modelUsed: z.ZodString;
     subject: z.ZodOptional<z.ZodString>;
     conversations: z.ZodArray<z.ZodObject<{
@@ -443,9 +474,31 @@ export declare const SessionSchema: z.ZodObject<{
         timestamp: string;
         comments?: string | undefined;
     }>>;
+    adminReview: z.ZodOptional<z.ZodObject<{
+        reviewed: z.ZodBoolean;
+        reviewedBy: z.ZodOptional<z.ZodString>;
+        reviewedAt: z.ZodOptional<z.ZodString>;
+        approved: z.ZodOptional<z.ZodBoolean>;
+        correctedCategory: z.ZodOptional<z.ZodEnum<["Eliminate", "Simplify", "Digitise", "RPA", "AI Agent", "Agentic AI"]>>;
+        reviewNotes: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        reviewed: boolean;
+        correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+        approved?: boolean | undefined;
+        reviewedBy?: string | undefined;
+        reviewedAt?: string | undefined;
+        reviewNotes?: string | undefined;
+    }, {
+        reviewed: boolean;
+        correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+        approved?: boolean | undefined;
+        reviewedBy?: string | undefined;
+        reviewedAt?: string | undefined;
+        reviewNotes?: string | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     sessionId: string;
-    status: "active" | "completed" | "manual_review";
+    status: "active" | "completed" | "manual_review" | "pending_admin_review";
     initiativeId: string;
     modelUsed: string;
     createdAt: string;
@@ -481,10 +534,18 @@ export declare const SessionSchema: z.ZodObject<{
         rating: "up" | "down";
         timestamp: string;
         comments?: string | undefined;
+    } | undefined;
+    adminReview?: {
+        reviewed: boolean;
+        correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+        approved?: boolean | undefined;
+        reviewedBy?: string | undefined;
+        reviewedAt?: string | undefined;
+        reviewNotes?: string | undefined;
     } | undefined;
 }, {
     sessionId: string;
-    status: "active" | "completed" | "manual_review";
+    status: "active" | "completed" | "manual_review" | "pending_admin_review";
     initiativeId: string;
     modelUsed: string;
     createdAt: string;
@@ -520,6 +581,14 @@ export declare const SessionSchema: z.ZodObject<{
         rating: "up" | "down";
         timestamp: string;
         comments?: string | undefined;
+    } | undefined;
+    adminReview?: {
+        reviewed: boolean;
+        correctedCategory?: "Eliminate" | "Simplify" | "Digitise" | "RPA" | "AI Agent" | "Agentic AI" | undefined;
+        approved?: boolean | undefined;
+        reviewedBy?: string | undefined;
+        reviewedAt?: string | undefined;
+        reviewNotes?: string | undefined;
     } | undefined;
 }>;
 export declare const AuditLogEntrySchema: z.ZodObject<{
@@ -1717,3 +1786,4 @@ export declare const FilteredMetricsSchema: z.ZodObject<{
     averageConfidence: number;
 }>;
 export * from './validation';
+export * from './voice.types';

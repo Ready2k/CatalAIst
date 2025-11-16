@@ -16,7 +16,8 @@ import promptsRoutes from './routes/prompts.routes';
 import auditRoutes from './routes/audit.routes';
 import authRoutes from './routes/auth.routes';
 import subjectsRoutes from './routes/subjects.routes';
-import { authenticateToken } from './middleware/auth.middleware';
+import adminReviewRoutes from './routes/admin-review.routes';
+import { authenticateToken, requireRole } from './middleware/auth.middleware';
 import { initializeApplication } from './startup';
 
 // Load environment variables from project root
@@ -236,6 +237,7 @@ app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/prompts', authenticateToken, promptsRoutes);
 app.use('/api/audit', authenticateToken, auditRoutes);
 app.use('/api/subjects', authenticateToken, subjectsRoutes);
+app.use('/api/admin', authenticateToken, requireRole('admin'), adminReviewRoutes);
 
 // Initialize application on startup
 initializeApplication()
