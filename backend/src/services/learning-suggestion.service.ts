@@ -190,6 +190,28 @@ Based on this analysis, suggest 2-5 improvements to the decision matrix. For eac
    - Confidence level (0.0-1.0)
 4. **Suggested Change**: Specific details of the change
 
+CRITICAL VALIDATION RULES - YOU MUST FOLLOW THESE:
+1. **Existing Attributes Only**: ONLY reference attributes that exist in the current matrix (listed above)
+2. **Valid Values Only**: Condition values MUST be from the attribute's possibleValues
+3. **No New Attributes**: Do NOT suggest new_attribute type - only use existing attributes
+4. **Valid Categories**: targetCategory MUST be one of: Eliminate, Simplify, Digitise, RPA, AI Agent, Agentic AI
+5. **Valid Operators**: ONLY use: ==, !=, >, <, >=, <=, in, not_in
+6. **Action Types**: ONLY use: override, adjust_confidence, or flag_review
+7. **Check Existing Rules**: Do NOT duplicate existing rules - modify them instead
+
+VALIDATION EXAMPLES:
+✅ CORRECT: Condition references "frequency" (exists in matrix) with value "daily" (in possibleValues)
+❌ WRONG: Condition references "subject" (doesn't exist in matrix)
+❌ WRONG: Condition uses "low" for data_sensitivity (should be "public", "internal", "confidential", or "restricted")
+✅ CORRECT: targetCategory is "RPA" (valid category)
+❌ WRONG: targetCategory is "Automation" (not a valid category)
+
+Before suggesting a rule, verify:
+- All attributes in conditions exist in the matrix
+- All values are in the attribute's possibleValues
+- The targetCategory is valid
+- You're not duplicating an existing rule
+
 Format your response as a JSON array of suggestions. Each suggestion should have this structure:
 
 \`\`\`json
@@ -273,7 +295,7 @@ Provide only the JSON array, no additional text.`;
   }
 
   /**
-   * Parse LLM response into suggestion objects
+   * Parse LLM response into suggestion objects with validation
    */
   private parseSuggestions(
     llmResponse: string,
@@ -298,10 +320,72 @@ Provide only the JSON array, no additional text.`;
       const parsed = JSON.parse(jsonStr);
       const suggestionsArray = Array.isArray(parsed) ? parsed : [parsed];
 
+      // Valid transformation categories
+      const validCategories = ['Eliminate', 'Simplify', 'Digitise', 'RPA', 'AI Agent', 'Agentic AI'];
+
       return suggestionsArray.map(s => {
-        // Generate rule ID if creating new rule
+        // Validate and sanitize new_rule suggestions
         if (s.type === 'new_rule' && s.suggestedChange.newRule) {
-          s.suggestedChange.newRule.ruleId = randomUUID();
+          const rule = s.suggestedChange.newRule;
+          
+          // Generate rule ID
+          rule.ruleId = randomUUID();
+          
+          // Validate targetCategory
+          if (rule.action && rule.action.targetCategory) {
+            if (Array.isArray(rule.action.targetCategory)) {
+              rule.action.targetCategory = rule.action.targetCategory[0];
+              console.warn(`Suggestion "${s.rationale.substring(0, 50)}..." had targetCategory as array, using first value`);
+            }
+            
+            if (!validCategories.includes(rule.action.targetCategory)) {
+              console.warn(`Suggestion has invalid targetCategory "${rule.action.targetCategory}", changing to adjust_confidence`);
+              rule.action.type = 'adjust_confidence';
+              rule.action.confidenceAdjustment = 0.1;
+              delete rule.action.targetCategory;
+            }
+          }
+          
+          // Clamp priority
+          if (rule.priority) {
+            rule.priority = Math.max(0, Math.min(100, rule.priority));
+          }
+        }
+
+        // Validate modify_rule suggestions
+        if (s.type === 'modify_rule' && s.suggestedChange.modifiedRule) {
+          const rule = s.suggestedChange.modifiedRule;
+          
+          // Validate targetCategory
+          if (rule.action && rule.action.targetCategory) {
+            if (Array.isArray(rule.action.targetCategory)) {
+              rule.action.targetCategory = rule.action.targetCategory[0];
+            }
+            
+            if (!validCategories.includes(rule.action.targetCategory)) {
+              console.warn(`Modified rule has invalid targetCategory "${rule.action.targetCategory}"`);
+              rule.action.type = 'adjust_confidence';
+              rule.action.confidenceAdjustment = 0.1;
+              delete rule.action.targetCategory;
+            }
+          }
+          
+          // Clamp priority
+          if (rule.priority) {
+            rule.priority = Math.max(0, Math.min(100, rule.priority));
+          }
+        }
+
+        // Validate adjust_weight suggestions
+        if (s.type === 'adjust_weight' && s.suggestedChange.newWeight !== undefined) {
+          // Clamp weight between 0 and 1
+          s.suggestedChange.newWeight = Math.max(0, Math.min(1, s.suggestedChange.newWeight));
+        }
+
+        // Skip new_attribute suggestions (not supported)
+        if (s.type === 'new_attribute') {
+          console.warn('Skipping new_attribute suggestion - not supported. LLM should only suggest modifications to existing attributes.');
+          return null;
         }
 
         return {
@@ -314,7 +398,7 @@ Provide only the JSON array, no additional text.`;
           impactEstimate: s.impactEstimate,
           suggestedChange: s.suggestedChange
         } as LearningSuggestion;
-      });
+      }).filter(s => s !== null) as LearningSuggestion[];
     } catch (error) {
       console.error('Error parsing LLM suggestions:', error);
       console.error('LLM Response:', llmResponse);

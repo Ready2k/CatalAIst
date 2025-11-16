@@ -187,7 +187,7 @@ Extract the following attributes:
 Respond in JSON format with these attributes. Use "unknown" if information is not available.`
     },
     {
-      filename: 'decision-matrix-generation-v1.0.txt',
+      filename: 'decision-matrix-generation-v1.1.txt',
       content: `Generate a comprehensive decision matrix for classifying business initiatives into six transformation categories:
 1. Eliminate - Remove unnecessary processes
 2. Simplify - Streamline and reduce complexity
@@ -199,11 +199,11 @@ Respond in JSON format with these attributes. Use "unknown" if information is no
 The decision matrix should include:
 
 1. **Attributes** - Key characteristics to evaluate (with weights 0-1):
-   - frequency: How often the process runs (categorical: daily, weekly, monthly, quarterly, yearly)
+   - frequency: How often the process runs (categorical: rare, monthly, weekly, daily, hourly)
    - business_value: Impact on business outcomes (categorical: low, medium, high, critical)
    - complexity: Process complexity level (categorical: low, medium, high, very_high)
    - risk: Risk level if automated (categorical: low, medium, high, critical)
-   - user_count: Number of users affected (numeric)
+   - user_count: Number of users affected (categorical: 1-10, 11-50, 51-200, 200+)
    - data_sensitivity: Sensitivity of data handled (categorical: public, internal, confidential, restricted)
 
 2. **Rules** - Condition-based logic to guide classification:
@@ -218,6 +218,22 @@ Generate rules that follow transformation best practices:
 - High-complexity + high-value favors AI Agent or Agentic AI
 - Low-value processes should be considered for Eliminate or Simplify
 - Manual processes with no automation potential should be Digitise
+
+CRITICAL VALIDATION RULES - YOU MUST FOLLOW THESE:
+1. **Attribute Names**: Only use these exact attribute names: frequency, business_value, complexity, risk, user_count, data_sensitivity
+2. **Attribute Values**: ONLY use values from the possibleValues array for each attribute
+3. **No Custom Attributes**: Do NOT create attributes like "subject", "domain", "department" - these are NOT supported
+4. **Condition Values**: Every condition value MUST exist in the attribute's possibleValues array
+5. **Target Categories**: ONLY use these exact categories: Eliminate, Simplify, Digitise, RPA, AI Agent, Agentic AI
+6. **Action Types**: ONLY use: override, adjust_confidence, or flag_review
+7. **Operators**: ONLY use: ==, !=, >, <, >=, <=, in, not_in
+
+VALIDATION EXAMPLES:
+✅ CORRECT: {"attribute": "frequency", "operator": "in", "value": ["daily", "hourly"]}
+❌ WRONG: {"attribute": "frequency", "operator": "in", "value": ["high"]} - "high" is not in possibleValues
+❌ WRONG: {"attribute": "subject", "operator": "==", "value": "Finance"} - "subject" attribute doesn't exist
+✅ CORRECT: {"attribute": "complexity", "operator": "==", "value": "low"}
+❌ WRONG: {"attribute": "data_sensitivity", "operator": "==", "value": "low"} - use "public" instead
 
 Return ONLY a valid JSON object with this structure:
 {

@@ -87,11 +87,11 @@ export class DecisionMatrixService {
 The decision matrix should include:
 
 1. **Attributes** - Key characteristics to evaluate (with weights 0-1):
-   - frequency: How often the process runs (categorical: daily, weekly, monthly, quarterly, yearly)
+   - frequency: How often the process runs (categorical: rare, monthly, weekly, daily, hourly)
    - business_value: Impact on business outcomes (categorical: low, medium, high, critical)
    - complexity: Process complexity level (categorical: low, medium, high, very_high)
    - risk: Risk level if automated (categorical: low, medium, high, critical)
-   - user_count: Number of users affected (numeric)
+   - user_count: Number of users affected (categorical: 1-10, 11-50, 51-200, 200+)
    - data_sensitivity: Sensitivity of data handled (categorical: public, internal, confidential, restricted)
 
 2. **Rules** - Condition-based logic to guide classification:
@@ -106,6 +106,22 @@ Generate rules that follow transformation best practices:
 - High-complexity + high-value favors AI Agent or Agentic AI
 - Low-value processes should be considered for Eliminate or Simplify
 - Manual processes with no automation potential should be Digitise
+
+CRITICAL VALIDATION RULES - YOU MUST FOLLOW THESE:
+1. **Attribute Names**: Only use these exact attribute names: frequency, business_value, complexity, risk, user_count, data_sensitivity
+2. **Attribute Values**: ONLY use values from the possibleValues array for each attribute
+3. **No Custom Attributes**: Do NOT create attributes like "subject", "domain", "department" - these are NOT supported
+4. **Condition Values**: Every condition value MUST exist in the attribute's possibleValues array
+5. **Target Categories**: ONLY use these exact categories: Eliminate, Simplify, Digitise, RPA, AI Agent, Agentic AI
+6. **Action Types**: ONLY use: override, adjust_confidence, or flag_review
+7. **Operators**: ONLY use: ==, !=, >, <, >=, <=, in, not_in
+
+VALIDATION EXAMPLES:
+✅ CORRECT: {"attribute": "frequency", "operator": "in", "value": ["daily", "hourly"]}
+❌ WRONG: {"attribute": "frequency", "operator": "in", "value": ["high"]} - "high" is not in possibleValues
+❌ WRONG: {"attribute": "subject", "operator": "==", "value": "Finance"} - "subject" attribute doesn't exist
+✅ CORRECT: {"attribute": "complexity", "operator": "==", "value": "low"}
+❌ WRONG: {"attribute": "data_sensitivity", "operator": "==", "value": "low"} - use "public" instead
 
 Return ONLY a valid JSON object with this structure:
 {
@@ -166,29 +182,80 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
         name: attr.name,
         type: attr.type,
         possibleValues: attr.possibleValues,
-        weight: attr.weight,
+        weight: Math.min(Math.max(attr.weight, 0), 1), // Clamp between 0 and 1
         description: attr.description
       }));
 
+      // Create a map of attribute names to their possible values for validation
+      const attributeMap = new Map<string, string[]>();
+      attributes.forEach(attr => {
+        if (attr.type === 'categorical' && attr.possibleValues) {
+          attributeMap.set(attr.name, attr.possibleValues);
+        }
+      });
+
+      // Valid transformation categories
+      const validCategories: TransformationCategory[] = [
+        'Eliminate', 'Simplify', 'Digitise', 'RPA', 'AI Agent', 'Agentic AI'
+      ];
+
       const rules: Rule[] = parsed.rules.map((rule: any) => {
-        // Sanitize action to ensure targetCategory is a string, not an array
+        // Validate conditions reference existing attributes
+        const validatedConditions = rule.conditions.filter((cond: any) => {
+          if (!attributeMap.has(cond.attribute) && !attributes.find(a => a.name === cond.attribute)) {
+            console.warn(`Rule "${rule.name}" references non-existent attribute "${cond.attribute}", skipping condition`);
+            return false;
+          }
+
+          // Validate categorical values
+          const possibleValues = attributeMap.get(cond.attribute);
+          if (possibleValues) {
+            const values = Array.isArray(cond.value) ? cond.value : [cond.value];
+            const invalidValues = values.filter((v: string) => !possibleValues.includes(v));
+            if (invalidValues.length > 0) {
+              console.warn(`Rule "${rule.name}" uses invalid values [${invalidValues.join(', ')}] for attribute "${cond.attribute}". Valid values: [${possibleValues.join(', ')}]`);
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        // Skip rules with no valid conditions
+        if (validatedConditions.length === 0 && rule.conditions.length > 0) {
+          console.warn(`Rule "${rule.name}" has no valid conditions, skipping rule`);
+          return null;
+        }
+
+        // Sanitize action to ensure targetCategory is valid
         const action = { ...rule.action };
-        if (action.targetCategory && Array.isArray(action.targetCategory)) {
-          // If it's an array, take the first element
-          action.targetCategory = action.targetCategory[0];
-          console.warn(`Rule "${rule.name}" had targetCategory as array, using first value: ${action.targetCategory}`);
+        if (action.targetCategory) {
+          if (Array.isArray(action.targetCategory)) {
+            action.targetCategory = action.targetCategory[0];
+            console.warn(`Rule "${rule.name}" had targetCategory as array, using first value: ${action.targetCategory}`);
+          }
+          
+          // Validate category
+          if (!validCategories.includes(action.targetCategory as TransformationCategory)) {
+            console.warn(`Rule "${rule.name}" has invalid targetCategory "${action.targetCategory}", defaulting to adjust_confidence`);
+            action.type = 'adjust_confidence';
+            action.confidenceAdjustment = 0;
+            delete action.targetCategory;
+          }
         }
         
         return {
           ruleId: rule.ruleId || uuidv4(),
           name: rule.name,
           description: rule.description,
-          conditions: rule.conditions,
+          conditions: validatedConditions,
           action: action,
-          priority: rule.priority,
+          priority: Math.max(0, Math.min(100, rule.priority || 50)), // Clamp between 0-100
           active: rule.active !== false // Default to true
         };
-      });
+      }).filter((rule: Rule | null) => rule !== null) as Rule[];
+
+      console.log(`Parsed matrix: ${attributes.length} attributes, ${rules.length} valid rules (${parsed.rules.length - rules.length} rules filtered out)`);
 
       return {
         description: parsed.description,
