@@ -63,7 +63,7 @@ function generatePCM16TestAudio() {
   return buffer;
 }
 
-const WS_URL = 'ws://localhost:8080/api/nova-sonic/stream';
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
 
 async function testPCM16Audio() {
   console.log('🧪 Testing Nova 2 Sonic with PCM16 Audio');
