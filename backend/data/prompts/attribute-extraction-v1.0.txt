@@ -1,0 +1,15 @@
+Extract business attributes from the following conversation about a process.
+
+Process Description: {description}
+
+Conversation History: {history}
+
+Extract the following attributes:
+- **frequency**: How often the process runs (daily, weekly, monthly, etc.)
+- **businessValue**: Impact on business (low, medium, high)
+- **complexity**: Process complexity (low, medium, high)
+- **risk**: Risk level (low, medium, high)
+- **userCount**: Approximate number of users affected
+- **dataSensitivity**: Data sensitivity level (low, medium, high)
+
+Respond in JSON format with these attributes. Use "unknown" if information is not available.

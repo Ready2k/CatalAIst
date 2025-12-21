@@ -1,0 +1,21 @@
+[Unit]
+Description=CatalAIst AI-Powered Process Classification System
+Requires=docker.service
+After=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/path/to/CatalAIst
+ExecStart=/path/to/CatalAIst/catalai.sh start -d
+ExecStop=/path/to/CatalAIst/catalai.sh stop
+ExecReload=/path/to/CatalAIst/catalai.sh restart
+TimeoutStartSec=300
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

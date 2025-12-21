@@ -1,0 +1,182 @@
+# Implementation Plan
+
+- [x] 1. Enhance backend analytics service with session listing and filtering
+  - Add `SessionFilters` interface to shared types
+  - Implement `listSessions()` method with filtering logic (date range, category, subject, model, status, search text)
+  - Implement pagination logic to return correct page of results
+  - Implement `getSessionDetail()` method to return full session data
+  - Implement `getFilterOptions()` method to extract unique values from existing sessions
+  - Implement `calculateFilteredMetrics()` method for filtered session statistics
+  - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.1, 7.1, 7.2, 7.3, 7.4, 7.5_
+
+- [x] 2. Create new analytics API endpoints
+  - Add `GET /api/analytics/sessions` endpoint with query parameter parsing for filters and pagination
+  - Add `GET /api/analytics/sessions/:sessionId` endpoint for session details
+  - Add `GET /api/analytics/filters/options` endpoint for filter dropdown values
+  - Apply authentication middleware (`authenticateToken`) to all endpoints
+  - Apply admin role requirement (`requireRole('admin')`) to all endpoints
+  - Apply rate limiting (100 requests per 15 minutes for list, 50 for search)
+  - Add input validation for all query parameters
+  - _Requirements: 1.1, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.1, 3.2, 4.1, 4.2, 4.3_
+
+- [x] 3. Implement CSV export functionality
+  - Add `exportSessionsToCSV()` method to analytics service
+  - Create CSV with columns: sessionId, createdAt, subject, category, confidence, status, modelUsed, feedbackConfirmed, userRating, triggeredRulesCount
+  - Add `GET /api/analytics/sessions/export` endpoint
+  - Set appropriate CSV headers (`Content-Type: text/csv`, `Content-Disposition: attachment`)
+  - Apply stricter rate limiting (10 requests per hour)
+  - Add limit of 10,000 sessions per export
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+- [x] 4. Create SessionFilters component
+  - Create `frontend/src/components/SessionFilters.tsx`
+  - Implement date range picker (from/to) with validation
+  - Implement category dropdown populated from filter options
+  - Implement subject dropdown populated from filter options
+  - Implement model dropdown populated from filter options
+  - Implement status dropdown with predefined values
+  - Implement search input with 300ms debouncing
+  - Implement "Clear All Filters" button
+  - Add responsive layout (stack vertically on mobile < 768px)
+  - Emit filter changes to parent component
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 4.1, 4.2, 4.3, 4.4_
+
+- [x] 5. Create SessionListTable component
+  - Create `frontend/src/components/SessionListTable.tsx`
+  - Implement table with columns: Session ID, Created Date, Subject, Category, Confidence, Status, Model, Indicators
+  - Add visual indicators: warning icon (unconfirmed feedback), thumbs down (negative rating), magnifying glass (manual review), low confidence indicator, triggered rules badge, override indicator
+  - Implement row click handler to open session detail
+  - Add loading skeleton while fetching data
+  - Add empty state when no sessions match filters
+  - Implement responsive design (card layout on mobile < 768px)
+  - Add pagination controls at bottom
+  - Ensure minimum touch target size of 44x44px for mobile
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 6.1, 6.2, 6.3, 6.4, 6.5_
+
+- [x] 6. Create FilteredMetricsSummary component
+  - Create `frontend/src/components/FilteredMetricsSummary.tsx`
+  - Display total count of filtered sessions
+  - Display average confidence score for filtered sessions
+  - Display agreement rate for filtered sessions
+  - Display category distribution chart/bars for filtered sessions
+  - Update metrics within 500ms when filters change
+  - Add collapsible behavior on mobile to save space
+  - Show loading state while calculating
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
+
+- [x] 7. Create SessionDetailModal component
+  - Create `frontend/src/components/SessionDetailModal.tsx`
+  - Implement modal/overlay with close button and Escape key support
+  - Create tabbed interface with tabs: Overview, Conversations, Classification, Decision Matrix, Feedback & Rating
+  - Implement Overview tab showing session metadata (sessionId, initiativeId, createdAt, updatedAt, status, modelUsed, subject)
+  - Implement Conversations tab showing all conversations with timestamps, process descriptions, and Q&A pairs
+  - Implement Classification tab showing category, confidence, rationale, category progression, and future opportunities prominently
+  - Implement Decision Matrix tab showing triggered rules (name, action, rationale), extracted attributes, override status, and original vs final classification comparison
+  - Implement Feedback & Rating tab showing feedback confirmation status, corrected category, user rating, and comments
+  - Add "Copy Session ID" button
+  - Implement responsive design (full-screen on mobile, side panel on desktop > 1024px)
+  - Add scroll to top on modal open
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
+
+- [x] 8. Integrate new components into AnalyticsDashboard
+  - Update `frontend/src/components/AnalyticsDashboard.tsx`
+  - Keep existing AggregateMetricsPanel at the top (unchanged)
+  - Add SessionFilters component below aggregate metrics
+  - Add FilteredMetricsSummary component below filters
+  - Add SessionListTable component below summary
+  - Add SessionDetailModal component (rendered conditionally when session selected)
+  - Implement state management for filters, pagination, selected session
+  - Fetch filter options on component mount
+  - Fetch session list when filters or pagination changes
+  - Implement debounced API calls (200ms for filter changes)
+  - Add error handling with toast notifications
+  - _Requirements: 1.1, 2.1, 3.1, 7.6, 8.1, 8.2, 8.3, 8.4, 8.5_
+
+- [x] 9. Add API service methods for new endpoints
+  - Update `frontend/src/services/api.ts`
+  - Add `getSessionsList(filters, page, limit)` method
+  - Add `getSessionDetail(sessionId)` method
+  - Add `getFilterOptions()` method
+  - Add `exportSessionsCSV(filters)` method
+  - Implement proper error handling for all methods
+  - Include authentication token in all requests
+  - _Requirements: 1.1, 2.1, 3.1, 5.1, 8.1_
+
+- [x] 10. Add shared TypeScript types
+  - Update `shared/types/index.ts`
+  - Add `SessionFilters` interface
+  - Add `SessionListItem` interface with triggeredRulesCount and hasDecisionMatrix fields
+  - Add `SessionListResponse` interface
+  - Add `FilterOptions` interface
+  - Add `PaginationParams` interface
+  - Add Zod schemas for validation
+  - _Requirements: 1.1, 2.1, 3.1_
+
+- [x] 11. Implement caching and performance optimizations
+  - Add in-memory cache for filter options (5 minute TTL)
+  - Add in-memory cache for session list items (1 minute TTL)
+  - Implement cache invalidation on new session creation
+  - Add React.memo to SessionListTable row components
+  - Memoize filter options in frontend
+  - Memoize computed session properties (requiresAttention, triggeredRulesCount)
+  - _Requirements: 8.1, 8.2, 8.3, 8.4_
+
+- [x] 12. Add accessibility features
+  - Add ARIA labels to all filter controls
+  - Add ARIA labels to all table columns and cells
+  - Implement keyboard navigation (Tab, Enter, Escape, Arrow keys)
+  - Add screen reader announcements for filter changes
+  - Add screen reader announcements for page changes
+  - Add screen reader announcements for session count updates
+  - Ensure minimum contrast ratio 4.5:1 for all text
+  - Add visible focus indicators to all interactive elements
+  - Ensure minimum font size 14px
+  - Verify touch targets are minimum 44x44px on mobile
+  - _Requirements: All requirements (accessibility is cross-cutting)_
+
+- [ ]* 13. Write backend unit tests
+  - Create `backend/src/services/__tests__/analytics-enhanced.test.ts`
+  - Test `listSessions()` with various filter combinations
+  - Test pagination edge cases (first page, last page, out of bounds)
+  - Test search text matching across process descriptions, rationale, and comments
+  - Test `getFilterOptions()` extraction logic
+  - Test `calculateFilteredMetrics()` calculations
+  - Test `exportSessionsToCSV()` format and content
+  - _Requirements: 1.1, 2.1, 4.1, 5.1, 7.1_
+
+- [ ]* 14. Write backend integration tests
+  - Create `backend/src/routes/__tests__/analytics-enhanced.routes.test.ts`
+  - Test authentication requirement on all endpoints
+  - Test admin role requirement on all endpoints
+  - Test query parameter parsing for filters
+  - Test pagination parameter parsing
+  - Test error responses (404, 400, 500)
+  - Test rate limiting enforcement
+  - Test CSV download headers
+  - _Requirements: 2.1, 3.1, 5.1_
+
+- [ ]* 15. Write frontend component tests
+  - Test SessionFilters: filter changes, clear button, date validation, debouncing
+  - Test SessionListTable: sorting, pagination, row clicks, visual indicators
+  - Test SessionDetailModal: tab switching, data display, close actions, keyboard support
+  - Test FilteredMetricsSummary: metric calculations, loading states, updates on filter change
+  - Test AnalyticsDashboard integration: filter → fetch → display flow
+  - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1_
+
+- [ ]* 16. Perform accessibility testing
+  - Test keyboard navigation through all components
+  - Test with screen reader (NVDA on Windows or VoiceOver on Mac)
+  - Verify ARIA labels are present and descriptive
+  - Test focus management in modal
+  - Verify color contrast with WebAIM tool
+  - Test on mobile devices for touch target sizes
+  - _Requirements: All requirements (accessibility validation)_
+
+- [ ]* 17. Perform performance testing
+  - Test load time with 1000+ sessions
+  - Test filter application time with large datasets
+  - Test search debouncing effectiveness
+  - Test pagination response time
+  - Test export generation time for 10,000 sessions
+  - Profile with React DevTools to identify bottlenecks
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_

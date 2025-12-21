@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # nginx reverse proxy with HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: catalai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template
+      - nginx_logs:/var/log/nginx
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - catalai-network
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: catalai-certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - catalai-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: catalai-backend
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - catalai-data:/data
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATA_DIR=/data
+      - LOG_LEVEL=info
+      # Security Configuration (REQUIRED)
+      - JWT_SECRET=${JWT_SECRET}
+      - PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY}
+      - CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY:-${JWT_SECRET}}
+      # CORS Configuration - Allow your domain
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://${DOMAIN:-localhost}}
+      # LLM Configuration
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gpt-4}
+      - DEFAULT_VOICE=${DEFAULT_VOICE:-alloy}
+      # AWS Bedrock (optional)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - catalai-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: catalai-frontend
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - REACT_APP_API_URL=
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - catalai-network
+
+volumes:
+  catalai-data:
+    driver: local
+  nginx_logs:
+    driver: local
+  certbot_www:
+    driver: local
+  certbot_conf:
+    driver: local
+
+networks:
+  catalai-network:
+    driver: bridge

@@ -1,0 +1,62 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: catalai-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - catalai-data:/data
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DEFAULT_MODEL=gpt-4
+      - DEFAULT_VOICE=alloy
+      - DATA_DIR=/data
+      - LOG_LEVEL=info
+      # Security Configuration (REQUIRED)
+      - JWT_SECRET=${JWT_SECRET}
+      - PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY}
+      - CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY:-${JWT_SECRET}}
+      # CORS Configuration
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:80}
+      # AWS Bedrock credentials (optional - only needed if using Bedrock)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      # Self-signed certificate support (ONLY for dev/test with corporate proxies)
+      # Uncomment the line below if you get certificate errors with AWS Bedrock
+      # WARNING: Do NOT use in production! See backend/docs/SELF_SIGNED_CERTIFICATES.md
+      # - NODE_TLS_REJECT_UNAUTHORIZED=0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: catalai-frontend
+    ports:
+      - "80:8080"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  catalai-data:
+    driver: local

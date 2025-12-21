@@ -1,0 +1,49 @@
+{
+  "name": "catalai-backend",
+  "version": "3.0.1",
+  "description": "CatalAIst Backend API",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "jest",
+    "create-admin": "node dist/scripts/create-admin.js",
+    "create-admin:dev": "ts-node src/scripts/create-admin.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.932.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.932.0",
+    "@aws-sdk/node-http-handler": "^3.370.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.68.0",
+    "uuid": "^13.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.25",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^20.19.25",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.13",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.5",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.2"
+  },
+  "overrides": {
+    "js-yaml": "^4.1.1"
+  }
+}

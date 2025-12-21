@@ -1,0 +1,408 @@
+CatalAIst — An AI Catalyst for Clarity and Prioritisation (v3.1)
+
+
+
+Internal Release Date: Monday, 10 November 2025
+
+Owner: AI Accelerator Team | Master Plan Program
+
+Press Release (Vision)
+
+
+
+The AI Accelerator Team announces CatalAIst, a conversational AI system that helps teams quickly and objectively evaluate business-improvement initiatives.
+
+
+
+Instead of lengthy workshops or subjective scoring, teams simply describe their ideas — by voice or text — and CatalAIst listens, interprets, and classifies them into one of six transformation categories:
+
+Eliminate – Remove redundant or low-value activities
+
+Simplify – Streamline steps and reduce effort
+
+Digitise – Convert manual or offline steps into digital self-service experiences
+
+RPA – Automate repetitive, rule-based work
+
+AI Agent – Introduce adaptive intelligence to decisions
+
+Agentic AI – Enable autonomous, reasoning-based systems
+
+
+
+Using a Large Language Model (LLM) core, CatalAIst provides consistent, bias-free categorisation and speeds up the path from idea to prioritised action.
+
+Privacy, auditability, and multilingual support are built in.
+
+
+
+“CatalAIst helps us move faster and smarter,” said [Leader Name], AI Accelerator Lead.
+“It’s a conversation, not an interrogation — an AI catalyst for clarity and prioritisation.”
+1. Problem Context Snapshot
+
+
+
+Across the organisation, hundreds of optimisation ideas and automation candidates are surfaced every year.
+
+Some are well-documented and current; others have existed for years with ownership or context long forgotten.
+
+Evaluating them consistently is time-consuming and prone to subjectivity.
+
+
+
+CatalAIst is designed to make these discussions easier and smarter — enabling multiple short, conversational sessions that collectively form a decisive outcome about the true status of a process or initiative.
+
+Instead of relying on single documents or static scoring sheets, teams can talk it through — and the system remembers, summarises, and refines insights until consensus is reached.
+
+2. Who is it for?
+
+AI Accelerator Team — running business-optimisation programmes
+
+Process owners & initiative leads — who describe their workflows
+
+Transformation leaders — who need transparent, explainable decisions
+
+3. What problem does it solve?
+
+
+
+Manual evaluation of initiatives is slow, inconsistent, and biased.
+
+CatalAIst provides a consistent, conversational evaluation that classifies each initiative into one of six agreed categories (Eliminate → Agentic AI), ensuring fairness, traceability, and speed.
+
+4. How success will be measured
+
+Metric
+
+Target
+
+Agreement rate (AI vs human)
+
+≥ 80 % initial → > 90 % after tuning
+
+Evaluation time reduction
+
+≥ 50 % faster per initiative
+
+User feedback
+
+Majority 👍 “thumbs up” rating
+
+Audit completeness
+
+100 % traceable rationale
+
+5. Key Principles
+
+Trust & Transparency — every decision explained
+
+User Friendly — conversational, not interrogative
+
+Usability — short flows, early exits, multilingual
+
+Observability — all interactions logged for learning
+
+Adaptability — reinforced learning from outcomes
+
+6. Quotes
+
+
+
+“It feels like the system actually listens — we just talk, and it connects the dots.” – Process Owner
+“It’s a fair referee for automation ideas; we get to consensus quicker.” – AI Accelerator Analyst
+“Finally, something that captures knowledge that would otherwise vanish.” – Ops Manager
+7. Key Dependencies
+
+Area
+
+Description
+
+Platform
+
+Initial pilot can run using Microsoft Copilot as the chat interface (no persistent memory).
+
+Memory layer
+
+For sustained context across sessions, a Copilot Agent with memory (via Copilot Studio) or an AWS Bedrock-hosted agent could be engineered — subject to governance approval.
+
+Governance & Privacy
+
+Audit logging, anonymisation, and model explainability required before scaling.
+
+Voice & Multilingual Support
+
+Optional later phase (ASR/TTS or translation pipeline).
+
+8. Visual Snapshot – Expected Impact
+
+Metric
+
+Current (Typical)
+
+Target with CatalAIst
+
+Impact
+
+Avg time to assess one initiative
+
+Varies (1–3 hrs)
+
+~20 mins (multi-chat sessions)
+
+70% faster
+
+Consistency across reviewers
+
+Medium / variable
+
+High (LLM + shared criteria)
+
++30% agreement
+
+Traceability / audit
+
+Limited
+
+Full logs + rationale
+
+100% auditable
+
+Knowledge retention
+
+Fragmented
+
+Persistent conversational memory
+
+Institutional knowledge rebuilt
+
+9. System Flows (Conceptual)
+
+
+
+User Journey Flow
+
+User speaks or types idea
+        ↓
+CatalAIst listens → transcribes → summarises key signals
+        ↓
+LLM classification → confidence scoring
+        ↓
+Category + rationale presented
+        ↓
+User confirms / corrects (feedback loop)
+        ↓
+Audit log saved → learning engine updates model
+System Architecture Flow
+
+[Input Layer]
+ ├─ Voice Capture (ASR)
+ └─ Text Interface
+      ↓
+[Processing Layer]
+ ├─ Transcription / Summarisation
+ ├─ Signal Extraction (rules, patterns, keywords)
+ └─ Context Memory Manager
+      ↓
+[Classification Engine]
+ ├─ LLM Model (categorisation)
+ └─ Confidence + Early-Exit Logic
+      ↓
+[Feedback & Reinforcement]
+ ├─ User confirmation data
+ └─ Model tuning dataset
+      ↓
+[Storage & Governance]
+ ├─ Audit Log (immutable)
+ ├─ Analytics Dashboard
+ └─ Privacy / PII Scrubber
+Continuous Improvement Loop
+
+Conversation → Classification → Implementation → Outcome → Feedback → Model Tuning → Next Conversation
+10. Transformation Categories Explained
+
+
+
+Eliminate
+
+
+
+Remove redundant or low-value activities that add no measurable impact or can be retired entirely.
+
+Example: Retire a legacy monthly report no longer used by leadership.
+
+
+
+Simplify
+
+
+
+Streamline processes by reducing steps, dependencies, or unnecessary approvals.
+
+Example: Combine multiple approval stages into a single auto-routed workflow.
+
+
+
+Digitise
+
+
+
+Convert manual, paper-based, or human-only steps into digital or self-service channels.
+
+Example: Let customers order statements online instead of calling agents.
+
+
+
+RPA (Robotic Process Automation)
+
+
+
+Automate simple, rule-based and repetitive digital tasks.
+
+Example: Automate invoice uploads or data transfers between systems.
+
+
+
+AI Agent
+
+
+
+Introduce adaptive intelligence to processes that require context, prediction, or decision-making.
+
+Example: AI suggests next best action for a customer retention workflow.
+
+
+
+Agentic AI
+
+
+
+Implement autonomous reasoning and multi-step orchestration — where the system can plan, decide, and act independently within guardrails.
+
+Example: An Agentic AI manages a full claims workflow end-to-end, coordinating across systems and people.
+
+11. Revised Categorisation Framework
+
+Category
+
+Description
+
+Example Outcome
+
+Eliminate
+
+Redundant or low-value activity
+
+Remove duplicate reporting process
+
+Simplify
+
+Reduce steps, approvals, or complexity
+
+Streamline expense-approval workflow
+
+Digitise
+
+Replace manual or offline steps with digital self-service
+
+Build online form to replace customer calls
+
+RPA
+
+Automate repetitive rule-based tasks
+
+Bot processes digital forms automatically
+
+AI Agent
+
+Adaptive intelligence, data-driven
+
+AI suggests next best actions for agents
+
+Agentic AI
+
+Autonomous, reasoning-based decisioning
+
+AI coordinates multi-step goal completion
+
+12. What could go wrong (and mitigations)
+
+Risk
+
+Impact
+
+Mitigation
+
+Incorrect classifications
+
+Mis-categorised initiatives
+
+Reinforcement learning, human-in-loop review
+
+Technical complexity
+
+Delayed MVP or overspend
+
+Modular build, focus on text first
+
+High LLM cost
+
+Budget constraint
+
+Hybrid model strategy, Bedrock cost optimisation
+
+Bias in training data
+
+Skewed outcomes
+
+Calibration prompts, diverse sample data
+
+User resistance
+
+Reduced adoption
+
+Friendly, empathetic conversation design
+
+Data privacy
+
+Compliance breaches
+
+Anonymisation, audit controls, opt-in storage
+
+13. Updated Flow Integration
+
+Step 1: Is it necessary? → Eliminate
+Step 2: Can it be simplified? → Simplify
+Step 3: Is it manual and could be digital? → Digitise
+Step 4: Is it rule-based and repetitive? → RPA
+Step 5: Does it need intelligence or learning? → AI Agent
+Step 6: Does it require reasoning or autonomy? → Agentic AI
+Digitise is evaluated after Simplify and before RPA to ensure manual or human-heavy processes are digitised before automation or AI application.
+
+14. Unique Selling Proposition (Updated)
+
+
+
+CatalAIst is a Large Language Model–driven conversational evaluator that removes bias, accelerates categorisation, and creates audit-ready insight — turning unstructured discussions into structured, prioritised outcomes.
+
+With the new Digitisation category, CatalAIst identifies where processes can first go digital before being automated — ensuring a logical, stepwise path from manual → digital → automated → intelligent.
+15. Next Steps
+
+Build text-based MVP (LLM classification + audit trail).
+
+Pilot on 20–30 initiatives within the AI Accelerator.
+
+Gather accuracy, UX, and cost metrics.
+
+Explore memory layer options (Copilot Agent vs AWS Bedrock).
+
+Expand to voice and multi-language capabilities.
+
+Evaluate for enterprise-wide rollout.
+
+CatalAIst
+
+
+
+An AI Catalyst for Clarity and Prioritisation
+
+AI Accelerator Team | Master Plan Program

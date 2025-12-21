@@ -1,0 +1,95 @@
+# Files to Commit for v3.0.0 Release
+
+## Documentation (New)
+docs/VOICE_FEATURES_GUIDE.md
+docs/VOICE_TROUBLESHOOTING.md
+docs/VOICE_DOCUMENTATION_SUMMARY.md
+docs/features/START_FRESH_FEATURE.md
+docs/fixes/VOICE_AUTHENTICATION_FIX.md
+docs/fixes/VOICE_API_CONFIG_FIX.md
+docs/releases/RELEASE_v3.0.0.md
+.kiro/steering/voice-interface-patterns.md
+
+## Documentation (Updated)
+README.md
+CHANGELOG.md
+docs/README.md
+
+## Frontend - Voice Components (New)
+frontend/src/components/voice/AudioRecorder.tsx
+frontend/src/components/voice/AudioPlayer.tsx
+frontend/src/components/voice/TranscriptDisplay.tsx
+frontend/src/components/voice/VoiceSettings.tsx
+frontend/src/components/voice/NonStreamingModeController.tsx
+frontend/src/components/voice/StreamingModeController.tsx
+frontend/src/components/voice/utils/VoiceActivityDetector.ts
+
+## Frontend - Modified Components
+frontend/src/App.tsx
+frontend/src/components/ChatInterface.tsx
+frontend/src/components/ClarificationQuestions.tsx
+frontend/src/components/LLMConfiguration.tsx
+frontend/src/services/api.ts
+
+## Shared Types (New)
+shared/types/voice.types.ts
+
+## Shared Types (Updated)
+shared/types/index.ts
+
+## Backend - Modified Routes
+backend/src/routes/voice.routes.ts
+
+## Commit Helper Files
+COMMIT_MESSAGE_v3.0.0.txt
+FILES_TO_COMMIT_v3.0.0.txt
+
+## Git Commands
+
+# Stage all files
+git add docs/VOICE_FEATURES_GUIDE.md
+git add docs/VOICE_TROUBLESHOOTING.md
+git add docs/VOICE_DOCUMENTATION_SUMMARY.md
+git add docs/features/START_FRESH_FEATURE.md
+git add docs/fixes/VOICE_AUTHENTICATION_FIX.md
+git add docs/fixes/VOICE_API_CONFIG_FIX.md
+git add docs/releases/RELEASE_v3.0.0.md
+git add .kiro/steering/voice-interface-patterns.md
+git add README.md
+git add CHANGELOG.md
+git add docs/README.md
+git add frontend/src/components/voice/
+git add frontend/src/App.tsx
+git add frontend/src/components/ChatInterface.tsx
+git add frontend/src/components/ClarificationQuestions.tsx
+git add frontend/src/components/LLMConfiguration.tsx
+git add frontend/src/services/api.ts
+git add shared/types/voice.types.ts
+git add shared/types/index.ts
+git add backend/src/routes/voice.routes.ts
+git add COMMIT_MESSAGE_v3.0.0.txt
+git add FILES_TO_COMMIT_v3.0.0.txt
+
+# Commit with message from file
+git commit -F COMMIT_MESSAGE_v3.0.0.txt
+
+# Tag the release
+git tag -a v3.0.0 -m "Release v3.0.0 - Voice Interface & Enhanced Session Management"
+
+# Push to remote
+git push origin main
+git push origin v3.0.0
+
+## Verification
+
+# Check what will be committed
+git status
+
+# Review changes
+git diff --staged
+
+# View commit
+git show HEAD
+
+# View tags
+git tag -l

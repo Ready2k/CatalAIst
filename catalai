@@ -1,0 +1,6 @@
+#!/bin/bash
+# CatalAIst Quick Access Script
+# This is a simple wrapper that calls the main catalai.sh script
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$SCRIPT_DIR/catalai.sh" "$@"

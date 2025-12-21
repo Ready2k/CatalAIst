@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+backend/dist/
+frontend/build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backend data directory (runtime data)
+# Keep versioned prompts but exclude everything else
+backend/data/*
+!backend/data/prompts/
+backend/data/prompts/*
+!backend/data/prompts/.gitkeep
+!backend/data/prompts/*-v*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Docker
+.dockerignore
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Backup files
+*.backup
+*.bak
+*.tar.gz
+*.zip
+
+# Audio files (temporary)
+*.wav
+*.mp3
+*.webm
+*.ogg
