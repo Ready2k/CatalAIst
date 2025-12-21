@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { CategoryNodeData, NODE_COLORS, CATEGORY_DESCRIPTIONS } from '../types/flow-types';
 import { ContextualTooltip } from '../help/ContextualTooltip';
 

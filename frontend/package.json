@@ -4,12 +4,12 @@
   "description": "CatalAIst Frontend Application",
   "private": true,
   "dependencies": {
-    "@xyflow/react": "^12.9.3",
     "dagre": "^0.8.5",
     "fix": "^0.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-scripts": "^0.0.0"
+    "react-scripts": "^5.0.1",
+    "reactflow": "^11.11.4"
   },
   "scripts": {
     "start": "NODE_OPTIONS='--no-deprecation' react-scripts start",

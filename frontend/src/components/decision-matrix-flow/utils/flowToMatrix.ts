@@ -1,5 +1,5 @@
 // Convert ReactFlow graph back to DecisionMatrix structure
-import { Node } from '@xyflow/react';
+import { Node } from 'reactflow';
 import {
   DecisionMatrix,
   Attribute,

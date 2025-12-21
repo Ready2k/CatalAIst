@@ -12,8 +12,9 @@ import {
   useReactFlow,
   ReactFlowProvider,
   ConnectionMode,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+  Connection,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 import { DecisionMatrix } from '../../../shared/dist';
 import {
@@ -194,7 +195,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
   // Handle node changes (position, selection, etc.)
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      setAllNodes((nds) => applyNodeChanges(changes, nds) as FlowNode[]);
+      setAllNodes((nds) => applyNodeChanges(changes, nds as any) as FlowNode[]);
       setIsDirty(true);
     },
     []
@@ -763,7 +764,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
           nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
           edgesFocusable={!readOnly}
-          edgesReconnectable={!readOnly}
+          edgesUpdatable={!readOnly}
           connectionMode={ConnectionMode.Loose}
           panOnScroll={!isMobile}
           panOnDrag={!isMobile}
@@ -774,7 +775,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
             animated: false,
             style: { stroke: '#94a3b8', strokeWidth: isMobile ? 1.5 : 2 },
           }}
-          isValidConnection={(connection) => {
+          isValidConnection={(connection: Connection) => {
             // Only allow attribute -> condition connections
             const sourceNode = allNodes.find(n => n.id === connection.source);
             const targetNode = allNodes.find(n => n.id === connection.target);
@@ -804,7 +805,7 @@ const DecisionMatrixFlowEditorInner: React.FC<DecisionMatrixFlowEditorProps> = (
         {/* Only show minimap on larger screens */}
         {!isMobile && (
           <MiniMap
-            nodeColor={(node) => {
+            nodeColor={(node: Node) => {
               switch (node.type) {
                 case 'attribute':
                   return '#3b82f6';

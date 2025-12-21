@@ -1,5 +1,5 @@
 // TypeScript types for ReactFlow decision matrix visualization
-import { Node, Edge } from '@xyflow/react';
+import { Node, Edge } from 'reactflow';
 import { 
   Attribute, 
   Rule, 
