@@ -175,6 +175,13 @@ start_services() {
         echo "Backend will run on: http://localhost:4000"
         echo "Frontend will run on: http://localhost:4001"
         echo ""
+        
+        # Ensure .env is available to services
+        if [ -f "$SCRIPT_DIR/.env" ]; then
+            echo "Syncing .env to backend..."
+            cp "$SCRIPT_DIR/.env" "$SCRIPT_DIR/backend/.env"
+        fi
+
         echo "Press Ctrl+C to stop both services"
         echo ""
         
@@ -222,9 +229,25 @@ stop_services() {
         echo -e "${BLUE}Stopping CatalAIst services (Local development mode)...${NC}"
         
         # Kill backend processes
+        # Kill backend processes
         if pgrep -f "ts-node-dev.*src/index.ts" > /dev/null; then
             pkill -f "ts-node-dev.*src/index.ts"
-            echo -e "${GREEN}✓ Backend stopped${NC}"
+            
+            # Wait for process to exit
+            for i in {1..5}; do
+                if ! pgrep -f "ts-node-dev.*src/index.ts" > /dev/null; then
+                    break
+                fi
+                sleep 0.5
+            done
+            
+            # Force kill if still running
+            if pgrep -f "ts-node-dev.*src/index.ts" > /dev/null; then
+                pkill -9 -f "ts-node-dev.*src/index.ts"
+                echo -e "${YELLOW}Backend force killed${NC}"
+            else
+                echo -e "${GREEN}✓ Backend stopped${NC}"
+            fi
         else
             echo -e "${YELLOW}Backend not running${NC}"
         fi
@@ -232,7 +255,21 @@ stop_services() {
         # Kill frontend processes
         if pgrep -f "react-scripts start" > /dev/null; then
             pkill -f "react-scripts start"
-            echo -e "${GREEN}✓ Frontend stopped${NC}"
+            
+            # Wait for process to exit
+            for i in {1..5}; do
+                if ! pgrep -f "react-scripts start" > /dev/null; then
+                    break
+                fi
+                sleep 0.5
+            done
+            
+            if pgrep -f "react-scripts start" > /dev/null; then
+                pkill -9 -f "react-scripts start"
+                echo -e "${YELLOW}Frontend force killed${NC}"
+            else
+                echo -e "${GREEN}✓ Frontend stopped${NC}"
+            fi
         else
             echo -e "${YELLOW}Frontend not running${NC}"
         fi
@@ -444,6 +481,20 @@ run_setup() {
 build_images() {
     if [ "$MODE" = "docker" ]; then
         echo -e "${BLUE}Building CatalAIst Docker images...${NC}"
+
+        # Compile backend if npm is available to ensure fresh code
+        if command -v npm &> /dev/null; then
+            echo "Compiling backend TypeScript..."
+            cd "$SCRIPT_DIR/backend"
+            # Ensure dependencies are installed if missing
+            if [ ! -d "node_modules" ]; then
+                npm ci
+            fi
+            npm run build
+        else
+             echo -e "${YELLOW}Warning: npm not found. Docker image will use existing 'backend/dist'.${NC}"
+             echo "If you have changed backend code, please install Node/npm or compile manually."
+        fi
         
         cd "$SCRIPT_DIR"
         docker-compose build --no-cache
