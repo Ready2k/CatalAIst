@@ -6,7 +6,7 @@
  * Converts InboundSampleRecording.mp3 to PCM16 16kHz mono and sends to Nova 2 Sonic
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -21,7 +21,7 @@ function loadEnvFile() {
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   const envVars = {};
-  
+
   envContent.split('\n').forEach(line => {
     line = line.trim();
     if (line && !line.startsWith('#')) {
@@ -40,19 +40,19 @@ function loadEnvFile() {
  */
 function convertToPCM16(inputFile) {
   const outputFile = '/tmp/nova-sonic-test.raw';
-  
+
   console.log(`🔄 Converting ${inputFile} to PCM16 16kHz mono...`);
-  
+
   try {
     // Use ffmpeg to convert: 16kHz, mono, signed 16-bit little-endian PCM
     execSync(`ffmpeg -y -i "${inputFile}" -ar 16000 -ac 1 -f s16le -acodec pcm_s16le "${outputFile}" 2>/dev/null`);
-    
+
     const buffer = fs.readFileSync(outputFile);
     console.log(`✅ Converted: ${buffer.length} bytes (${(buffer.length / 32000).toFixed(1)} seconds)`);
-    
+
     // Clean up
     fs.unlinkSync(outputFile);
-    
+
     return buffer;
   } catch (error) {
     console.error('❌ ffmpeg conversion failed. Make sure ffmpeg is installed.');
@@ -68,11 +68,11 @@ function splitIntoChunks(buffer, chunkDurationMs = 100) {
   const bytesPerSecond = 16000 * 2; // 16kHz * 2 bytes per sample
   const bytesPerChunk = Math.floor(bytesPerSecond * chunkDurationMs / 1000);
   const chunks = [];
-  
+
   for (let i = 0; i < buffer.length; i += bytesPerChunk) {
     chunks.push(buffer.slice(i, Math.min(i + bytesPerChunk, buffer.length)));
   }
-  
+
   console.log(`📦 Split into ${chunks.length} chunks (${chunkDurationMs}ms each)`);
   return chunks;
 }
@@ -106,13 +106,13 @@ async function testWithRealAudio() {
 
   // Convert audio
   const pcmBuffer = convertToPCM16(AUDIO_FILE);
-  
+
   // Only use first 10 seconds to keep test reasonable
   const maxDuration = 10; // seconds
   const maxBytes = maxDuration * 16000 * 2;
   const trimmedBuffer = pcmBuffer.slice(0, Math.min(pcmBuffer.length, maxBytes));
   console.log(`📏 Using first ${(trimmedBuffer.length / 32000).toFixed(1)} seconds of audio\n`);
-  
+
   const audioChunks = splitIntoChunks(trimmedBuffer, 100);
 
   return new Promise((resolve, reject) => {
@@ -120,7 +120,7 @@ async function testWithRealAudio() {
     let sessionId = null;
     let chunkIndex = 0;
     let streamingInterval = null;
-    
+
     const testResults = {
       connection: false,
       initialization: false,
@@ -161,7 +161,7 @@ async function testWithRealAudio() {
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
+
         switch (message.type) {
           case 'initialized':
             console.log(`✅ Session initialized: ${message.sessionId}\n`);
@@ -174,19 +174,19 @@ async function testWithRealAudio() {
               if (chunkIndex < audioChunks.length) {
                 const chunk = audioChunks[chunkIndex];
                 const isLast = chunkIndex === audioChunks.length - 1;
-                
+
                 ws.send(JSON.stringify({
                   type: 'audio_chunk',
                   audio: chunk.toString('base64'),
                   isComplete: isLast
                 }));
-                
+
                 if (chunkIndex % 10 === 0) {
                   process.stdout.write(`\r   Sent ${chunkIndex + 1}/${audioChunks.length} chunks...`);
                 }
-                
+
                 chunkIndex++;
-                
+
                 if (isLast) {
                   console.log(`\n✅ Audio streaming complete (${audioChunks.length} chunks)`);
                   testResults.audioStreaming = true;
@@ -216,7 +216,7 @@ async function testWithRealAudio() {
             const audioLen = message.audio?.length || 0;
             console.log(`\n🔊 Audio response received: ${audioLen} chars base64 (~${Math.round(audioLen * 0.75 / 48000)} seconds)`);
             testResults.audioResponse = true;
-            
+
             // Test complete!
             console.log('\n🎉 Test completed successfully!');
             clearTimeout(timeout);
@@ -268,24 +268,24 @@ testWithRealAudio().then((results) => {
   console.log(`Transcription:   ${results.transcription ? '✅' : '❌'}`);
   console.log(`Text Response:   ${results.textResponse ? '✅' : '❌'}`);
   console.log(`Audio Response:  ${results.audioResponse ? '✅' : '❌'}`);
-  
+
   if (results.transcriptionText) {
     console.log(`\n📝 Transcribed: "${results.transcriptionText}"`);
   }
   if (results.responseText) {
     console.log(`💬 Response: "${results.responseText}"`);
   }
-  
+
   if (results.errors.length > 0) {
     console.log('\n❌ Errors:');
     results.errors.forEach((e, i) => console.log(`   ${i + 1}. ${e}`));
   }
 
-  const success = results.connection && results.initialization && results.audioStreaming && 
-                  (results.textResponse || results.audioResponse);
-  
+  const success = results.connection && results.initialization && results.audioStreaming &&
+    (results.textResponse || results.audioResponse);
+
   console.log(`\n${success ? '🎉 SUCCESS' : '⚠️  PARTIAL'}: Real audio test ${success ? 'passed' : 'needs review'}`);
-  
+
   process.exit(success ? 0 : 1);
 }).catch((error) => {
   console.error('💥 Test failed:', error);

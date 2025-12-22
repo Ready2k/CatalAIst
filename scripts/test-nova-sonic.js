@@ -7,7 +7,7 @@
  * Run with: node test-nova-sonic.js
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 
@@ -91,7 +91,7 @@ async function testNovaSonic() {
           case 'text_response':
             console.log('✅ Received text response:', message.text);
             testResults.eventFormat = true;
-            
+
             // Test completed successfully
             console.log('\n🎉 Test completed successfully!');
             clearTimeout(timeout);
@@ -110,13 +110,13 @@ async function testNovaSonic() {
           case 'error':
             console.error('❌ Received error:', message.error);
             testResults.error = message.error;
-            
+
             // Check if it's the old "No events to transform" error
             if (message.error.includes('No events to transform')) {
               console.log('🔍 This is the event format error we were trying to fix');
               testResults.eventFormat = false;
             }
-            
+
             clearTimeout(timeout);
             ws.close();
             resolve(testResults);
@@ -156,7 +156,7 @@ testNovaSonic().then((results) => {
   console.log(`Connection:     ${results.connection ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Initialization: ${results.initialization ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Event Format:   ${results.eventFormat ? '✅ PASS' : '❌ FAIL'}`);
-  
+
   if (results.error) {
     console.log(`Error:          ❌ ${results.error}`);
   }

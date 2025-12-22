@@ -8,7 +8,7 @@
  * 2. Audio input -> Transcription + Text + Audio response
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -23,7 +23,7 @@ function loadEnvFile() {
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   const envVars = {};
-  
+
   envContent.split('\n').forEach(line => {
     line = line.trim();
     if (line && !line.startsWith('#')) {
@@ -58,7 +58,7 @@ async function testConversation() {
 
   return new Promise((resolve) => {
     const ws = new WebSocket(WS_URL);
-    
+
     const results = {
       connection: false,
       initialization: false,
@@ -97,7 +97,7 @@ async function testConversation() {
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
+
         switch (message.type) {
           case 'initialized':
             console.log(`✅ Session initialized: ${message.sessionId}\n`);
@@ -123,7 +123,7 @@ async function testConversation() {
             console.log(`\n🔊 Audio Response: ${audioLen} chars base64 (~${audioDuration}s)`);
             results.audioResponse = true;
             results.audioLength += audioLen;
-            
+
             // Test complete when we get audio
             console.log('\n🎉 Full conversation test completed!');
             clearTimeout(timeout);
@@ -170,23 +170,23 @@ testConversation().then((results) => {
   console.log(`Initialization:  ${results.initialization ? '✅' : '❌'}`);
   console.log(`Text Response:   ${results.textResponse ? '✅' : '❌'}`);
   console.log(`Audio Response:  ${results.audioResponse ? '✅' : '❌'}`);
-  
+
   if (results.responseText) {
     console.log(`\n💬 Full Response: "${results.responseText.trim()}"`);
   }
   if (results.audioLength > 0) {
     console.log(`🔊 Total Audio: ${results.audioLength} chars base64`);
   }
-  
+
   if (results.errors.length > 0) {
     console.log('\n❌ Errors:');
     results.errors.forEach((e, i) => console.log(`   ${i + 1}. ${e}`));
   }
 
   const success = results.connection && results.initialization && results.textResponse;
-  
+
   console.log(`\n${success ? '🎉 SUCCESS' : '⚠️  PARTIAL'}: Conversation test ${success ? 'passed' : 'needs review'}`);
-  
+
   process.exit(success ? 0 : 1);
 }).catch((error) => {
   console.error('💥 Test failed:', error);

@@ -7,7 +7,7 @@
  * from the .env file and provides comprehensive testing of the event format fix.
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 
@@ -21,7 +21,7 @@ function loadEnvFile() {
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   const envVars = {};
-  
+
   envContent.split('\n').forEach(line => {
     line = line.trim();
     if (line && !line.startsWith('#')) {
@@ -39,7 +39,7 @@ function loadEnvFile() {
 function generateTestAudio(durationSeconds = 2, sampleRate = 16000) {
   const samples = durationSeconds * sampleRate;
   const buffer = Buffer.alloc(samples * 2); // 16-bit samples
-  
+
   // Generate a 440Hz sine wave (A note)
   const frequency = 440;
   for (let i = 0; i < samples; i++) {
@@ -47,7 +47,7 @@ function generateTestAudio(durationSeconds = 2, sampleRate = 16000) {
     const intSample = Math.round(sample * 32767); // Convert to 16-bit signed integer
     buffer.writeInt16LE(intSample, i * 2);
   }
-  
+
   return buffer;
 }
 
@@ -145,7 +145,7 @@ async function testNovaSonicIntegration() {
               console.log('\n🎵 Test 2: Sending test audio (2-second sine wave)...');
               const testAudio = generateTestAudio(2, 16000);
               const audioBase64 = testAudio.toString('base64');
-              
+
               ws.send(JSON.stringify({
                 type: 'audio_chunk',
                 audio: audioBase64,
@@ -163,7 +163,7 @@ async function testNovaSonicIntegration() {
           case 'audio_response':
             console.log(`✅ Received audio response (${message.audio?.length || 0} chars base64)`);
             testResults.audioTest = true;
-            
+
             // Test completed successfully
             console.log('\n🎉 All tests completed successfully!');
             clearTimeout(timeout);
@@ -174,7 +174,7 @@ async function testNovaSonicIntegration() {
           case 'error':
             console.error(`❌ Received error: ${message.error}`);
             testResults.errors.push(message.error);
-            
+
             // Check for specific error types
             if (message.error.includes('Input Chunk does not contain an event')) {
               console.log('🔍 This is the event format error we were trying to fix');
@@ -185,7 +185,7 @@ async function testNovaSonicIntegration() {
             } else if (message.error.includes("doesn't support the model")) {
               console.log('🔍 Model support error - Nova 2 Sonic requires bidirectional streaming');
             }
-            
+
             // Continue testing even with errors to gather more information
             break;
 
@@ -228,7 +228,7 @@ testNovaSonicIntegration().then((results) => {
   console.log(`Text Test:      ${results.textTest ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Audio Test:     ${results.audioTest ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Event Format:   ${results.eventFormat ? '✅ PASS' : '❌ FAIL'}`);
-  
+
   if (results.errors.length > 0) {
     console.log('\n❌ Errors Encountered:');
     results.errors.forEach((error, index) => {

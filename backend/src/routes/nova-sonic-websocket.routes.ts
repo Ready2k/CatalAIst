@@ -28,7 +28,7 @@ const activeConnections = new Map<string, {
  * Initialize WebSocket server for Nova 2 Sonic
  */
 export function initializeNovaSonicWebSocket(server: any): void {
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     server,
     path: '/api/nova-sonic/stream'
   });
@@ -44,31 +44,31 @@ export function initializeNovaSonicWebSocket(server: any): void {
     ws.on('message', async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
-        
+
         switch (message.type) {
           case 'initialize':
             await handleInitialize(ws, connectionId, message);
             break;
-            
+
           case 'audio_chunk':
             await handleAudioChunk(ws, connectionId, message);
             break;
-            
+
           case 'text_message':
             await handleTextMessage(ws, connectionId, message);
             break;
-            
+
           case 'end_conversation':
             await handleEndConversation(ws, connectionId);
             break;
-            
+
           default:
             ws.send(JSON.stringify({
               type: 'error',
               error: `Unknown message type: ${message.type}`
             }));
         }
-        
+
       } catch (error) {
         console.error(`[Nova 2 Sonic WebSocket] Error processing message:`, error);
         ws.send(JSON.stringify({
@@ -91,13 +91,17 @@ export function initializeNovaSonicWebSocket(server: any): void {
     // Handle initialize message
     async function handleInitialize(ws: WebSocket, connectionId: string, message: any) {
       try {
-        const { 
+        console.log('[Nova 2 Sonic] Received initialization message:', JSON.stringify(message, null, 2));
+
+        // Extract AWS credentials and config from message
+        const {
           awsAccessKeyId,
           awsSecretAccessKey,
           awsSessionToken,
           awsRegion,
           systemPrompt,
-          userId: msgUserId
+          userId: msgUserId,
+          modelId
         } = message;
 
         if (!awsAccessKeyId || !awsSecretAccessKey) {
@@ -110,7 +114,8 @@ export function initializeNovaSonicWebSocket(server: any): void {
           awsAccessKeyId,
           awsSecretAccessKey,
           awsSessionToken,
-          awsRegion: awsRegion || 'us-east-1'
+          awsRegion: awsRegion || 'us-east-1',
+          modelId
         };
 
         // Initialize Nova 2 Sonic session with bidirectional streaming
@@ -147,7 +152,7 @@ export function initializeNovaSonicWebSocket(server: any): void {
           piiScrubbed: false,
           metadata: {
             llmProvider: 'bedrock',
-            modelVersion: 'nova-2-sonic-v1:0'
+            modelVersion: modelId || 'nova-2-sonic-v1:0'
           }
         });
 
@@ -162,6 +167,7 @@ export function initializeNovaSonicWebSocket(server: any): void {
 
     // Handle audio chunk message
     async function handleAudioChunk(ws: WebSocket, connectionId: string, message: any) {
+      console.log('[Nova 2 Sonic] Handling audio chunk for:', connectionId); // Uncomment for high-volume logs
       const connection = activeConnections.get(connectionId);
       if (!connection || !connection.sessionId) {
         throw new Error('Session not initialized');
@@ -173,12 +179,12 @@ export function initializeNovaSonicWebSocket(server: any): void {
       }
 
       const audioBuffer = Buffer.from(audio, 'base64');
-      
+
       try {
         // Process audio chunk with streaming callbacks
         await novaSonicService.processAudioChunk(
-          connection.sessionId, 
-          audioBuffer, 
+          connection.sessionId,
+          audioBuffer,
           isComplete,
           {
             // onTranscription
@@ -240,7 +246,7 @@ export function initializeNovaSonicWebSocket(server: any): void {
       try {
         // Process text message with streaming callbacks
         await novaSonicService.processTextMessage(
-          connection.sessionId, 
+          connection.sessionId,
           text,
           {
             // onTextResponse
@@ -344,7 +350,7 @@ router.get('/status', (req, res) => {
 router.post('/cleanup', async (req, res) => {
   try {
     await novaSonicService.cleanup();
-    
+
     // Close all WebSocket connections
     Array.from(activeConnections.entries()).forEach(([connectionId, connection]) => {
       try {

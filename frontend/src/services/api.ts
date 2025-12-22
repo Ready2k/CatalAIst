@@ -111,7 +111,7 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -170,13 +170,13 @@ class ApiService {
   // Session endpoints
   async createSession(apiKey: string, model?: string): Promise<{ sessionId: string; model: string }> {
     this.setApiKey(apiKey);
-    
+
     // Build request body based on current LLM config
     const body: any = { model };
-    
+
     if (this.llmConfig) {
       body.provider = this.llmConfig.provider;
-      
+
       if (this.llmConfig.provider === 'openai') {
         body.apiKey = this.llmConfig.apiKey || apiKey;
       } else if (this.llmConfig.provider === 'bedrock') {
@@ -192,7 +192,7 @@ class ApiService {
       body.provider = 'openai';
       body.apiKey = apiKey;
     }
-    
+
     const response = await this.request<{ sessionId: string; model: string }>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -212,17 +212,19 @@ class ApiService {
       useRegionalInference?: boolean;
       regionalInferenceEndpoint?: string;
     }
-  ): Promise<{ models: Array<{ 
-    id: string; 
-    created: number; 
-    ownedBy: string;
-    supportsOnDemand?: boolean;
-    requiresProvisioned?: boolean;
-    isInferenceProfile?: boolean;
-    modelType?: 'foundation' | 'inference-profile';
-  }> }> {
+  ): Promise<{
+    models: Array<{
+      id: string;
+      created: number;
+      ownedBy: string;
+      supportsOnDemand?: boolean;
+      requiresProvisioned?: boolean;
+      isInferenceProfile?: boolean;
+      modelType?: 'foundation' | 'inference-profile';
+    }>
+  }> {
     const headers: Record<string, string> = {};
-    
+
     if (provider === 'openai') {
       if (!credentials.apiKey) {
         throw new Error('API key is required for OpenAI');
@@ -449,7 +451,7 @@ class ApiService {
    */
   private async transcribeAudioWithNovaSonic(audioFile: File): Promise<{ transcription: string }> {
     const { novaSonicService } = await import('./nova-sonic-websocket.service');
-    
+
     if (!this.llmConfig || this.llmConfig.provider !== 'bedrock') {
       throw new Error('Bedrock configuration required for Nova 2 Sonic');
     }
@@ -468,13 +470,15 @@ class ApiService {
           awsSessionToken: this.llmConfig.awsSessionToken,
           awsRegion: this.llmConfig.awsRegion || 'us-east-1',
           systemPrompt: 'You are a helpful assistant for voice transcription and conversation.',
-          userId: 'voice-user'
+          userId: 'voice-user',
+          // Use default model ID for Nova 2 Sonic, independent of the selected LLM
+          modelId: undefined
         });
       }
 
       // Process audio file through WebSocket
       const result = await novaSonicService.processAudioFile(audioFile);
-      
+
       if (!result.transcription || result.transcription.length < 10) {
         throw new Error('Transcription too short (minimum 10 characters). Please speak more clearly.');
       }
@@ -483,7 +487,7 @@ class ApiService {
 
     } catch (error) {
       console.error('[Nova 2 Sonic] Transcription error:', error);
-      
+
       // Provide helpful error messages
       if (error instanceof Error) {
         if (error.message.includes('ValidationException') && error.message.includes('model ID is not supported')) {
@@ -494,7 +498,7 @@ class ApiService {
             `Please change your AWS region in the Configuration tab.`
           );
         }
-        
+
         if (error.message.includes('AccessDeniedException')) {
           throw new Error(
             `Access denied to Nova 2 Sonic. Please ensure you have the required IAM permissions ` +
@@ -502,7 +506,7 @@ class ApiService {
           );
         }
       }
-      
+
       throw error;
     }
   }
@@ -515,7 +519,7 @@ class ApiService {
     formData.append('audio', audioFile);
     formData.append('sessionId', this.sessionId!);
     formData.append('provider', this.llmConfig!.provider);
-    
+
     // Add provider-specific credentials
     if (this.llmConfig!.provider === 'openai') {
       const apiKey = this.apiKey || this.llmConfig!.apiKey;
@@ -667,12 +671,12 @@ class ApiService {
 
     // Build request body based on provider
     const body: any = {};
-    
+
     if (this.llmConfig) {
       // Use LLM config (supports both OpenAI and Bedrock)
       body.provider = this.llmConfig.provider;
       body.model = this.llmConfig.model;
-      
+
       if (this.llmConfig.provider === 'bedrock') {
         body.awsAccessKeyId = this.llmConfig.awsAccessKeyId;
         body.awsSecretAccessKey = this.llmConfig.awsSecretAccessKey;
@@ -809,7 +813,7 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(body),
     });
-    
+
     // Backend returns { message, analysis, suggestions, suggestionCount }
     // Return just the analysis object
     return response.analysis;
@@ -874,7 +878,7 @@ class ApiService {
   }
 
   private formatPromptName(id: string): string {
-    return id.split('-').map(word => 
+    return id.split('-').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   }

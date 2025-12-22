@@ -144,7 +144,67 @@ echo ""
 read -p "Do you want to create an admin user now? (Y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    docker-compose exec backend npm run create-admin
+    => [frontend build 4/7] COPY frontend ./frontend                               0.0s
+ => [frontend build 5/7] WORKDIR /workspace/frontend                            0.0s
+ => ERROR [frontend build 6/7] RUN npm ci                                       0.6s
+------
+ > [frontend build 6/7] RUN npm ci:
+0.536 npm warn EBADENGINE Unsupported engine {
+0.536 npm warn EBADENGINE   package: 'fix@0.0.3',
+0.536 npm warn EBADENGINE   required: { node: '0.2.5' },
+0.536 npm warn EBADENGINE   current: { node: 'v20.19.5', npm: '10.8.2' }
+0.536 npm warn EBADENGINE }
+0.538 npm warn EBADENGINE Unsupported engine {
+0.538 npm warn EBADENGINE   package: 'pipe@0.0.1',
+0.538 npm warn EBADENGINE   required: { node: '0.2.5' },
+0.538 npm warn EBADENGINE   current: { node: 'v20.19.5', npm: '10.8.2' }
+0.538 npm warn EBADENGINE }
+0.542 npm error code EUSAGE
+0.542 npm error
+0.542 npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+0.542 npm error
+0.542 npm error Missing: yaml@2.8.2 from lock file
+0.542 npm error
+0.542 npm error Clean install a project
+0.542 npm error
+0.542 npm error Usage:
+0.542 npm error npm ci
+0.542 npm error
+0.542 npm error Options:
+0.542 npm error [--install-strategy <hoisted|nested|shallow|linked>] [--legacy-bundling]
+0.542 npm error [--global-style] [--omit <dev|optional|peer> [--omit <dev|optional|peer> ...]]
+0.542 npm error [--include <prod|dev|optional|peer> [--include <prod|dev|optional|peer> ...]]
+0.542 npm error [--strict-peer-deps] [--foreground-scripts] [--ignore-scripts] [--no-audit]
+0.542 npm error [--no-bin-links] [--no-fund] [--dry-run]
+0.542 npm error [-w|--workspace <workspace-name> [-w|--workspace <workspace-name> ...]]
+0.542 npm error [-ws|--workspaces] [--include-workspace-root] [--install-links]
+0.542 npm error
+0.542 npm error aliases: clean-install, ic, install-clean, isntall-clean
+0.542 npm error
+0.542 npm error Run "npm help ci" for more info
+0.542 npm error A complete log of this run can be found in: /opt/app-root/src/.npm/_logs/2025-12-21T22_45_15_638Z-debug-0.log
+------
+Dockerfile:16
+
+--------------------
+
+  14 |     # Install dependencies
+
+  15 |     WORKDIR /workspace/frontend
+
+  16 | >>> RUN npm ci
+
+  17 |     
+
+  18 |     # Build application
+
+--------------------
+
+target frontend: failed to solve: process "/bin/sh -c npm ci" did not complete successfully: exit code: 1
+
+
+
+View build de
     
     if [ $? -eq 0 ]; then
         echo ""

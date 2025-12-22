@@ -42,6 +42,7 @@ export interface LLMProviderConfig {
   awsRegion?: string; // For AWS Bedrock
   useRegionalInference?: boolean; // For AWS Bedrock regional inference
   regionalInferenceEndpoint?: string; // Custom regional inference endpoint
+  modelId?: string; // Specific model ID
 }
 
 /**

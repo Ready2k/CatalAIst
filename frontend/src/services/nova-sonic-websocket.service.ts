@@ -12,6 +12,7 @@ export interface NovaSonicConfig {
   awsRegion?: string;
   systemPrompt?: string;
   userId?: string;
+  modelId?: string;
 }
 
 export interface NovaSonicCallbacks {
@@ -51,7 +52,7 @@ export class NovaSonicWebSocketService {
 
         this.ws.onopen = () => {
           console.log('[Nova 2 Sonic] WebSocket connected');
-          
+
           // Send initialization message
           this.send({
             type: 'initialize',
@@ -60,7 +61,8 @@ export class NovaSonicWebSocketService {
             awsSessionToken: config.awsSessionToken,
             awsRegion: config.awsRegion || 'us-east-1',
             systemPrompt: config.systemPrompt,
-            userId: config.userId || 'anonymous'
+            userId: config.userId || 'anonymous',
+            modelId: config.modelId
           });
         };
 
@@ -196,7 +198,7 @@ export class NovaSonicWebSocketService {
         let hasReceivedResponse = false;
         const originalOnTranscription = this.callbacks.onTranscription;
         const originalOnTextResponse = this.callbacks.onTextResponse;
-        
+
         // Nova 2 Sonic doesn't send separate transcription for audio input
         // Instead, it directly processes and responds with text
         this.callbacks.onTextResponse = (text: string) => {
@@ -213,7 +215,7 @@ export class NovaSonicWebSocketService {
           this.callbacks.onTranscription = originalOnTranscription;
           this.callbacks.onTextResponse = originalOnTextResponse;
           this.callbacks.onError = originalOnError;
-          
+
           // Call original error callback if it exists
           originalOnError?.(error);
           reject(error);
@@ -221,7 +223,7 @@ export class NovaSonicWebSocketService {
 
         // Convert audio file to ArrayBuffer
         const arrayBuffer = await audioFile.arrayBuffer();
-        
+
         // Send audio chunk (complete file)
         await this.sendAudioChunk(arrayBuffer, true);
 
@@ -242,15 +244,15 @@ export class NovaSonicWebSocketService {
             this.callbacks.onTranscription = originalOnTranscription;
             this.callbacks.onTextResponse = originalOnTextResponse;
             this.callbacks.onError = originalOnError;
-            
+
             // Return the AI's response as "transcription" for compatibility
             // In reality, Nova 2 Sonic processed the audio and responded directly
-            resolve({ transcription: `[Audio processed] ${responseText}` });
+            resolve({ transcription: responseText });
           } else {
             setTimeout(checkResult, 100);
           }
         };
-        
+
         checkResult();
 
       } catch (error) {
@@ -270,11 +272,11 @@ export class NovaSonicWebSocketService {
           type: 'end_conversation'
         });
       }
-      
+
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
-    
+
     this.isConnected = false;
     this.sessionId = null;
     this.reconnectAttempts = 0;
@@ -298,15 +300,15 @@ export class NovaSonicWebSocketService {
   private async attemptReconnect(config: NovaSonicConfig): Promise<void> {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
-    
+
     console.log(`[Nova 2 Sonic] Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-    
+
     setTimeout(async () => {
       try {
         await this.connect(config, this.callbacks);
       } catch (error) {
         console.error('[Nova 2 Sonic] Reconnection failed:', error);
-        
+
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           this.callbacks.onError?.(new Error('Failed to reconnect to Nova 2 Sonic after multiple attempts'));
         }

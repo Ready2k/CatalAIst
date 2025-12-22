@@ -27,7 +27,8 @@
     "rxjs": "^7.8.2",
     "uuid": "^13.0.0",
     "ws": "^8.18.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@smithy/node-http-handler": "latest"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

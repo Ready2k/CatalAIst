@@ -1,7 +1,7 @@
 FROM node:24-alpine
 
 # Install required packages for Alpine
-RUN apk add --no-cache curl shadow su-exec
+RUN apk add --no-cache curl shadow su-exec ffmpeg
 
 WORKDIR /app
 

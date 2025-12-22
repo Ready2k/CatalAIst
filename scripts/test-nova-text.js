@@ -6,7 +6,7 @@
  * This script tests Nova 2 Sonic with text input to verify basic functionality
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,7 +20,7 @@ function loadEnvFile() {
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   const envVars = {};
-  
+
   envContent.split('\n').forEach(line => {
     line = line.trim();
     if (line && !line.startsWith('#')) {
@@ -106,12 +106,12 @@ async function testTextInput() {
 
             // Send a simple text message
             console.log('\n💬 Sending text message...');
-            
+
             ws.send(JSON.stringify({
               type: 'text_message',
               text: 'Hello, can you help me classify a business process?'
             }));
-            
+
             testResults.textProcessing = true;
             console.log('   Sent text message');
             break;
@@ -124,7 +124,7 @@ async function testTextInput() {
           case 'audio_response':
             console.log(`✅ Received audio response (${message.audio?.length || 0} chars base64)`);
             testResults.audioResponse = true;
-            
+
             // Test completed successfully
             console.log('\n🎉 Text test completed!');
             clearTimeout(timeout);
@@ -170,7 +170,7 @@ testTextInput().then((results) => {
   console.log(`Text Processing:  ${results.textProcessing ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Text Response:    ${results.textResponse ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Audio Response:   ${results.audioResponse ? '✅ PASS' : '❌ FAIL'}`);
-  
+
   if (results.errors.length > 0) {
     console.log('\n❌ Errors Encountered:');
     results.errors.forEach((error, index) => {

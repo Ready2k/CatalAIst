@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Real Audio File Test for Nova 2 Sonic
+ * PCM16 Audio Test for Nova 2 Sonic
  * 
- * This script tests Nova 2 Sonic with the actual InboundSampleRecording.mp3 file
+ * This script tests Nova 2 Sonic with properly formatted PCM16 audio data
+ * Creates a simple sine wave tone as PCM16 data for testing
  */
 
-const WebSocket = require('./backend/node_modules/ws');
+const WebSocket = require('../backend/node_modules/ws');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,7 +21,7 @@ function loadEnvFile() {
 
   const envContent = fs.readFileSync(envPath, 'utf8');
   const envVars = {};
-  
+
   envContent.split('\n').forEach(line => {
     line = line.trim();
     if (line && !line.startsWith('#')) {
@@ -34,18 +35,39 @@ function loadEnvFile() {
   return envVars;
 }
 
-// Convert MP3 to PCM16 (simplified - in real implementation you'd use ffmpeg)
-function convertMp3ToPcm16(mp3Buffer) {
-  // For this test, we'll just use the MP3 data directly
-  // Nova 2 Sonic should be able to handle MP3 format
-  return mp3Buffer;
+/**
+ * Generate PCM16 audio data (sine wave tone)
+ * This creates a simple 440Hz tone for 2 seconds at 16kHz sample rate
+ */
+function generatePCM16TestAudio() {
+  const sampleRate = 16000;  // 16kHz
+  const duration = 2;        // 2 seconds
+  const frequency = 440;     // 440Hz (A note)
+  const amplitude = 0.3;     // 30% volume to avoid clipping
+
+  const numSamples = sampleRate * duration;
+  const buffer = Buffer.alloc(numSamples * 2); // 2 bytes per sample (16-bit)
+
+  for (let i = 0; i < numSamples; i++) {
+    // Generate sine wave sample
+    const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate) * amplitude;
+
+    // Convert to 16-bit signed integer (-32768 to 32767)
+    const pcm16Sample = Math.round(sample * 32767);
+
+    // Write as little-endian 16-bit signed integer
+    buffer.writeInt16LE(pcm16Sample, i * 2);
+  }
+
+  console.log(`✅ Generated PCM16 test audio: ${buffer.length} bytes (${duration}s at ${sampleRate}Hz)`);
+  return buffer;
 }
 
-const WS_URL = 'ws://localhost:8080/api/nova-sonic/stream';
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
 
-async function testRealAudio() {
-  console.log('🧪 Testing Nova 2 Sonic with Real Audio File');
-  console.log('==============================================\n');
+async function testPCM16Audio() {
+  console.log('🧪 Testing Nova 2 Sonic with PCM16 Audio');
+  console.log('========================================\n');
 
   // Load AWS credentials from .env file
   const env = loadEnvFile();
@@ -59,17 +81,8 @@ async function testRealAudio() {
     process.exit(1);
   }
 
-  // Load the real audio file
-  const audioPath = path.join(__dirname, '..', 'InboundSampleRecording.mp3');
-  if (!fs.existsSync(audioPath)) {
-    console.error('❌ Audio file not found:', audioPath);
-    process.exit(1);
-  }
-
-  const audioBuffer = fs.readFileSync(audioPath);
-  console.log(`✅ Loaded audio file: ${audioBuffer.length} bytes`);
-  console.log(`   File: ${audioPath}`);
-  console.log('');
+  // Generate PCM16 test audio
+  const pcm16Audio = generatePCM16TestAudio();
 
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(WS_URL);
@@ -86,10 +99,10 @@ async function testRealAudio() {
 
     // Connection timeout
     const timeout = setTimeout(() => {
-      console.log('⏰ Test timeout after 60 seconds');
+      console.log('⏰ Test timeout after 45 seconds');
       ws.close();
       resolve(testResults);
-    }, 60000);
+    }, 45000);
 
     ws.on('open', () => {
       console.log('🔌 WebSocket connection established');
@@ -102,7 +115,7 @@ async function testRealAudio() {
         awsSecretAccessKey,
         awsSessionToken: awsSessionToken || undefined,
         awsRegion,
-        systemPrompt: 'You are CatalAIst, helping classify business processes. Please respond to the audio input.',
+        systemPrompt: 'You are CatalAIst, helping classify business processes. The user just sent you a test audio tone. Please acknowledge that you received the audio and ask how you can help.',
         userId: 'test-user'
       };
 
@@ -123,18 +136,19 @@ async function testRealAudio() {
             testResults.initialization = true;
             sessionId = message.sessionId;
 
-            // Send the real audio file
-            console.log('\n🎵 Sending real audio file...');
-            const audioBase64 = audioBuffer.toString('base64');
-            
+            // Send the PCM16 audio data
+            console.log('\n🎵 Sending PCM16 audio data...');
+            const audioBase64 = pcm16Audio.toString('base64');
+
             ws.send(JSON.stringify({
               type: 'audio_chunk',
               audio: audioBase64,
               isComplete: true
             }));
-            
+
             testResults.audioProcessing = true;
-            console.log(`   Sent ${audioBuffer.length} bytes of audio data`);
+            console.log(`   Sent ${pcm16Audio.length} bytes of PCM16 audio data`);
+            console.log(`   Format: 16-bit PCM, 16kHz, mono, 2 seconds duration`);
             break;
 
           case 'transcription':
@@ -149,9 +163,9 @@ async function testRealAudio() {
           case 'audio_response':
             console.log(`✅ Received audio response (${message.audio?.length || 0} chars base64)`);
             testResults.audioResponse = true;
-            
+
             // Test completed successfully
-            console.log('\n🎉 Real audio test completed!');
+            console.log('\n🎉 PCM16 audio test completed!');
             clearTimeout(timeout);
             ws.close();
             resolve(testResults);
@@ -187,15 +201,15 @@ async function testRealAudio() {
 }
 
 // Run the test
-testRealAudio().then((results) => {
-  console.log('\n📊 Real Audio Test Results:');
-  console.log('===========================');
+testPCM16Audio().then((results) => {
+  console.log('\n📊 PCM16 Audio Test Results:');
+  console.log('============================');
   console.log(`Connection:       ${results.connection ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Initialization:   ${results.initialization ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Audio Processing: ${results.audioProcessing ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Text Response:    ${results.textResponse ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`Audio Response:   ${results.audioResponse ? '✅ PASS' : '❌ FAIL'}`);
-  
+
   if (results.errors.length > 0) {
     console.log('\n❌ Errors Encountered:');
     results.errors.forEach((error, index) => {
@@ -208,13 +222,13 @@ testRealAudio().then((results) => {
   console.log('\n🔍 Analysis:');
   if (results.connection && results.initialization && results.audioProcessing) {
     if (results.textResponse || results.audioResponse) {
-      console.log('🎉 SUCCESS: Real audio processing is working!');
-      console.log('   - Nova 2 Sonic successfully processed the audio file');
-      console.log('   - The integration is functioning correctly');
+      console.log('🎉 SUCCESS: PCM16 audio processing is working!');
+      console.log('   - Nova 2 Sonic successfully processed the PCM16 audio');
+      console.log('   - The audio format and streaming are correct');
+      console.log('   - Ready for real microphone input');
     } else {
-      console.log('⚠️  PARTIAL SUCCESS: Audio sent but no response received');
-      console.log('   - This might indicate the audio content was unclear');
-      console.log('   - Or Nova 2 Sonic decided not to respond to this particular audio');
+      console.log('⚠️  PARTIAL SUCCESS: PCM16 audio sent but no response received');
+      console.log('   - Audio format may be correct but content unclear');
       console.log('   - Check the backend logs for more details');
     }
   } else {
