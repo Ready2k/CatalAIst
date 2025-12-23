@@ -174,11 +174,14 @@ export function initializeNovaSonicWebSocket(server: any): void {
       }
 
       const { audio, isComplete } = message;
-      if (!audio) {
+
+      // Allow empty audio checks only if strictly not completing, 
+      // but actually we want to allow empty string if isComplete is true.
+      if (!audio && !isComplete) {
         throw new Error('Audio data is required');
       }
 
-      const audioBuffer = Buffer.from(audio, 'base64');
+      const audioBuffer = audio ? Buffer.from(audio, 'base64') : Buffer.alloc(0);
 
       try {
         // Process audio chunk with streaming callbacks
