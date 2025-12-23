@@ -284,6 +284,11 @@ export class NovaSonicWebSocketService {
       return;
     }
 
+    // Ignore empty audio buffers
+    if (audioData.length === 0) {
+      return;
+    }
+
     if (!session.isAudioContentStartSent) {
       this.startAudioContent(sessionId);
     }
@@ -758,6 +763,11 @@ export class NovaSonicWebSocketService {
                 this.dispatchEvent(sessionId, 'audioOutput', audioBuffer);
               } else if (jsonResponse.event?.contentEnd) {
                 this.dispatchEvent(sessionId, 'contentEnd', jsonResponse.event.contentEnd);
+              } else if (jsonResponse.event?.transcript) {
+                // Log and dispatch transcript events
+                const transcript = jsonResponse.event.transcript.content || jsonResponse.event.transcript;
+                console.log(`[Nova 2 Sonic] Transcript: "${String(transcript).substring(0, 100)}..."`);
+                this.dispatchEvent(sessionId, 'transcription', transcript);
               } else {
                 const eventKeys = Object.keys(jsonResponse.event || {});
                 if (eventKeys.length > 0) {

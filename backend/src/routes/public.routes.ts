@@ -252,9 +252,10 @@ function updateStatus(text, type) {
 // Initialize WebSocket
 async function connectWebSocket() {
     return new Promise((resolve, reject) => {
-        ws = new WebSocket(WS_URL);
+        const socket = new WebSocket(WS_URL);
+        ws = socket;
 
-        ws.onopen = () => {
+        socket.onopen = () => {
             log('WebSocket Connected');
             updateStatus('Connected', 'connected');
             
@@ -267,27 +268,29 @@ async function connectWebSocket() {
                 systemPrompt: 'You are a helpful assistant.',
                 userId: 'test-user-browser'
             };
-            ws.send(JSON.stringify(initMsg));
+            socket.send(JSON.stringify(initMsg));
         };
 
-        ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
             const msg = JSON.parse(event.data);
             handleMessage(msg);
         };
 
-        ws.onerror = (error) => {
+        socket.onerror = (error) => {
             log('WebSocket Error');
             updateStatus('Connection Error', 'error');
             reject(error);
         };
 
-        ws.onclose = () => {
+        socket.onclose = () => {
             log('WebSocket Closed');
             updateStatus('Disconnected', '');
-            ws = null;
+            if (ws === socket) {
+                ws = null;
+            }
         };
         
-        resolve(ws);
+        resolve(socket);
     });
 }
 
@@ -310,9 +313,13 @@ async function handleMessage(msg) {
 // Audio Handling
 async function startRecording() {
     try {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            await connectWebSocket();
+        // Force new connection for each recording session to ensure fresh state
+        if (ws) {
+            ws.close();
+            ws = null;
         }
+        
+        await connectWebSocket();
         
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         
