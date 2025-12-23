@@ -1,0 +1,879 @@
+{
+  "exportedAt": "2025-11-16T20:06:59.298Z",
+  "exportedBy": "admin",
+  "systemVersion": "3.0.0",
+  "matrix": {
+    "version": "1.50",
+    "createdAt": "2025-11-16T18:55:26.946Z",
+    "createdBy": "admin",
+    "description": "Tightened decision matrix for validating/overriding LLM recommendations across Eliminate/Simplify/Digitise/RPA/AI Agent/Agentic AI.",
+    "attributes": [
+      {
+        "name": "frequency",
+        "type": "categorical",
+        "possibleValues": [
+          "daily",
+          "weekly",
+          "monthly",
+          "quarterly",
+          "yearly"
+        ],
+        "weight": 0.3,
+        "description": "Indicates how often the business process runs"
+      },
+      {
+        "name": "business_value",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "weight": 0.4,
+        "description": "Measures the business process impact on organizational outcomes"
+      },
+      {
+        "name": "complexity",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high",
+          "very_high"
+        ],
+        "weight": 0.5,
+        "description": "Represents the complexity level of a given business process"
+      },
+      {
+        "name": "risk",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "weight": 0.1,
+        "description": "Conveys the risk implications of automating a certain business process"
+      },
+      {
+        "name": "user_count",
+        "type": "numeric",
+        "weight": 0.1,
+        "description": "Indicates the count of users who would be affected by modifications to the process"
+      },
+      {
+        "name": "data_sensitivity",
+        "type": "categorical",
+        "possibleValues": [
+          "public",
+          "internal",
+          "confidential",
+          "restricted"
+        ],
+        "weight": 0.1,
+        "description": "Reflects the degree of sensitivity associated with the data handled in the process"
+      },
+      {
+        "name": "cost",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "weight": 0.1,
+        "description": "Indicates the cost required for implementing the solution"
+      },
+      {
+        "name": "data_quality",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "weight": 0.3,
+        "description": "Quality of data available with the process"
+      },
+      {
+        "name": "manual_effort_required",
+        "type": "categorical",
+        "possibleValues": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "description": "Represents the level of human effort required in the process",
+        "weight": 0.2
+      },
+      {
+        "name": "process_type",
+        "type": "categorical",
+        "possibleValues": [
+          "Product",
+          "Customer Service",
+          "Sales",
+          "Operations",
+          "HR",
+          "Finance"
+        ],
+        "weight": 0.3,
+        "description": "Categorizes the process by functional domain (e.g. Product, Customer Service, Sales, Operations, HR, Finance)"
+      }
+    ],
+    "rules": [
+      {
+        "ruleId": "f87c3b76-c234-4e5e-96bf-020bda8eb912",
+        "name": "High Risk/Critical Data Review",
+        "description": "High-risk processes or those dealing with highly sensitive data must be reviewed.",
+        "conditions": [
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "data_sensitivity",
+            "operator": "in",
+            "value": [
+              "confidential",
+              "restricted"
+            ]
+          }
+        ],
+        "action": {
+          "type": "flag_review",
+          "rationale": "High risk or highly sensitive processes must be reviewed before deciding the transformation path."
+        },
+        "priority": 200,
+        "active": true
+      },
+      {
+        "ruleId": "0a3a4e5f-1d7e-4a3d-9a5b-2f5e4c7a9b01",
+        "name": "Finance/HR Governance Review",
+        "description": "Finance and HR processes with non-low value should always be reviewed for regulatory/compliance impacts.",
+        "conditions": [
+          {
+            "attribute": "process_type",
+            "operator": "in",
+            "value": [
+              "Finance",
+              "HR"
+            ]
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high",
+              "critical"
+            ]
+          }
+        ],
+        "action": {
+          "type": "flag_review",
+          "rationale": "Finance/HR processes often have compliance implications and should not be radically changed without review."
+        },
+        "priority": 190,
+        "active": true
+      },
+      {
+        "ruleId": "c7cbf6f0-6c43-4cfa-9f2f-1a024ea54c11",
+        "name": "Agentic AI – Strategic Complex High Value",
+        "description": "Highly complex, high-value processes with strong data become candidates for Agentic AI.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "high",
+              "very_high"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "==",
+            "value": "high"
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "frequency",
+            "operator": "in",
+            "value": [
+              "daily",
+              "weekly"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Agentic AI",
+          "rationale": "Strategic, complex, high-value processes with strong data are ideal candidates for orchestrated, multi-step Agentic AI solutions."
+        },
+        "priority": 160,
+        "active": true
+      },
+      {
+        "ruleId": "8e4b1c5f-5d93-4f5f-8c0a-1f5d7a2b3c77",
+        "name": "Agentic AI – Customer and Sales Orchestration",
+        "description": "High-value customer and sales processes with recurring journeys can benefit from Agentic AI orchestration.",
+        "conditions": [
+          {
+            "attribute": "process_type",
+            "operator": "in",
+            "value": [
+              "Customer Service",
+              "Sales"
+            ]
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Agentic AI",
+          "rationale": "Customer and sales journeys with recurring patterns and good data are ideal for Agentic AI orchestration."
+        },
+        "priority": 150,
+        "active": true
+      },
+      {
+        "ruleId": "a9b5a5c2-ca65-4539-82f4-72c6bcd91bd7",
+        "name": "AI Agent – Frequent High Value Work",
+        "description": "Frequent, medium complexity, high-value tasks are strong AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          },
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "Frequent, medium complex and high value tasks are ideal for focused AI agents that reduce manual effort."
+        },
+        "priority": 140,
+        "active": true
+      },
+      {
+        "ruleId": "67e64b20-2dd9-4780-8ced-6e50e23a1d7a",
+        "name": "AI Agent – Low/Medium Complexity High Value",
+        "description": "Low to medium complexity tasks with high value are good AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "Low to medium complexity tasks with high business value often benefit from AI Agent support."
+        },
+        "priority": 135,
+        "active": true
+      },
+      {
+        "ruleId": "3f6aa323-ea76-42c9-9b65-4011c9d91d73",
+        "name": "Sales Process to AI Agent",
+        "description": "Sales processes with manageable complexity and decent data can be handled by AI Agents.",
+        "conditions": [
+          {
+            "attribute": "process_type",
+            "operator": "==",
+            "value": "Sales"
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "Sales processes with predictable patterns and decent data can be reliably automated by AI Agents."
+        },
+        "priority": 133,
+        "active": true
+      },
+      {
+        "ruleId": "3c5b89e2-d005-4684-94db-43f1de2fa270",
+        "name": "Customer Data Interaction Processes to AI Agent",
+        "description": "Customer-facing processes with moderate sensitivity and complexity are AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "data_sensitivity",
+            "operator": "in",
+            "value": [
+              "public",
+              "internal"
+            ]
+          },
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "Customer interaction processes with clear procedures and moderate sensitivity can be automated by AI Agents."
+        },
+        "priority": 130,
+        "active": true
+      },
+      {
+        "ruleId": "29da51da-442f-45ea-a347-0ed8f2130ee0",
+        "name": "High Value and High Data Quality for AI Agent",
+        "description": "High value tasks with high data quality are good AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "==",
+            "value": "high"
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "High value tasks with high quality data can significantly benefit from AI Agents."
+        },
+        "priority": 125,
+        "active": true
+      },
+      {
+        "ruleId": "bcd96bfd-441f-4271-a7bf-39a2e456a0db",
+        "name": "Ideal AI Agent Processes",
+        "description": "Medium complexity, low risk, high-value processes are strong AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "AI Agents can efficiently handle medium complexity tasks that pose low risk but offer high business value."
+        },
+        "priority": 123,
+        "active": true
+      },
+      {
+        "ruleId": "87f7f8c3-4abd-4d3e-b951-e0087e15da2b",
+        "name": "Repetitive Low-Complexity Processes to AI Agent",
+        "description": "Repetitive low-complexity processes with non-trivial value and manual effort can be AI Agent candidates.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          },
+          {
+            "attribute": "manual_effort_required",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "AI Agent",
+          "rationale": "Repetitive low complexity tasks with significant manual effort are good candidates for AI Agents."
+        },
+        "priority": 120,
+        "active": true
+      },
+      {
+        "ruleId": "cb26b7f2-38ad-4fa5-81e5-623c8158eac1",
+        "name": "Frequent Low Complexity to RPA",
+        "description": "Frequent, low risk and low complexity processes with non-low value are good RPA candidates.",
+        "conditions": [
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          },
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "RPA",
+          "rationale": "High frequency, low risk and low complexity tasks with non-trivial value are ideal for Robotic Process Automation."
+        },
+        "priority": 118,
+        "active": true
+      },
+      {
+        "ruleId": "2f37a3aa-e8f9-4e5e-8958-200fee424919",
+        "name": "Digitise Good Data Processes",
+        "description": "Low complexity processes with high data quality and low/medium value should be digitised.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "data_quality",
+            "operator": "==",
+            "value": "high"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Digitise",
+          "rationale": "Processes with good data quality and low complexity but modest value should be digitised rather than heavily automated."
+        },
+        "priority": 115,
+        "active": true
+      },
+      {
+        "ruleId": "c18fcf01-b210-4c65-a101-e296f53682cf",
+        "name": "Digitise Low-Value Manual Daily Processes",
+        "description": "Low value, manual, daily processes should be digitised instead of eliminated.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "frequency",
+            "operator": "==",
+            "value": "daily"
+          },
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "manual_effort_required",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Digitise",
+          "rationale": "Manual, low business-value daily processes should be digitised rather than immediately eliminated."
+        },
+        "priority": 113,
+        "active": true
+      },
+      {
+        "ruleId": "87798182-0db0-482b-ad83-296a8e736450",
+        "name": "Manual Non-Frequent Processes",
+        "description": "Manual medium-value processes that are less frequent should be digitised.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "risk",
+            "operator": "==",
+            "value": "low"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "frequency",
+            "operator": "in",
+            "value": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Digitise",
+          "rationale": "Manual processes that are not highly automatable but run less frequently should be digitised."
+        },
+        "priority": 112,
+        "active": true
+      },
+      {
+        "ruleId": "b4943c96-c33c-4e2e-9a6a-1124637bba8d",
+        "name": "Simplifiable High-Value Processes",
+        "description": "High-value processes with medium to high complexity should be simplified.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "medium",
+              "high"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Simplify",
+          "rationale": "High value and somewhat complex tasks should first be simplified to reduce time and effort."
+        },
+        "priority": 110,
+        "active": true
+      },
+      {
+        "ruleId": "315e0611-629e-4cbe-b593-6bcc7133a99c",
+        "name": "Simplify Before AI Agent",
+        "description": "Medium complexity, medium business value, low sensitivity processes should be simplified before considering AI.",
+        "conditions": [
+          {
+            "attribute": "complexity",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "business_value",
+            "operator": "==",
+            "value": "medium"
+          },
+          {
+            "attribute": "data_sensitivity",
+            "operator": "in",
+            "value": [
+              "public",
+              "internal"
+            ]
+          },
+          {
+            "attribute": "risk",
+            "operator": "in",
+            "value": [
+              "low",
+              "medium"
+            ]
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Simplify",
+          "rationale": "It is more cost-effective to simplify these processes before considering AI solutions."
+        },
+        "priority": 108,
+        "active": true
+      },
+      {
+        "ruleId": "ad6eee38-a431-44f5-a30d-b33d28fb186f",
+        "name": "Complex High-Value Processes – Confidence Boost",
+        "description": "High-value, very complex processes may still benefit from AI assistance.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "in",
+            "value": [
+              "high",
+              "critical"
+            ]
+          },
+          {
+            "attribute": "complexity",
+            "operator": "in",
+            "value": [
+              "high",
+              "very_high"
+            ]
+          }
+        ],
+        "action": {
+          "type": "adjust_confidence",
+          "confidenceAdjustment": 0.3,
+          "rationale": "High value and complex tasks may benefit from AI assistance or autonomous decision making."
+        },
+        "priority": 105,
+        "active": true
+      },
+      {
+        "ruleId": "1850ed8f-26f3-4cb9-92d8-58b34346455f",
+        "name": "Low Value Processes – Eliminate",
+        "description": "Default rule for low value processes.",
+        "conditions": [
+          {
+            "attribute": "business_value",
+            "operator": "==",
+            "value": "low"
+          }
+        ],
+        "action": {
+          "type": "override",
+          "targetCategory": "Eliminate",
+          "rationale": "Low-value processes can be considered for elimination or radical simplification."
+        },
+        "priority": 100,
+        "active": true
+      }
+    ],
+    "active": true
+  }
+}

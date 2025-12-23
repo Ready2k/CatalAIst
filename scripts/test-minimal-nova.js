@@ -6,7 +6,7 @@
  * This script tests the exact event format by sending minimal events directly to AWS
  */
 
-const { BedrockRuntimeClient, InvokeModelWithBidirectionalStreamCommand } = require('../backend/node_modules/@aws-sdk/client-bedrock-runtime/dist-types');
+const { BedrockRuntimeClient, InvokeModelWithBidirectionalStreamCommand } = require('../backend/node_modules/@aws-sdk/client-bedrock-runtime');
 const fs = require('fs');
 const path = require('path');
 

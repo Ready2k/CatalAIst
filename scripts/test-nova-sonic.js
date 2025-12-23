@@ -12,9 +12,45 @@ const fs = require('fs');
 const path = require('path');
 
 // Load environment variables
-require('dotenv').config();
+// Load environment variables manually to avoid dependency issues
+function loadEnvFile() {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) {
+    // Try parent directory
+    const parentEnvPath = path.join(__dirname, '../.env');
+    if (fs.existsSync(parentEnvPath)) {
+      const envContent = fs.readFileSync(parentEnvPath, 'utf8');
+      const envVars = {};
+      envContent.split('\n').forEach(line => {
+        line = line.trim();
+        if (line && !line.startsWith('#')) {
+          const [key, ...valueParts] = line.split('=');
+          if (key && valueParts.length > 0) {
+            process.env[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+      });
+      return;
+    }
+    console.error('❌ .env file not found');
+    process.exit(1);
+  }
 
-const WS_URL = 'ws://localhost:8080/api/nova-sonic/stream';
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach(line => {
+    line = line.trim();
+    if (line && !line.startsWith('#')) {
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        process.env[key.trim()] = valueParts.join('=').trim();
+      }
+    }
+  });
+}
+
+loadEnvFile();
+
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
 
 async function testNovaSonic() {
   console.log('🧪 Testing Nova 2 Sonic WebSocket Integration...\n');

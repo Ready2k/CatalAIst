@@ -374,4 +374,12 @@ router.post('/cleanup', async (req, res) => {
   }
 });
 
+// ... (previous imports and code)
+
+/**
+ * GET /api/nova-sonic/test-mic
+ * Serve microphone test page with injected credentials
+ */
+// test-mic route moved to public.routes.ts
+
 export default router;

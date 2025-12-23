@@ -51,7 +51,7 @@ function generateTestAudio(durationSeconds = 2, sampleRate = 16000) {
   return buffer;
 }
 
-const WS_URL = 'ws://localhost:8080/api/nova-sonic/stream';
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
 
 async function testNovaSonicIntegration() {
   console.log('🧪 Testing Nova 2 Sonic Integration with Real AWS Credentials');

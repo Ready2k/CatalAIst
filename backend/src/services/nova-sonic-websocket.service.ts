@@ -373,6 +373,38 @@ export class NovaSonicWebSocketService {
         contentName: textContentId,
       },
     });
+    console.log(`[Nova 2 Sonic] DEBUG: Added text events for session ${sessionId}`);
+
+    // Inject silence (required by Nova 2 Sonic even for text-only turns)
+    console.log(`[Nova 2 Sonic] DEBUG: Injecting silence for session ${sessionId}`);
+    const silenceContentId = uuidv4();
+    const SILENCE_FRAME = Buffer.alloc(3200, 0); // 100ms of silence at 16kHz
+
+    this.addEventToQueue(sessionId, {
+      contentStart: {
+        promptName: session.promptName,
+        contentName: silenceContentId,
+        type: 'AUDIO',
+        interactive: true,
+        role: 'USER',
+        audioInputConfiguration: DefaultAudioInputConfiguration,
+      },
+    });
+
+    this.addEventToQueue(sessionId, {
+      audioInput: {
+        promptName: session.promptName,
+        contentName: silenceContentId,
+        content: SILENCE_FRAME.toString('base64'),
+      },
+    });
+
+    this.addEventToQueue(sessionId, {
+      contentEnd: {
+        promptName: session.promptName,
+        contentName: silenceContentId,
+      },
+    });
 
     // Send promptEnd to trigger generation
     this.addEventToQueue(sessionId, {
@@ -380,8 +412,9 @@ export class NovaSonicWebSocketService {
         promptName: session.promptName,
       },
     });
+
     session.isPromptStartSent = false;
-    session.promptName = require('uuid').v4(); // Generate new prompt name for next turn
+    session.promptName = uuidv4(); // Generate new prompt name for next turn
 
     this.updateSessionActivity(sessionId);
   }

@@ -60,7 +60,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
@@ -80,7 +80,7 @@ app.use(helmet({
 }));
 
 // CORS configuration - restrict to specific origins
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : ['http://localhost:4001', 'http://localhost:3000', 'http://localhost:80'];
 
@@ -88,7 +88,7 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -98,8 +98,8 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'X-API-Key',
     'x-aws-access-key-id',
     'x-aws-secret-access-key',
@@ -171,7 +171,7 @@ app.get('/health', async (req, res) => {
   try {
     const fs = await import('fs/promises');
     const path = await import('path');
-    
+
     const dataDir = process.env.DATA_DIR || './data';
     const checks = {
       status: 'ok',
@@ -247,10 +247,10 @@ initializeApplication()
   .then(() => {
     // Create HTTP server
     const server = http.createServer(app);
-    
+
     // Initialize Nova 2 Sonic WebSocket
     initializeNovaSonicWebSocket(server);
-    
+
     server.listen(PORT, () => {
       console.log('='.repeat(60));
       console.log(`✅ Backend server running on port ${PORT}`);

@@ -34,7 +34,7 @@ function loadEnvFile() {
   return envVars;
 }
 
-const WS_URL = 'ws://localhost:8080/api/nova-sonic/stream';
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
 
 async function testTextInput() {
   console.log('🧪 Testing Nova 2 Sonic with Text Input');
