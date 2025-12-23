@@ -294,6 +294,8 @@ async function connectWebSocket() {
     });
 }
 
+let nextStartTime = 0;
+
 async function handleMessage(msg) {
     if (msg.type === 'initialized') {
         log(\`Session Initialized: \${msg.sessionId}\`);
@@ -304,10 +306,46 @@ async function handleMessage(msg) {
         transcriptDiv.textContent += \`\\n[You]: \${msg.text}\`;
     } else if (msg.type === 'text_response') {
         transcriptDiv.textContent += \`\\n[Nova]: \${msg.text}\`;
+    } else if (msg.type === 'audio_response') {
+        playPcmAudio(msg.audio);
     } else if (msg.type === 'error') {
         log(\`Error: \${msg.error}\`);
         updateStatus(\`Error: \${msg.error}\`, 'error');
     }
+}
+
+function playPcmAudio(base64) {
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    
+    // PCM 16-bit Little Endian
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    
+    for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+    }
+    
+    // Create buffer: 1 channel, 24kHz (Nova Sonic default)
+    const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
+    audioBuffer.getChannelData(0).set(float32);
+    
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    
+    const currentTime = audioContext.currentTime;
+    if (nextStartTime < currentTime) nextStartTime = currentTime;
+    source.start(nextStartTime);
+    nextStartTime += audioBuffer.duration;
 }
 
 // Audio Handling

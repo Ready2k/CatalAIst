@@ -764,9 +764,8 @@ export class NovaSonicWebSocketService {
               } else if (jsonResponse.event?.contentEnd) {
                 this.dispatchEvent(sessionId, 'contentEnd', jsonResponse.event.contentEnd);
               } else if (jsonResponse.event?.transcript) {
-                // Log and dispatch transcript events
+                // Dispatch transcript events
                 const transcript = jsonResponse.event.transcript.content || jsonResponse.event.transcript;
-                console.log(`[Nova 2 Sonic] Transcript: "${String(transcript).substring(0, 100)}..."`);
                 this.dispatchEvent(sessionId, 'transcription', transcript);
               } else {
                 const eventKeys = Object.keys(jsonResponse.event || {});
