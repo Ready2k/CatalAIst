@@ -333,7 +333,6 @@ export class NovaSonicWebSocketService {
 
     session.audioContentId = uuidv4();
     session.isAudioContentStartSent = false;
-    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   /**
@@ -698,6 +697,15 @@ export class NovaSonicWebSocketService {
               const payload = { event: nextEvent };
               const jsonString = JSON.stringify(payload);
 
+              // Debug logging for specific events (excluding raw audio chunks)
+              const eventKeys = Object.keys(nextEvent);
+              if (eventKeys.includes('audioInput')) {
+                // Don't log full audio payload
+                console.log(`[Nova 2 Sonic] Sending ---> audioInput chunk (${nextEvent.audioInput.content.length} chars)`);
+              } else {
+                console.log(`[Nova 2 Sonic] Sending ---> ${jsonString}`);
+              }
+
               return {
                 value: {
                   chunk: {
@@ -766,16 +774,21 @@ export class NovaSonicWebSocketService {
               } else if (jsonResponse.event?.transcript) {
                 // Dispatch transcript events
                 const transcript = jsonResponse.event.transcript.content || jsonResponse.event.transcript;
+                console.log(`[Nova 2 Sonic] Transcript found: "${transcript}"`);
                 this.dispatchEvent(sessionId, 'transcription', transcript);
               } else {
                 const eventKeys = Object.keys(jsonResponse.event || {});
                 if (eventKeys.length > 0) {
-                  console.log(`[Nova 2 Sonic] Event: ${eventKeys[0]}`);
+                  // Catch-all logging for debug
+                  console.log(`[Nova 2 Sonic] Event Received: ${eventKeys[0]}`);
+                  if (eventKeys[0] !== 'usageEvent') {
+                    console.log(`[Nova 2 Sonic] UNKNOWN EVENT PAYLOAD:`, JSON.stringify(jsonResponse.event[eventKeys[0]]));
+                  }
                 }
               }
 
             } catch (parseError) {
-              console.log(`[Nova 2 Sonic] Raw: ${textResponse.substring(0, 200)}`);
+              console.log(`[Nova 2 Sonic] JSON Parse Error. Raw text: ${textResponse.substring(0, 200)}`);
             }
 
           } catch (decodeError) {

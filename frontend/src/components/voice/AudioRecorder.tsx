@@ -4,7 +4,8 @@ import VoiceActivityDetector from './utils/VoiceActivityDetector';
 interface AudioRecorderProps {
   mode: 'streaming' | 'non-streaming';
   autoStart?: boolean;
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete?: (audioBlob: Blob) => void;
+  onAudioData?: (audioData: ArrayBuffer) => void;
   onError: (error: Error) => void;
 }
 
@@ -13,18 +14,17 @@ interface AudioRecorderProps {
  * 
  * Enhanced audio recorder with support for both streaming and non-streaming modes.
  * Features:
- * - Streaming mode: Auto-start, VAD for auto-stop
- * - Non-streaming mode: Manual controls
+ * - Streaming mode: Real-time 16kHz PCM audio chunk streaming via AudioContext
+ * - Non-streaming mode: MediaRecorder (WebM)
  * - Real-time audio level visualization
- * - Recording time warnings (yellow at 4:00, red at 4:30)
+ * - Recording time warnings
  * - Improved error handling
- * 
- * This component is designed to be reusable and can be extracted into a standalone package.
  */
 const AudioRecorder: React.FC<AudioRecorderProps> = ({
   mode,
   autoStart = false,
   onRecordingComplete,
+  onAudioData,
   onError,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -33,8 +33,16 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [audioLevel, setAudioLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // MediaRecorder refs (Non-streaming)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // AudioContext refs (Streaming)
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
+  // Common refs
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const vadRef = useRef<VoiceActivityDetector | null>(null);
   const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,7 +53,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (autoStart && mode === 'streaming') {
       startRecording();
     }
-    
+
     return () => {
       cleanup();
     };
@@ -57,83 +65,168 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
+
     if (audioLevelIntervalRef.current) {
       clearInterval(audioLevelIntervalRef.current);
       audioLevelIntervalRef.current = null;
     }
-    
+
     if (vadRef.current) {
       vadRef.current.cleanup();
       vadRef.current = null;
     }
-    
+
+    // Cleanup AudioContext (Streaming)
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    // Cleanup MediaRecorder (Non-streaming)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
-    }
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
     }
   };
 
   const startRecording = async () => {
     try {
       setError(null);
-      
+
       // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // For streaming (Nova Sonic), we need 16kHz mono
+      const constraints = mode === 'streaming'
+        ? {
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        }
+        : { audio: true };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-      
-      // Create media recorder
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      if (mode === 'streaming' && onAudioData) {
+        // --- Streaming Mode (AudioContext + PCM) ---
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass({ sampleRate: 16000 });
+        audioContextRef.current = audioContext;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        sourceRef.current = source;
+
+        // Ensure AudioContext is running (browsers may suspend it until gesture)
+        if (audioContext.state === 'suspended') {
+          console.log('[AudioRecorder] Resuming AudioContext...');
+          await audioContext.resume();
         }
-      };
+        console.log('[AudioRecorder] AudioContext State:', audioContext.state);
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        
-        // Validate recording has actual audio data (minimum ~1KB for a very short recording)
-        if (audioBlob.size < 1000) {
-          const err = new Error('Recording too short. Please speak for at least 1 second.');
-          setError(err.message);
-          onError(err);
-          return;
-        }
-        
-        onRecordingComplete(audioBlob);
-        cleanup();
-      };
+        // Use ScriptProcessor for PCM extraction (Buffer: 4096 = ~256ms at 16kHz)
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
 
-      // Start recording
-      mediaRecorder.start();
-      setIsRecording(true);
-      setIsPaused(false);
-      setRecordingTime(0);
+        processor.onaudioprocess = (e) => {
+          if (!isRecording) return;
+
+          const inputData = e.inputBuffer.getChannelData(0);
+
+          // Calculate volume for meter
+          let sum = 0;
+          for (let i = 0; i < inputData.length; i++) {
+            sum += inputData[i] * inputData[i];
+          }
+          const rms = Math.sqrt(sum / inputData.length);
+          // Update level locally since VAD might be optional or separate
+          setAudioLevel(Math.min(100, rms * 400)); // Scale for visibility
+
+          // Convert Float32 to Int16 PCM
+          const pcmData = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            // Clamp and scale
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          // Send chunk
+          // console.log('[AudioRecorder] Emitting PCM chunk:', pcmData.byteLength);
+          onAudioData(pcmData.buffer);
+        };
+
+        source.connect(processor);
+        processor.connect(audioContext.destination); // Required for script processor to run
+
+        setIsRecording(true);
+        setIsPaused(false);
+        setRecordingTime(0);
+
+      } else {
+        // --- Non-Streaming Mode (MediaRecorder) ---
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
+          // Validate recording
+          if (audioBlob.size < 1000) {
+            const err = new Error('Recording too short. Please speak for at least 1 second.');
+            setError(err.message);
+            onError(err);
+            return;
+          }
+
+          if (onRecordingComplete) {
+            onRecordingComplete(audioBlob);
+          }
+          cleanup();
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+        setIsPaused(false);
+        setRecordingTime(0);
+      }
 
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
           const newTime = prev + 1;
-          
-          // Auto-stop at 5 minutes (300 seconds)
+
+          // Auto-stop at 5 minutes
           if (newTime >= 300) {
             stopRecording();
             return 300;
           }
-          
+
           return newTime;
         });
       }, 1000);
 
-      // Initialize VAD for streaming mode
+      // Initialize VAD for streaming mode auto-stop logic
       if (mode === 'streaming' && VoiceActivityDetector.isSupported()) {
         try {
           vadRef.current = new VoiceActivityDetector({
@@ -141,50 +234,60 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
             silenceDuration: 2000,
             minRecordingDuration: 1000,
           });
-          
+
           await vadRef.current.initialize(stream);
           vadRef.current.start(() => {
             // Silence detected - auto-stop recording
             stopRecording();
           });
-          
-          // Start audio level monitoring
-          audioLevelIntervalRef.current = setInterval(() => {
-            if (vadRef.current) {
-              const level = vadRef.current.getAudioLevel();
-              setAudioLevel(level);
-            }
-          }, 100);
-          
+
         } catch (vadError) {
           console.warn('VAD initialization failed, continuing without auto-stop:', vadError);
-          // Continue recording without VAD
         }
       }
 
     } catch (err: any) {
-      const errorMsg = err.name === 'NotAllowedError' 
+      const errorMsg = err.name === 'NotAllowedError'
         ? 'Microphone access denied. Please allow microphone access to use voice input.'
         : 'Failed to access microphone. Please check your device settings.';
-      
+
       setError(errorMsg);
       onError(new Error(errorMsg));
     }
   };
 
   const stopRecording = () => {
+    // MediaRecorder stop
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsPaused(false);
     }
+
+    // AudioContext stop
+    if (audioContextRef.current && isRecording) {
+      // Signal cleanup but allow one last processing tick if needed
+      // Actual cleanup happens in cleanup() called by parent or on unmount
+      if (onRecordingComplete && mode === 'streaming') {
+        // For streaming, we might not have a blob, but we signal completion
+        onRecordingComplete(new Blob([], { type: 'audio/pcm' }));
+      }
+    }
+
+    setIsRecording(false);
+    setIsPaused(false);
   };
 
   const pauseRecording = () => {
-    if (mediaRecorderRef.current && isRecording && !isPaused) {
-      mediaRecorderRef.current.pause();
+    if (isRecording && !isPaused) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.pause();
+      }
+      if (audioContextRef.current) {
+        // For AudioContext, we just rely on the 'isRecording' check in onaudioprocess
+        // or we could suspend the context
+        audioContextRef.current.suspend();
+      }
       setIsPaused(true);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -192,10 +295,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const resumeRecording = () => {
-    if (mediaRecorderRef.current && isRecording && isPaused) {
-      mediaRecorderRef.current.resume();
+    if (isRecording && isPaused) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.resume();
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.resume();
+      }
       setIsPaused(false);
-      
+
       // Resume timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
@@ -287,7 +395,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
             >
               🔴
             </div>
-            
+
             {/* Timer */}
             <div
               aria-live="polite"
@@ -301,7 +409,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
             >
               {formatTime(recordingTime)}
             </div>
-            
+
             {/* Warning message */}
             {showWarning && (
               <div
@@ -317,44 +425,44 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
                 ⚠️ 30 seconds remaining
               </div>
             )}
-            
+
             {/* Audio level visualization (waveform) */}
-            {mode === 'streaming' && (
-              <div style={{ marginBottom: '15px' }}>
+            <div style={{ marginBottom: '15px' }}>
+              <div
+                style={{
+                  width: '100%',
+                  height: '40px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                }}
+              >
                 <div
                   style={{
-                    width: '100%',
-                    height: '40px',
-                    backgroundColor: '#f8f9fa',
-                    borderRadius: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
+                    width: `${audioLevel}%`,
+                    height: '100%',
+                    backgroundColor: '#28a745',
+                    transition: 'width 0.1s ease',
                   }}
-                >
-                  <div
-                    style={{
-                      width: `${audioLevel}%`,
-                      height: '100%',
-                      backgroundColor: '#28a745',
-                      transition: 'width 0.1s ease',
-                    }}
-                  />
-                </div>
-                <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '5px' }}>
-                  Audio Level: {Math.round(audioLevel)}%
-                </div>
+                />
               </div>
-            )}
-            
+              {mode === 'streaming' && (
+                <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '5px' }}>
+                  Live Audio Level
+                </div>
+              )}
+            </div>
+
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
-              {mode === 'streaming' 
+              {mode === 'streaming'
                 ? 'Recording... (will auto-stop after 2 seconds of silence)'
                 : 'Recording... (Max 5 minutes)'}
             </p>
           </div>
-          
+
           {/* Controls */}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             {!isPaused ? (
@@ -415,7 +523,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           </div>
         </div>
       )}
-      
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }

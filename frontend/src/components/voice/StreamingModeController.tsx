@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AudioRecorder from './AudioRecorder';
 import AudioPlayer from './AudioPlayer';
 import TranscriptDisplay from './TranscriptDisplay';
 import { apiService } from '../../services/api';
+import { novaSonicService } from '../../services/nova-sonic-websocket.service';
 
 interface StreamingModeControllerProps {
   onTranscriptionComplete: (text: string) => void;
@@ -14,17 +15,14 @@ interface StreamingModeControllerProps {
 /**
  * StreamingModeController Component
  * 
- * Orchestrates the streaming conversational voice flow with automatic transitions.
+ * Orchestrates the streaming conversational voice flow with Nova 2 Sonic.
  * Flow:
- * 1. Auto-start recording immediately
- * 2. Detect silence (2 seconds) and auto-stop
- * 3. Auto-transcribe audio
- * 4. Display transcript (read-only)
- * 5. Auto-submit transcript
- * 6. If question available: auto-play, then auto-start recording
- * 7. Continue until complete
- * 
- * This component is designed to be reusable and can be extracted into a standalone package.
+ * 1. Connect to Nova 2 Sonic WebSocket
+ * 2. Auto-start recording immediately
+ * 3. Stream audio chunks to backend
+ * 4. Receive real-time transcription
+ * 5. Detect silence (VAD) and auto-stop
+ * 6. Auto-submit transcript
  */
 const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
   onTranscriptionComplete,
@@ -32,11 +30,15 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
   currentQuestion,
   onSwitchToNonStreaming,
 }) => {
-  const [flowState, setFlowState] = useState<'recording' | 'transcribing' | 'reviewing' | 'playing-question'>('recording');
+  const [flowState, setFlowState] = useState<'initializing' | 'recording' | 'processing' | 'reviewing' | 'playing-question'>('initializing');
   const [transcription, setTranscription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [errorCount, setErrorCount] = useState(0);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Refs to track state in callbacks
+  const transcriptionRef = useRef('');
 
   // Auto-submit after transcription is displayed
   useEffect(() => {
@@ -45,50 +47,125 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
       const timer = setTimeout(() => {
         onTranscriptionComplete(transcription);
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [flowState, transcription, onTranscriptionComplete]);
 
-  const handleRecordingComplete = async (audioBlob: Blob) => {
-    setFlowState('transcribing');
-    setError(null);
-    
-    try {
-      const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
-      const response = await apiService.transcribeAudio(audioFile);
-      
-      if (response.transcription && response.transcription.length >= 10) {
-        setTranscription(response.transcription);
-        setFlowState('reviewing');
-        // Auto-submit will happen via useEffect
-      } else {
-        setError('Transcription too short (minimum 10 characters). Please speak again.');
-        setFlowState('recording');
-      }
-    } catch (err: any) {
-      const newErrorCount = errorCount + 1;
-      setErrorCount(newErrorCount);
-      setError(err.message || 'Transcription failed. Please try again.');
-      setFlowState('recording');
-      
-      // After 2 errors, offer to switch to non-streaming mode
-      if (newErrorCount >= 2) {
-        setShowFallbackOption(true);
-      }
-    }
-  };
+  // Connect to Nova 2 Sonic on mount
+  useEffect(() => {
+    const connect = async () => {
+      try {
+        const config = apiService.getLLMConfig();
 
-  const handleRecordingError = (err: Error) => {
+        if (!config || config.provider !== 'bedrock' || !config.awsAccessKeyId || !config.awsSecretAccessKey) {
+          throw new Error('Missing AWS Bedrock credentials. Please configure in Settings.');
+        }
+
+        await novaSonicService.connect({
+          awsAccessKeyId: config.awsAccessKeyId,
+          awsSecretAccessKey: config.awsSecretAccessKey,
+          awsSessionToken: config.awsSessionToken,
+          awsRegion: config.awsRegion || 'us-east-1',
+          systemPrompt: 'You are a helpful assistant. Just transcribe what the user says.',
+          userId: 'voice-user-streaming'
+        }, {
+          onTranscription: (text) => {
+            // Nova sends segments, we append them
+            // Note: In a real convo, Nova might send " You: Hello" then " You: World".
+            // Implementation detail: Nova 2 Sonic test page appends with newlines.
+            // For a form input, we might want to just concatenate.
+            // Let's assume we append with space if needed.
+            setTranscription(prev => {
+              const newText = prev ? prev + ' ' + text : text;
+              transcriptionRef.current = newText;
+              return newText;
+            });
+          },
+          onTextResponse: (text) => {
+            // Ignoring AI response for now as we just want transcription for the form
+            // Or we could log it
+            console.log('[Nova] AI Response:', text);
+          },
+          onError: (err) => {
+            console.error('[Nova] Error:', err);
+            handleError(err);
+          },
+          onConnected: () => {
+            setIsConnected(true);
+            if (currentQuestion) {
+              setFlowState('playing-question');
+            } else {
+              setFlowState('recording');
+            }
+          },
+          onDisconnected: () => {
+            setIsConnected(false);
+          }
+        });
+
+      } catch (err: any) {
+        handleError(err);
+      }
+    };
+
+    connect();
+
+    return () => {
+      novaSonicService.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
+
+  // If there's a question to play, start with that
+  useEffect(() => {
+    // This effect handles updates to currentQuestion if needed, 
+    // but the initial flow is handled in onConnected
+  }, [currentQuestion]);
+
+  const handleError = (err: Error) => {
     const newErrorCount = errorCount + 1;
     setErrorCount(newErrorCount);
-    setError(err.message);
-    
+    setError(err.message || 'Connection failed.');
+
     // After 2 errors, offer to switch to non-streaming mode
     if (newErrorCount >= 2) {
       setShowFallbackOption(true);
     }
-    // Stay in recording state to allow retry
+  };
+
+  const handleAudioData = (audioData: ArrayBuffer) => {
+    console.log('[StreamingMode] Validating Audio Data:', audioData.byteLength);
+    if (isConnected) {
+      console.log('[StreamingMode] Sending chunk:', audioData.byteLength);
+      novaSonicService.sendAudioChunk(audioData);
+    }
+  };
+
+  const handleRecordingComplete = (audioBlob: Blob) => {
+    // VAD stopped recording
+    // With Nova Sonic, we might want to wait a brief moment for final transcription messages
+    setFlowState('processing');
+
+    setTimeout(() => {
+      if (transcriptionRef.current.length >= 2) { // Minimal validation
+        setFlowState('reviewing');
+      } else {
+        // Only error if we really got nothing (silence)
+        // If the user said "Hi", that's short but valid?
+        // Let's stick to the 10 char rule from elsewhere if strict, but maybe relax for streaming
+        if (transcriptionRef.current.length === 0) {
+          setError('No speech detected. Please try again.');
+          // Reset to allow retry?
+          // Since recording stopped, we need to restart it?
+          // But flowState 'recording' mounts AudioRecorder with autoStart=true
+          // So setting it back to 'recording' should restart.
+          setFlowState('recording');
+        } else {
+          setFlowState('reviewing');
+        }
+      }
+    }, 1500); // Wait 1.5s for final network packets
   };
 
   const handlePlaybackComplete = () => {
@@ -105,15 +182,9 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
   const handleCancel = () => {
     setTranscription('');
     setError(null);
+    novaSonicService.disconnect();
     onCancel();
   };
-
-  // If there's a question to play, start with that
-  useEffect(() => {
-    if (currentQuestion) {
-      setFlowState('playing-question');
-    }
-  }, [currentQuestion]);
 
   return (
     <div
@@ -165,7 +236,7 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
               fontWeight: 'bold',
             }}
           >
-            AUTO
+            LIVE
           </span>
         </div>
 
@@ -179,8 +250,7 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
             color: '#004085',
           }}
         >
-          💡 <strong>Streaming Mode:</strong> Speak naturally and continuously. Recording automatically stops after 2 seconds of silence. 
-          Your response will be transcribed and submitted automatically for a conversational experience.
+          💡 <strong>Nova 2 Sonic:</strong> Speak naturally. Your speech is transcribed in real-time.
         </div>
 
         {error && (
@@ -236,6 +306,13 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
           </div>
         )}
 
+        {/* Initializing State */}
+        {flowState === 'initializing' && (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <p>Connecting to Nova 2 Sonic...</p>
+          </div>
+        )}
+
         {/* Playing Question State */}
         {flowState === 'playing-question' && currentQuestion && (
           <div>
@@ -255,25 +332,30 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
         )}
 
         {/* Recording State */}
-        {flowState === 'recording' && (
+        {flowState === 'recording' && isConnected && (
           <div>
+            <div style={{ marginBottom: '15px' }}>
+              <TranscriptDisplay
+                text={transcription}
+                editable={false}
+                showCharacterCount={false}
+              />
+            </div>
             <AudioRecorder
               mode="streaming"
               autoStart={true}
               onRecordingComplete={handleRecordingComplete}
-              onError={handleRecordingError}
+              onAudioData={handleAudioData}
+              onError={handleError}
             />
           </div>
         )}
 
-        {/* Transcribing State */}
-        {flowState === 'transcribing' && (
+        {/* Processing State */}
+        {flowState === 'processing' && (
           <div role="status" aria-live="polite" style={{ textAlign: 'center', padding: '40px 20px' }}>
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>⏳</div>
-            <p style={{ color: '#666', fontSize: '16px' }}>Transcribing audio...</p>
-            <p style={{ color: '#999', fontSize: '13px', marginTop: '10px' }}>
-              This may take a few seconds
-            </p>
+            <p style={{ color: '#666', fontSize: '16px' }}>Finalizing...</p>
           </div>
         )}
 
@@ -281,7 +363,7 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
         {flowState === 'reviewing' && (
           <div>
             <p style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '14px' }}>
-              Transcription:
+              Final Transcription:
             </p>
             <div style={{ marginBottom: '15px' }}>
               <TranscriptDisplay

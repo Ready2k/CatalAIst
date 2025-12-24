@@ -462,19 +462,24 @@ class ApiService {
     }
 
     try {
-      // Connect to Nova 2 Sonic if not already connected
-      if (!novaSonicService.isConnectedToNovaSonic()) {
-        await novaSonicService.connect({
-          awsAccessKeyId: this.llmConfig.awsAccessKeyId,
-          awsSecretAccessKey: this.llmConfig.awsSecretAccessKey,
-          awsSessionToken: this.llmConfig.awsSessionToken,
-          awsRegion: this.llmConfig.awsRegion || 'us-east-1',
-          systemPrompt: 'You are a helpful assistant for voice transcription and conversation.',
-          userId: 'voice-user',
-          // Use default model ID for Nova 2 Sonic, independent of the selected LLM
-          modelId: undefined
-        });
+      // Always force a fresh connection for manual mode to ensure clean state
+      // This matches the working test page strategy
+      if (novaSonicService.isConnectedToNovaSonic()) {
+        console.log('[Nova 2 Sonic] Manual Mode: Forcing disconnect to ensure fresh session.');
+        novaSonicService.disconnect();
+        // Small delay to allow cleanup?
+        await new Promise(r => setTimeout(r, 100));
       }
+
+      await novaSonicService.connect({
+        awsAccessKeyId: this.llmConfig.awsAccessKeyId,
+        awsSecretAccessKey: this.llmConfig.awsSecretAccessKey,
+        awsSessionToken: this.llmConfig.awsSessionToken,
+        awsRegion: this.llmConfig.awsRegion || 'us-east-1',
+        systemPrompt: 'You are a helpful assistant for voice transcription and conversation.',
+        userId: 'voice-user',
+        modelId: undefined
+      });
 
       // Process audio file through WebSocket
       const result = await novaSonicService.processAudioFile(audioFile);

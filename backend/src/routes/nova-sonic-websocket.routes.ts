@@ -22,6 +22,7 @@ const activeConnections = new Map<string, {
   sessionId: string;
   userId: string;
   config: any;
+  messageQueue: Promise<void>;
 }>();
 
 /**
@@ -42,39 +43,69 @@ export function initializeNovaSonicWebSocket(server: any): void {
     let config: any = null;
 
     ws.on('message', async (data: Buffer) => {
-      try {
-        const message = JSON.parse(data.toString());
+      // Find or wait for connection to be registered (race condition safeguard)
+      // Note: connectionId is available in scope
 
-        switch (message.type) {
-          case 'initialize':
-            await handleInitialize(ws, connectionId, message);
-            break;
+      const processMessage = async () => {
+        try {
+          const message = JSON.parse(data.toString());
 
-          case 'audio_chunk':
-            await handleAudioChunk(ws, connectionId, message);
-            break;
+          switch (message.type) {
+            case 'initialize':
+              await handleInitialize(ws, connectionId, message);
+              break;
 
-          case 'text_message':
-            await handleTextMessage(ws, connectionId, message);
-            break;
+            case 'audio_chunk':
+              await handleAudioChunk(ws, connectionId, message);
+              break;
 
-          case 'end_conversation':
-            await handleEndConversation(ws, connectionId);
-            break;
+            case 'text_message':
+              await handleTextMessage(ws, connectionId, message);
+              break;
 
-          default:
-            ws.send(JSON.stringify({
-              type: 'error',
-              error: `Unknown message type: ${message.type}`
-            }));
+            case 'end_conversation':
+              await handleEndConversation(ws, connectionId);
+              break;
+
+            default:
+              ws.send(JSON.stringify({
+                type: 'error',
+                error: `Unknown message type: ${message.type}`
+              }));
+          }
+
+        } catch (error) {
+          console.error(`[Nova 2 Sonic WebSocket] Error processing message:`, error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }));
         }
+      };
 
-      } catch (error) {
-        console.error(`[Nova 2 Sonic WebSocket] Error processing message:`, error);
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }));
+      // Queue the message processing
+      const connection = activeConnections.get(connectionId);
+      if (connection) {
+        connection.messageQueue = connection.messageQueue.then(processMessage, processMessage);
+      } else {
+        // If connection not yet registered (e.g. initialize message), run immediately?
+        // Actually initialize registers it. So only initialize runs raw. 
+        // But subsequent messages need the queue.
+        // Wait, handleInitialize sets up the queue. 
+        // So for 'initialize', we just run it. For others, we assume connection exists.
+        // BUT 'initialize' is a message type.
+
+        // Simple logic: If it's initialize, just run. If not, try to queue.
+        // If connection missing but not initialize, it's an error anyway.
+
+        const isInit = data.toString().includes('"type":"initialize"') || data.toString().includes('"type": "initialize"');
+        if (isInit) {
+          await processMessage();
+        } else {
+          // Retry briefly or error?
+          // Theoretically initialize should be first.
+          await processMessage(); // Fallback to immediate (will likely fail with "Session not initialized")
+        }
       }
     });
 
@@ -122,12 +153,13 @@ export function initializeNovaSonicWebSocket(server: any): void {
         const session = await novaSonicService.initializeSession(config, systemPrompt);
         sessionId = session.sessionId;
 
-        // Store connection
+        // Store connection with message queue
         activeConnections.set(connectionId, {
           ws,
           sessionId,
           userId,
-          config
+          config,
+          messageQueue: Promise.resolve()
         });
 
         // Send success response
@@ -167,13 +199,14 @@ export function initializeNovaSonicWebSocket(server: any): void {
 
     // Handle audio chunk message
     async function handleAudioChunk(ws: WebSocket, connectionId: string, message: any) {
-      console.log('[Nova 2 Sonic] Handling audio chunk for:', connectionId); // Uncomment for high-volume logs
+      const { audio, isComplete } = message;
+      const dataSize = audio ? audio.length : 0;
+      console.log(`[Nova 2 Sonic] Handling chunk: ${dataSize} chars, isComplete: ${isComplete} for ${connectionId}`);
+
       const connection = activeConnections.get(connectionId);
       if (!connection || !connection.sessionId) {
         throw new Error('Session not initialized');
       }
-
-      const { audio, isComplete } = message;
 
       // Allow empty audio checks only if strictly not completing, 
       // but actually we want to allow empty string if isComplete is true.
