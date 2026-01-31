@@ -49,7 +49,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedFormats = ['.wav', '.mp3', '.m4a', '.webm'];
     const ext = path.extname(file.originalname).toLowerCase();
-    
+
     if (allowedFormats.includes(ext)) {
       cb(null, true);
     } else {
@@ -65,10 +65,10 @@ const upload = multer({
  */
 router.post('/transcribe', upload.single('audio'), async (req: Request, res: Response) => {
   let audioFilePath: string | undefined;
-  
+
   try {
-    const { 
-      sessionId, 
+    const {
+      sessionId,
       provider = 'openai',
       // OpenAI
       apiKey,
@@ -77,7 +77,7 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
       awsSecretAccessKey,
       awsSessionToken,
       awsRegion,
-      userId = 'anonymous' 
+      userId = 'anonymous'
     } = req.body;
 
     if (!req.file) {
@@ -125,15 +125,15 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
     if (provider === 'openai') {
       // Use OpenAI Whisper for OpenAI users
       const fileStream = require('fs').createReadStream(audioFilePath);
-      
-      transcriptionResult = await openaiService.transcribe(fileStream, { 
+
+      transcriptionResult = await openaiService.transcribe(fileStream, {
         provider: 'openai',
-        apiKey 
+        apiKey
       });
     } else {
       // Use Nova 2 Sonic for Bedrock users (speech-to-speech)
       const fileStream = require('fs').createReadStream(audioFilePath);
-      
+
       transcriptionResult = await awsVoiceService.transcribe(fileStream, {
         provider: 'bedrock',
         awsAccessKeyId,
@@ -216,12 +216,13 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
  * Requirements: 17.1, 17.2, 17.3, 17.5, 17.6, 18.3
  */
 router.post('/synthesize', async (req: Request, res: Response) => {
+  console.log('[Voice Route] /synthesize called');
   try {
-    const { 
-      text, 
-      voice = 'alloy', 
+    const {
+      text,
+      voice = 'alloy',
       provider = 'openai',
-      sessionId, 
+      sessionId,
       userId = 'anonymous',
       // OpenAI
       apiKey,
@@ -257,10 +258,16 @@ router.post('/synthesize', async (req: Request, res: Response) => {
         });
       }
     } else if (provider === 'bedrock') {
-      if (!awsAccessKeyId || !awsSecretAccessKey) {
+      // Use provided credentials or fallback to environment variables
+      const effectiveAccessKeyId = awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID;
+      const effectiveSecretAccessKey = awsSecretAccessKey || process.env.AWS_SECRET_ACCESS_KEY;
+      const effectiveSessionToken = awsSessionToken || process.env.AWS_SESSION_TOKEN;
+      const effectiveRegion = awsRegion || process.env.AWS_REGION || 'us-east-1';
+
+      if (!effectiveAccessKeyId || !effectiveSecretAccessKey) {
         return res.status(400).json({
           error: 'Missing AWS credentials',
-          message: 'AWS Access Key ID and Secret Access Key are required'
+          message: 'AWS Access Key ID and Secret Access Key are required (body or env)'
         });
       }
 
@@ -294,28 +301,28 @@ router.post('/synthesize', async (req: Request, res: Response) => {
       // Try to read from cache
       audioBuffer = await fs.readFile(cachedFilePath);
       fromCache = true;
-      
+
       // Update file access time
       await fs.utimes(cachedFilePath, new Date(), new Date());
     } catch (cacheError) {
       // Not in cache, synthesize new audio
       const startTime = Date.now();
-      
+
       if (provider === 'openai') {
-        audioBuffer = await openaiService.synthesize(text, voice as any, { 
+        audioBuffer = await openaiService.synthesize(text, voice as any, {
           provider: 'openai',
-          apiKey 
+          apiKey
         });
       } else {
         audioBuffer = await awsVoiceService.synthesize(text, voice, {
           provider: 'bedrock',
-          awsAccessKeyId,
-          awsSecretAccessKey,
-          awsSessionToken,
-          awsRegion: awsRegion || 'us-east-1'
+          awsAccessKeyId: awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID,
+          awsSecretAccessKey: awsSecretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
+          awsSessionToken: awsSessionToken || process.env.AWS_SESSION_TOKEN,
+          awsRegion: awsRegion || process.env.AWS_REGION || 'us-east-1'
         });
       }
-      
+
       const latencyMs = Date.now() - startTime;
 
       // Cache the audio
@@ -351,15 +358,16 @@ router.post('/synthesize', async (req: Request, res: Response) => {
     }
 
     // Set response headers for audio streaming
-    res.setHeader('Content-Type', 'audio/mpeg');
+    const isWav = audioBuffer.slice(0, 4).toString() === 'RIFF';
+    res.setHeader('Content-Type', isWav ? 'audio/wav' : 'audio/mpeg');
     res.setHeader('Content-Length', audioBuffer.length);
     res.setHeader('X-From-Cache', fromCache.toString());
     res.setHeader('X-Voice-Provider', provider);
-    
+
     res.send(audioBuffer);
   } catch (error) {
     console.error('Error synthesizing speech:', error);
-    
+
     res.status(500).json({
       error: 'Failed to synthesize speech',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -375,14 +383,14 @@ router.post('/synthesize', async (req: Request, res: Response) => {
 router.delete('/cache', async (req: Request, res: Response) => {
   try {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    
+
     const files = await fs.readdir(cacheDir);
     let deletedCount = 0;
 
     for (const file of files) {
       const filePath = path.join(cacheDir, file);
       const stats = await fs.stat(filePath);
-      
+
       if (stats.mtimeMs < sevenDaysAgo) {
         await fs.unlink(filePath);
         deletedCount++;
@@ -395,7 +403,7 @@ router.delete('/cache', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error cleaning cache:', error);
-    
+
     res.status(500).json({
       error: 'Failed to clean cache',
       message: error instanceof Error ? error.message : 'Unknown error'

@@ -12,6 +12,7 @@ interface User {
 
 interface UserManagementProps {
   onLoadUsers: () => Promise<User[]>;
+  onCreateUser: (username: string, password: string, role: 'admin' | 'user') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onChangeRole: (userId: string, newRole: 'admin' | 'user') => Promise<void>;
   onResetPassword: (userId: string, newPassword: string) => Promise<void>;
@@ -20,6 +21,7 @@ interface UserManagementProps {
 
 const UserManagement: React.FC<UserManagementProps> = ({
   onLoadUsers,
+  onCreateUser,
   onDeleteUser,
   onChangeRole,
   onResetPassword,
@@ -31,10 +33,17 @@ const UserManagement: React.FC<UserManagementProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showCreateUser, setShowCreateUser] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  
+  // Create user form state
+  const [newUsername, setNewUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserConfirmPassword, setNewUserConfirmPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
 
   const loadUsers = React.useCallback(async () => {
     setIsLoading(true);
@@ -119,6 +128,42 @@ const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUsername || !newUserPassword) {
+      setError('Username and password are required');
+      return;
+    }
+
+    if (newUsername.length < 3 || newUsername.length > 50) {
+      setError('Username must be between 3 and 50 characters');
+      return;
+    }
+
+    if (newUserPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (newUserPassword !== newUserConfirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      await onCreateUser(newUsername, newUserPassword, newUserRole);
+      setSuccessMessage(`Created user ${newUsername} with role ${newUserRole}`);
+      setShowCreateUser(false);
+      setNewUsername('');
+      setNewUserPassword('');
+      setNewUserConfirmPassword('');
+      setNewUserRole('user');
+      await loadUsers();
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create user');
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Never';
     const date = new Date(dateString);
@@ -142,20 +187,40 @@ const UserManagement: React.FC<UserManagementProps> = ({
         marginBottom: '30px'
       }}>
         <h2 style={{ margin: 0, color: '#343a40' }}>User Management</h2>
-        <button
-          onClick={loadUsers}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#6c757d',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => {
+              setShowCreateUser(true);
+              setError('');
+            }}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            ➕ Create User
+          </button>
+          <button
+            onClick={loadUsers}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#6c757d',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -477,6 +542,192 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 }}
               >
                 Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateUser && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ marginTop: 0, color: '#343a40' }}>
+              Create New User
+            </h3>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: '#495057',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                Username
+              </label>
+              <input
+                type="text"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="Enter username"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <small style={{ display: 'block', marginTop: '4px', color: '#6c757d' }}>
+                3-50 characters
+              </small>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: '#495057',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                placeholder="Enter password"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <small style={{ display: 'block', marginTop: '4px', color: '#6c757d' }}>
+                Minimum 8 characters
+              </small>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: '#495057',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={newUserConfirmPassword}
+                onChange={(e) => setNewUserConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
+                color: '#495057',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                User Role
+              </label>
+              <select
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="user">Standard User</option>
+                <option value="admin">Admin User</option>
+              </select>
+              <small style={{ display: 'block', marginTop: '4px', color: '#6c757d' }}>
+                {newUserRole === 'user' 
+                  ? 'Standard users can only access Classifier and Configuration'
+                  : 'Admin users have full access to all features'}
+              </small>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowCreateUser(false);
+                  setNewUsername('');
+                  setNewUserPassword('');
+                  setNewUserConfirmPassword('');
+                  setNewUserRole('user');
+                  setError('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Create User
               </button>
             </div>
           </div>

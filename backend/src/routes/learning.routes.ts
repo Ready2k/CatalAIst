@@ -303,6 +303,16 @@ router.post('/analyze', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error performing analysis:', error);
+    
+    // Handle "no data" errors with 404 instead of 500
+    if (error.message?.includes('No sessions with feedback found')) {
+      return res.status(404).json({
+        error: 'No data available',
+        message: 'No sessions with feedback found in the specified date range. Submit some classifications and provide feedback first.',
+        noData: true
+      });
+    }
+    
     res.status(500).json({
       error: 'Failed to perform analysis',
       message: error.message
@@ -506,6 +516,16 @@ router.post('/validate-matrix', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error performing validation test:', error);
+    
+    // Handle "no data" errors with 404 instead of 500
+    if (error.message?.includes('No misclassified sessions found')) {
+      return res.status(404).json({
+        error: 'No data available',
+        message: 'No misclassified sessions found in the specified date range. Submit some classifications with feedback first.',
+        noData: true
+      });
+    }
+    
     res.status(500).json({
       error: 'Failed to perform validation test',
       message: error.message

@@ -210,25 +210,17 @@ export class ClassificationService {
       return 'manual_review';
     }
     
-    // Medium confidence (0.5-0.90) always triggers clarification
-    if (confidence <= 0.90) {
+    // Very high confidence (>= 0.90) skips clarification entirely
+    if (confidence >= 0.90) {
+      return 'auto_classify';
+    }
+    
+    // Medium confidence (0.5-0.89) triggers clarification
+    if (confidence < 0.90) {
       return 'clarify';
     }
     
-    // High confidence (>0.90): Check description quality
-    const descriptionQuality = this.assessDescriptionQuality(processDescription, conversationHistory);
-    
-    // If description is poor quality, clarify even with high confidence (unless already asked questions)
-    if (descriptionQuality === 'poor' && conversationHistory.length === 0) {
-      return 'clarify';
-    }
-    
-    // If description is marginal and confidence isn't very high, clarify
-    if (descriptionQuality === 'marginal' && confidence <= 0.92 && conversationHistory.length === 0) {
-      return 'clarify';
-    }
-    
-    // High confidence with good/adequate description quality
+    // Fallback (should not reach here)
     return 'auto_classify';
   }
 

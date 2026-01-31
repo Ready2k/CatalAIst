@@ -325,6 +325,11 @@ export class AnalyticsService {
     // Apply filters
     let filteredSessions = this.applyFilters(allSessions, filters);
 
+    // Sort by createdAt descending (most recent first)
+    filteredSessions.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
     // Calculate total before pagination
     const total = filteredSessions.length;
     const totalPages = Math.ceil(total / pagination.limit);

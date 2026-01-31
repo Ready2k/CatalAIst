@@ -70,6 +70,15 @@ export class ClarificationService {
         };
       }
 
+      // Very high confidence (>=0.90) skips clarification entirely
+      if (confidence >= 0.90) {
+        return {
+          questions: [],
+          shouldClarify: false,
+          reason: 'Very high confidence classification - no clarification needed'
+        };
+      }
+
       // Check if we have enough information to proceed
       const hasEnoughInfo = this.assessInformationCompleteness(
         request.processDescription,
@@ -77,7 +86,7 @@ export class ClarificationService {
       );
 
       // If we have high confidence AND enough information, stop asking
-      if (confidence > 0.90 && hasEnoughInfo) {
+      if (confidence > 0.85 && hasEnoughInfo) {
         return {
           questions: [],
           shouldClarify: false,

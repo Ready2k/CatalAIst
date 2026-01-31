@@ -32,7 +32,7 @@ function App() {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Voice configuration state
   const [voiceConfig, setVoiceConfig] = useState<{
     enabled: boolean;
@@ -47,14 +47,15 @@ function App() {
     awsSessionToken?: string;
     awsRegion?: string;
   } | null>(null);
-  
+
   // Derived voice enabled flag for convenience
   const voiceEnabled = voiceConfig?.enabled || false;
-  
+
   // Workflow data
   const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(0);
   const [classification, setClassification] = useState<Classification | null>(null);
+  const [submissionReference, setSubmissionReference] = useState<string>('');
 
   // Check for existing auth token and voice config on mount
   useEffect(() => {
@@ -62,12 +63,13 @@ function App() {
     const storedUsername = sessionStorage.getItem('username');
     const storedRole = sessionStorage.getItem('userRole');
     const storedVoiceConfig = sessionStorage.getItem('voiceConfig');
-    
+    const storedLLMConfig = sessionStorage.getItem('llmCredentials');
+
     if (token && storedUsername) {
       setIsAuthenticated(true);
       setUsername(storedUsername);
       setUserRole(storedRole || 'user');
-      
+
       // Restore voice configuration if available
       if (storedVoiceConfig) {
         try {
@@ -75,6 +77,18 @@ function App() {
           setVoiceConfig(parsedVoiceConfig);
         } catch (err) {
           console.warn('Failed to parse stored voice config:', err);
+        }
+      }
+
+      // Restore LLM configuration if available
+      if (storedLLMConfig) {
+        try {
+          const parsedLLMConfig = JSON.parse(storedLLMConfig);
+          setLLMConfig(parsedLLMConfig);
+          apiService.setLLMConfig(parsedLLMConfig);
+          setHasConfig(true);
+        } catch (err) {
+          console.warn('Failed to parse stored LLM config:', err);
         }
       }
     }
@@ -88,17 +102,8 @@ function App() {
   };
 
   const handleLogout = async () => {
-    // Delete active session from backend before clearing local state
-    const sessionId = apiService.getSessionId();
-    if (sessionId) {
-      try {
-        await apiService.deleteSession(sessionId);
-      } catch (err) {
-        console.warn('Failed to delete session on logout:', err);
-        // Continue with logout even if session deletion fails
-      }
-    }
-    
+    // Don't delete sessions on logout - they need to persist for admin review
+    // Just clear local state
     sessionStorage.clear();
     setIsAuthenticated(false);
     setUsername('');
@@ -116,10 +121,10 @@ function App() {
 
   // Helper function to determine if voice button should be shown
   const shouldShowVoiceButton = (): boolean => {
-    return hasConfig && 
-           voiceConfig !== null && 
-           voiceConfig.enabled && 
-           (workflowState === 'input' || workflowState === 'clarification');
+    return hasConfig &&
+      voiceConfig !== null &&
+      voiceConfig.enabled &&
+      (workflowState === 'input' || workflowState === 'clarification');
   };
 
   const handleConfigSubmit = async (config: LLMConfig) => {
@@ -128,7 +133,7 @@ function App() {
     try {
       // Set LLM config first so createSession can use it
       apiService.setLLMConfig(config);
-      
+
       // Create session with appropriate credentials
       if (config.provider === 'openai' && config.apiKey) {
         await apiService.createSession(config.apiKey, config.model);
@@ -136,10 +141,10 @@ function App() {
         // For Bedrock, createSession will use the config we just set
         await apiService.createSession('', config.model);
       }
-      
+
       setLLMConfig(config);
       setHasConfig(true);
-      
+
       // Set voice configuration based on provider and settings
       if (config.voiceEnabled) {
         // Voice is enabled for this provider
@@ -188,11 +193,12 @@ function App() {
     setIsProcessing(true);
     try {
       const response = await apiService.submitProcess(description, subject);
-      
+
       console.log('Submit response:', response);
-      
+
       // Check if user submitted (blind evaluation for regular users)
       if (response.submitted) {
+        setSubmissionReference(response.sessionId);
         setWorkflowState('submitted');
       }
       // Check if we need clarification
@@ -200,7 +206,7 @@ function App() {
         setClarificationQuestions(response.clarificationQuestions);
         setQuestionCount(response.totalQuestions || response.clarificationQuestions.length);
         setWorkflowState('clarification');
-      } 
+      }
       // Admin users get classification results
       else if (response.classification) {
         setClassification(response.classification);
@@ -224,21 +230,22 @@ function App() {
     try {
       // Convert single answer to array for consistency
       const answers = Array.isArray(answer) ? answer : [answer];
-      
+
       // Send the answers along with the questions that were asked
       const response = await apiService.addConversation(answers, clarificationQuestions);
-      
+
       // Update question count
       setQuestionCount(prev => prev + answers.length);
-      
+
       // Check if user submitted (blind evaluation for regular users)
       if (response.submitted) {
+        setSubmissionReference(response.sessionId);
         setWorkflowState('submitted');
       }
       // Check if we need more clarification
       else if (response.clarificationQuestions && response.clarificationQuestions.length > 0) {
         setClarificationQuestions(response.clarificationQuestions);
-      } 
+      }
       // Admin users get classification results
       else if (response.classification) {
         setClassification(response.classification);
@@ -257,7 +264,7 @@ function App() {
     try {
       // Force classification with current information
       const response = await apiService.forceClassification();
-      
+
       if (response.classification) {
         setClassification(response.classification);
         setWorkflowState('result');
@@ -285,13 +292,13 @@ function App() {
       if (sessionId) {
         await apiService.deleteSession(sessionId);
       }
-      
+
       // Clear local state
       setClarificationQuestions([]);
       setQuestionCount(0);
       setClassification(null);
       setWorkflowState('input');
-      
+
       // Create new session
       if (llmConfig) {
         if (llmConfig.provider === 'openai' && llmConfig.apiKey) {
@@ -369,72 +376,79 @@ function App() {
   };
 
   const resetWorkflow = async () => {
-    // Create a new session for the next classification
-    if (llmConfig) {
-      try {
-        if (llmConfig.provider === 'openai' && llmConfig.apiKey) {
-          await apiService.createSession(llmConfig.apiKey, llmConfig.model);
-        } else {
-          await apiService.createSession('', llmConfig.model);
-        }
-        console.log('[App] Created new session for next classification');
-      } catch (err) {
-        console.error('[App] Failed to create new session:', err);
-      }
-    }
-    
+    // Clear workflow state
     setWorkflowState('input');
     setClarificationQuestions([]);
     setQuestionCount(0);
     setClassification(null);
+    setSubmissionReference('');
     setError('');
+    
+    // Create a new session if we have LLM config
+    if (llmConfig) {
+      try {
+        if (llmConfig.provider === 'openai' && llmConfig.apiKey) {
+          await apiService.createSession(llmConfig.apiKey, llmConfig.model);
+        } else if (llmConfig.provider === 'bedrock') {
+          // For Bedrock, createSession will use the config we already set
+          await apiService.createSession('', llmConfig.model);
+        }
+      } catch (err: any) {
+        console.error('Failed to create new session:', err);
+        setError(err.message || 'Failed to create new session');
+      }
+    }
   };
 
   const renderNavigation = () => (
     <nav style={{
       backgroundColor: '#343a40',
-      padding: '15px 20px',
-      marginBottom: '20px'
+      padding: '12px 20px',
+      marginBottom: '20px',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
     }}>
       <div style={{
-        maxWidth: '1200px',
+        maxWidth: '1600px',
         margin: '0 auto',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        gap: '20px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <h1 style={{ margin: 0, color: '#fff', fontSize: '24px' }}>
+        {/* Left side: Logo with version */}
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: '120px' }}>
+          <h1 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: 'bold', lineHeight: '1.2' }}>
             CatalAIst
           </h1>
-          <div style={{ color: '#adb5bd', fontSize: '14px' }}>
-            Welcome, <strong style={{ color: '#fff' }}>{username}</strong>
-            {userRole === 'admin' && (
-              <span style={{ 
-                marginLeft: '8px', 
-                padding: '2px 8px', 
-                backgroundColor: '#ffc107', 
-                color: '#000', 
-                borderRadius: '3px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
-                ADMIN
-              </span>
-            )}
-          </div>
+          <span style={{ 
+            fontSize: '10px', 
+            color: '#adb5bd', 
+            marginTop: '2px',
+            fontFamily: 'monospace'
+          }}>
+            v3.1.3 • 2026-01-31
+          </span>
         </div>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        
+        {/* Center: Navigation buttons */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flex: 1, justifyContent: 'center' }}>
           <button
             onClick={() => setCurrentView('main')}
             style={{
-              padding: '8px 16px',
+              padding: '8px 14px',
               backgroundColor: currentView === 'main' ? '#007bff' : 'transparent',
               color: '#fff',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '14px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseOver={(e) => {
+              if (currentView !== 'main') e.currentTarget.style.backgroundColor = '#495057';
+            }}
+            onMouseOut={(e) => {
+              if (currentView !== 'main') e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             Classifier
@@ -442,13 +456,20 @@ function App() {
           <button
             onClick={() => setCurrentView('configuration')}
             style={{
-              padding: '8px 16px',
+              padding: '8px 14px',
               backgroundColor: currentView === 'configuration' ? '#007bff' : 'transparent',
               color: '#fff',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '14px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseOver={(e) => {
+              if (currentView !== 'configuration') e.currentTarget.style.backgroundColor = '#495057';
+            }}
+            onMouseOut={(e) => {
+              if (currentView !== 'configuration') e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             Configuration
@@ -458,13 +479,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('analytics')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'analytics' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'analytics') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'analytics') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Analytics
@@ -472,13 +500,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('decision-matrix')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'decision-matrix' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'decision-matrix') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'decision-matrix') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Decision Matrix
@@ -486,13 +521,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('learning')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'learning' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'learning') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'learning') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 AI Learning
@@ -500,13 +542,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('prompts')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'prompts' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'prompts') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'prompts') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Prompts
@@ -514,13 +563,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('audit')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'audit' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'audit') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'audit') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Audit Trail
@@ -528,13 +584,20 @@ function App() {
               <button
                 onClick={() => setCurrentView('admin-review')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'admin-review' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'admin-review') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'admin-review') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Admin Review
@@ -542,41 +605,109 @@ function App() {
               <button
                 onClick={() => setCurrentView('users')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 14px',
                   backgroundColor: currentView === 'users' ? '#007bff' : 'transparent',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'users') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'users') e.currentTarget.style.backgroundColor = 'transparent';
                 }}
               >
                 Users
               </button>
             </>
           )}
-          <div style={{ 
-            width: '1px', 
-            height: '30px', 
-            backgroundColor: '#6c757d',
-            margin: '0 5px'
-          }} />
+        </div>
+
+        {/* Right side: User info and logout */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '10px',
+          minWidth: '180px',
+          justifyContent: 'flex-end'
+        }}>
+          <span style={{ 
+            color: '#e9ecef',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}>
+            {username}
+          </span>
+          {userRole === 'admin' ? (
+            <span 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                backgroundColor: '#28a745',
+                color: '#fff',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+              title="Admin User"
+            >
+              A
+            </span>
+          ) : (
+            <span 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                backgroundColor: '#ffc107',
+                color: '#000',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+              title="Regular User"
+            >
+              U
+            </span>
+          )}
           <button
             onClick={handleLogout}
             style={{
-              padding: '8px 16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '32px',
+              padding: '0',
               backgroundColor: '#dc3545',
               color: '#fff',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
+              fontSize: '18px',
+              fontWeight: 'bold',
+              transition: 'background-color 0.2s',
+              position: 'relative'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+            title="Logout"
+            aria-label="Logout"
           >
-            Logout
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
           </button>
         </div>
       </div>
@@ -629,11 +760,11 @@ function App() {
               {llmConfig.voiceEnabled && (
                 <>
                   <div style={{ fontSize: '14px', marginBottom: '8px' }}>
-                    <strong>Voice:</strong> {llmConfig.voiceType === 'nova-sonic' ? 'Nova 2 Sonic' : 
+                    <strong>Voice:</strong> {llmConfig.voiceType === 'nova-sonic' ? 'Nova 2 Sonic' :
                       llmConfig.voiceType === 'sonic' ? 'Nova 2 Sonic' :
-                      llmConfig.voiceType === 'nova' ? 'Nova 2 Sonic' :
-                      llmConfig.voiceType === 'ruth' ? 'Nova 2 Sonic (Ruth)' :
-                      llmConfig.voiceType ? llmConfig.voiceType.charAt(0).toUpperCase() + llmConfig.voiceType.slice(1) : 'Default'} 
+                        llmConfig.voiceType === 'nova' ? 'Nova 2 Sonic' :
+                          llmConfig.voiceType === 'ruth' ? 'Nova 2 Sonic (Ruth)' :
+                            llmConfig.voiceType ? llmConfig.voiceType.charAt(0).toUpperCase() + llmConfig.voiceType.slice(1) : 'Default'}
                     {llmConfig.provider === 'bedrock' && ' (Nova 2 Sonic)'}
                     {llmConfig.provider === 'openai' && ' (OpenAI TTS)'}
                   </div>
@@ -706,38 +837,38 @@ function App() {
                 />
               )}
 
-          {workflowState === 'clarification' && (
-            <ClarificationQuestions
-              questions={clarificationQuestions}
-              currentQuestionIndex={questionCount - clarificationQuestions.length}
-              totalQuestions={questionCount}
-              onAnswer={handleClarificationAnswer}
-              onSkipInterview={handleSkipInterview}
-              onStartFresh={handleStartFresh}
-              onVoiceRecord={() => setShowVoiceRecorder(true)}
-              isProcessing={isProcessing}
-              showVoiceButton={shouldShowVoiceButton()}
-              streamingMode={voiceConfig?.streamingMode || false}
-            />
-          )}
+              {workflowState === 'clarification' && (
+                <ClarificationQuestions
+                  questions={clarificationQuestions}
+                  currentQuestionIndex={questionCount - clarificationQuestions.length}
+                  totalQuestions={questionCount}
+                  onAnswer={handleClarificationAnswer}
+                  onSkipInterview={handleSkipInterview}
+                  onStartFresh={handleStartFresh}
+                  onVoiceRecord={() => setShowVoiceRecorder(true)}
+                  isProcessing={isProcessing}
+                  showVoiceButton={shouldShowVoiceButton()}
+                  streamingMode={voiceConfig?.streamingMode || false}
+                />
+              )}
 
-          {workflowState === 'result' && classification && (
-            <>
-              <ClassificationResult
-                classification={classification}
-                onSynthesize={voiceEnabled ? handleVoiceSynthesize : undefined}
-                voiceEnabled={voiceEnabled}
-                autoPlayVoice={false}
-              />
-              <FeedbackCapture
-                currentCategory={classification.category}
-                onConfirm={handleFeedbackConfirm}
-                onCorrect={handleFeedbackCorrect}
-                onRating={handleRating}
-                isProcessing={isProcessing}
-              />
-            </>
-          )}
+              {workflowState === 'result' && classification && (
+                <>
+                  <ClassificationResult
+                    classification={classification}
+                    onSynthesize={voiceEnabled ? handleVoiceSynthesize : undefined}
+                    voiceEnabled={voiceEnabled}
+                    autoPlayVoice={false}
+                  />
+                  <FeedbackCapture
+                    currentCategory={classification.category}
+                    onConfirm={handleFeedbackConfirm}
+                    onCorrect={handleFeedbackCorrect}
+                    onRating={handleRating}
+                    isProcessing={isProcessing}
+                  />
+                </>
+              )}
 
               {workflowState === 'submitted' && (
                 <div style={{
@@ -753,9 +884,51 @@ function App() {
                   <h2 style={{ marginTop: 0, marginBottom: '15px', color: '#155724' }}>
                     Thank You!
                   </h2>
-                  <p style={{ fontSize: '18px', color: '#155724', marginBottom: '30px' }}>
+                  <p style={{ fontSize: '18px', color: '#155724', marginBottom: '20px' }}>
                     Your submission has been recorded and will be reviewed by an administrator.
                   </p>
+                  
+                  {submissionReference && (
+                    <div style={{
+                      margin: '30px auto',
+                      padding: '20px',
+                      backgroundColor: '#fff',
+                      borderRadius: '6px',
+                      border: '1px solid #c3e6cb',
+                      maxWidth: '600px'
+                    }}>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        color: '#666', 
+                        marginBottom: '8px',
+                        fontWeight: '500'
+                      }}>
+                        Your Reference Number:
+                      </div>
+                      <div style={{
+                        fontSize: '20px',
+                        fontFamily: 'monospace',
+                        color: '#155724',
+                        fontWeight: 'bold',
+                        letterSpacing: '1px',
+                        padding: '10px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        border: '1px solid #dee2e6'
+                      }}>
+                        {submissionReference}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#666',
+                        marginTop: '12px',
+                        fontStyle: 'italic'
+                      }}>
+                        Please save this reference number to track your submission
+                      </div>
+                    </div>
+                  )}
+                  
                   <button
                     onClick={resetWorkflow}
                     style={{
@@ -766,7 +939,8 @@ function App() {
                       borderRadius: '4px',
                       fontSize: '16px',
                       fontWeight: 'bold',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      marginTop: '10px'
                     }}
                     onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
                     onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
@@ -800,7 +974,7 @@ function App() {
                       Start New Classification
                     </button>
                   </div>
-                  
+
                   {classification && (
                     <div style={{
                       maxWidth: '800px',
@@ -874,6 +1048,7 @@ function App() {
       {currentView === 'users' && userRole === 'admin' && (
         <UserManagement
           onLoadUsers={() => apiService.getUsers()}
+          onCreateUser={(username, password, role) => apiService.createUser(username, password, role)}
           onDeleteUser={(userId) => apiService.deleteUser(userId)}
           onChangeRole={(userId, newRole) => apiService.changeUserRole(userId, newRole)}
           onResetPassword={(userId, newPassword) => apiService.resetUserPassword(userId, newPassword)}
@@ -884,7 +1059,7 @@ function App() {
       {currentView === 'admin-review' && userRole === 'admin' && (
         <AdminReview
           onLoadPendingReviews={() => apiService.getPendingReviews()}
-          onSubmitReview={(sessionId, approved, correctedCategory, reviewNotes) => 
+          onSubmitReview={(sessionId, approved, correctedCategory, reviewNotes) =>
             apiService.submitAdminReview(sessionId, approved, correctedCategory, reviewNotes)
           }
           onLoadStats={() => apiService.getAdminReviewStats()}

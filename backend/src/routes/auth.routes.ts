@@ -261,6 +261,84 @@ router.put('/password', authenticateToken, async (req: AuthRequest, res: Respons
 });
 
 /**
+ * POST /api/auth/users
+ * Create a new user (admin only)
+ */
+router.post('/users', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Not authenticated'
+      });
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required'
+      });
+    }
+
+    const { username, password, role } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Username and password are required'
+      });
+    }
+
+    if (username.length < 3 || username.length > 50) {
+      return res.status(400).json({
+        error: 'Invalid username',
+        message: 'Username must be between 3 and 50 characters'
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: 'Invalid password',
+        message: 'Password must be at least 8 characters'
+      });
+    }
+
+    if (role && !['admin', 'user'].includes(role)) {
+      return res.status(400).json({
+        error: 'Invalid role',
+        message: 'Role must be either "admin" or "user"'
+      });
+    }
+
+    // Admin can create users with any role
+    const user = await userService.createUser(username, password, role || 'user');
+
+    // Don't return password hash
+    const { passwordHash, ...safeUser } = user;
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: safeUser
+    });
+  } catch (error) {
+    console.error('Create user error:', error);
+    
+    if (error instanceof Error && error.message === 'Username already exists') {
+      return res.status(409).json({
+        error: 'Username already exists',
+        message: 'Please choose a different username'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create user',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * GET /api/auth/users
  * List all users (admin only)
  */

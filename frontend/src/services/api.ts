@@ -894,6 +894,14 @@ class ApiService {
     return response.users || [];
   }
 
+  async createUser(username: string, password: string, role: 'admin' | 'user'): Promise<any> {
+    const response = await this.request<any>('/api/auth/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role })
+    });
+    return response.user;
+  }
+
   async changeUserRole(userId: string, newRole: 'admin' | 'user'): Promise<void> {
     await this.request(`/api/auth/users/${userId}/role`, {
       method: 'PUT',

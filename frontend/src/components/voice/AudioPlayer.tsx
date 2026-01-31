@@ -35,16 +35,20 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [hasStarted, setHasStarted] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Generate audio on mount or when text changes
+  // Generate audio on mount only if autoPlay is true
   useEffect(() => {
-    if (text) {
+    if (text && autoPlay) {
+      setHasStarted(true);
       generateAudio();
     }
-    
+    // If text changes, we reset (unless autoPlay)
+    // But we need to handle text updates carefully.
+
     return () => {
       // Cleanup: revoke audio URL and stop playback
       if (audioUrl) {
@@ -59,7 +63,19 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  }, [text, autoPlay]);
+
+  // Handle text changes - reset state if text changes
+  useEffect(() => {
+    if (!autoPlay) {
+      setHasStarted(false);
+      setAudioUrl(null);
+      setError(null);
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [text, autoPlay]);
 
   // Auto-play when audio is ready
   useEffect(() => {
@@ -72,21 +88,25 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const generateAudio = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const audioBlob = await apiService.synthesizeSpeech(text);
+      const audioBlob = await apiService.synthesizeSpeech(text, voiceType);
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
-      
+
       // Create audio element
       const audio = new Audio(url);
       audioRef.current = audio;
-      
+
       // Set up event listeners
       audio.addEventListener('loadedmetadata', () => {
         setDuration(audio.duration);
+        // If this was user-initiated (hasStarted), auto-play once generated
+        if (hasStarted || autoPlay) {
+          handlePlay();
+        }
       });
-      
+
       audio.addEventListener('ended', () => {
         setIsPlaying(false);
         setCurrentTime(0);
@@ -97,7 +117,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           onPlaybackComplete();
         }
       });
-      
+
       audio.addEventListener('error', (e) => {
         const errorMsg = 'Audio playback failed';
         setError(errorMsg);
@@ -106,7 +126,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           onError(new Error(errorMsg));
         }
       });
-      
+
     } catch (err: any) {
       const errorMsg = err.message || 'Failed to generate audio';
       setError(errorMsg);
@@ -118,12 +138,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   };
 
+  const handleInitialPlay = () => {
+    setHasStarted(true);
+    generateAudio();
+  };
+
   const handlePlay = () => {
     if (!audioRef.current) return;
-    
+
     audioRef.current.play().then(() => {
       setIsPlaying(true);
-      
+
       // Start progress tracking
       progressIntervalRef.current = setInterval(() => {
         if (audioRef.current) {
@@ -141,10 +166,10 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handlePause = () => {
     if (!audioRef.current) return;
-    
+
     audioRef.current.pause();
     setIsPlaying(false);
-    
+
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
     }
@@ -152,12 +177,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handleStop = () => {
     if (!audioRef.current) return;
-    
+
     audioRef.current.pause();
     audioRef.current.currentTime = 0;
     setIsPlaying(false);
     setCurrentTime(0);
-    
+
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
     }
@@ -165,7 +190,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handleRepeat = () => {
     if (!audioRef.current) return;
-    
+
     audioRef.current.currentTime = 0;
     setCurrentTime(0);
     handlePlay();
@@ -173,12 +198,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const percentage = clickX / rect.width;
     const newTime = percentage * duration;
-    
+
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -193,27 +218,102 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   if (isLoading) {
     return (
-      <div role="status" aria-live="polite" style={{ padding: '15px', textAlign: 'center', color: '#6c757d' }}>
-        <div style={{ marginBottom: '8px' }}>⏳ Generating audio...</div>
+      <div role="status" aria-live="polite" style={{
+        padding: '10px 15px',
+        textAlign: 'center',
+        color: '#6c757d',
+        backgroundColor: '#f8f9fa',
+        border: '1px solid #dee2e6',
+        borderRadius: '4px',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <div style={{
+          width: '12px',
+          height: '12px',
+          border: '2px solid #6c757d',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        Generating audio...
+        <style>{`
+           @keyframes spin {
+             0% { transform: rotate(0deg); }
+             100% { transform: rotate(360deg); }
+           }
+         `}</style>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div
-        role="alert"
-        aria-live="assertive"
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div
+          role="alert"
+          style={{
+            padding: '10px',
+            backgroundColor: '#f8d7da',
+            color: '#721c24',
+            borderRadius: '4px',
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <span>⚠️ {error}</span>
+        </div>
+        <button
+          onClick={handleInitialPlay}
+          style={{
+            padding: '6px 12px',
+            backgroundColor: '#6c757d',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            fontSize: '13px',
+            cursor: 'pointer',
+            alignSelf: 'flex-start'
+          }}
+        >
+          🔄 Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!hasStarted && !autoPlay) {
+    return (
+      <button
+        onClick={handleInitialPlay}
+        title="Read Question Aloud"
         style={{
-          padding: '12px',
-          backgroundColor: '#f8d7da',
-          color: '#721c24',
+          padding: '8px 16px',
+          backgroundColor: '#f8f9fa',
+          color: '#333',
+          border: '1px solid #dee2e6',
           borderRadius: '4px',
-          fontSize: '13px',
+          cursor: 'pointer',
+          fontSize: '14px',
+          fontWeight: '500',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          transition: 'all 0.2s'
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.backgroundColor = '#e2e6ea';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.backgroundColor = '#f8f9fa';
         }}
       >
-        ⚠️ {error}
-      </div>
+        🔊 Play Question
+      </button>
     );
   }
 
@@ -277,7 +377,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
             ⏸️ Pause
           </button>
         )}
-        
+
         <button
           onClick={handleStop}
           aria-label="Stop audio"
@@ -298,7 +398,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         >
           ⏹️ Stop
         </button>
-        
+
         <button
           onClick={handleRepeat}
           aria-label="Repeat audio from beginning"
@@ -319,13 +419,13 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         >
           🔁 Repeat
         </button>
-        
+
         {/* Time display */}
         <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#6c757d', fontFamily: 'monospace' }}>
           {formatTime(currentTime)} / {formatTime(duration)}
         </div>
       </div>
-      
+
       {/* Progress bar */}
       <div
         onClick={handleProgressClick}

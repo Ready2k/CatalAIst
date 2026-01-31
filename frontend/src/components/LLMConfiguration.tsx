@@ -46,6 +46,11 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     console.log('[Frontend] Models state changed:', models.length, 'models', models.map(m => m.id));
   }, [models]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   
   // AWS Bedrock
   const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
@@ -66,6 +71,56 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   // Model filtering options
   const [showProvisionedModels, setShowProvisionedModels] = useState(false);
   const [showInferenceProfiles, setShowInferenceProfiles] = useState(true);
+
+  // Load persisted configuration on mount
+  useEffect(() => {
+    const storedConfig = sessionStorage.getItem('llmConfigDraft');
+    if (storedConfig) {
+      try {
+        const config = JSON.parse(storedConfig);
+        console.log('[LLMConfig] Restoring saved configuration:', config);
+        
+        setProvider(config.provider || 'openai');
+        setModel(config.model || 'gpt-4');
+        
+        if (config.provider === 'openai') {
+          setApiKey(config.apiKey || '');
+        } else {
+          setAwsAccessKeyId(config.awsAccessKeyId || '');
+          setAwsSecretAccessKey(config.awsSecretAccessKey || '');
+          setAwsSessionToken(config.awsSessionToken || '');
+          setAwsRegion(config.awsRegion || 'us-east-1');
+          setUseRegionalInference(config.useRegionalInference || false);
+          setRegionalInferenceEndpoint(config.regionalInferenceEndpoint || '');
+        }
+        
+        setVoiceType(config.voiceType || 'alloy');
+        setStreamingMode(config.streamingMode || false);
+      } catch (err) {
+        console.warn('[LLMConfig] Failed to restore configuration:', err);
+      }
+    }
+  }, []);
+
+  // Persist configuration changes
+  useEffect(() => {
+    const config = {
+      provider,
+      model,
+      apiKey: provider === 'openai' ? apiKey : undefined,
+      awsAccessKeyId: provider === 'bedrock' ? awsAccessKeyId : undefined,
+      awsSecretAccessKey: provider === 'bedrock' ? awsSecretAccessKey : undefined,
+      awsSessionToken: provider === 'bedrock' ? awsSessionToken : undefined,
+      awsRegion: provider === 'bedrock' ? awsRegion : undefined,
+      useRegionalInference: provider === 'bedrock' ? useRegionalInference : undefined,
+      regionalInferenceEndpoint: provider === 'bedrock' ? regionalInferenceEndpoint : undefined,
+      voiceType,
+      streamingMode,
+    };
+    
+    sessionStorage.setItem('llmConfigDraft', JSON.stringify(config));
+  }, [provider, model, apiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, 
+      awsRegion, useRegionalInference, regionalInferenceEndpoint, voiceType, streamingMode]);
 
   // Default models - defined outside useEffect to avoid dependency issues
   const openAIModels = React.useMemo(() => [
@@ -199,6 +254,54 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       setError('Failed to fetch models. Using default list. Check your credentials and permissions.');
     } finally {
       setLoadingModels(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setTestingConnection(true);
+    setConnectionTestResult(null);
+    setError('');
+    
+    try {
+      const response = await fetch('/api/public/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          model, // Include selected model
+          apiKey: provider === 'openai' ? apiKey : undefined,
+          awsAccessKeyId: provider === 'bedrock' ? awsAccessKeyId : undefined,
+          awsSecretAccessKey: provider === 'bedrock' ? awsSecretAccessKey : undefined,
+          awsSessionToken: provider === 'bedrock' ? awsSessionToken : undefined,
+          awsRegion: provider === 'bedrock' ? awsRegion : undefined,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setConnectionTestResult({
+          success: true,
+          message: `✓ ${data.message} (${data.duration}ms)`,
+        });
+      } else {
+        setConnectionTestResult({
+          success: false,
+          message: `✗ ${data.error}`,
+        });
+        setError(data.error);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
+      setConnectionTestResult({
+        success: false,
+        message: `✗ ${errorMsg}`,
+      });
+      setError(errorMsg);
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -341,28 +444,63 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
 
       {provider === 'openai' && apiKey && apiKey.startsWith('sk-') && apiKey.length >= 20 && (
         <div style={{ marginBottom: '15px' }}>
-          <button
-            type="button"
-            onClick={() => loadOpenAIModels(apiKey)}
-            disabled={loadingModels}
-            style={{
-              width: '100%',
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={testConnection}
+              disabled={testingConnection}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: testingConnection ? '#6c757d' : '#17a2b8',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: testingConnection ? 'wait' : 'pointer',
+              }}
+              onMouseOver={(e) => !testingConnection && (e.currentTarget.style.backgroundColor = '#138496')}
+              onMouseOut={(e) => !testingConnection && (e.currentTarget.style.backgroundColor = '#17a2b8')}
+            >
+              {testingConnection ? '⏳ Testing...' : '🔌 Test Connection'}
+            </button>
+            <button
+              type="button"
+              onClick={() => loadOpenAIModels(apiKey)}
+              disabled={loadingModels}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: loadingModels ? '#6c757d' : '#28a745',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: loadingModels ? 'wait' : 'pointer',
+              }}
+              onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
+              onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
+            >
+              {loadingModels ? '⏳ Fetching...' : '🔄 Fetch Models'}
+            </button>
+          </div>
+          {connectionTestResult && (
+            <div style={{
+              marginTop: '10px',
               padding: '10px',
-              backgroundColor: loadingModels ? '#6c757d' : '#28a745',
-              color: '#fff',
-              border: 'none',
               borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: loadingModels ? 'wait' : 'pointer',
-            }}
-            onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
-            onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
-          >
-            {loadingModels ? '⏳ Fetching Models...' : '🔄 Fetch Available Models'}
-          </button>
+              fontSize: '13px',
+              backgroundColor: connectionTestResult.success ? '#d4edda' : '#f8d7da',
+              color: connectionTestResult.success ? '#155724' : '#721c24',
+              border: `1px solid ${connectionTestResult.success ? '#c3e6cb' : '#f5c6cb'}`,
+            }}>
+              {connectionTestResult.message}
+            </div>
+          )}
           <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-            Click to fetch models from your OpenAI account
+            Test your credentials or fetch available models
           </div>
         </div>
       )}
@@ -415,28 +553,63 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
 
       {provider === 'bedrock' && awsAccessKeyId && awsSecretAccessKey && (
         <div style={{ marginBottom: '15px' }}>
-          <button
-            type="button"
-            onClick={loadBedrockModels}
-            disabled={loadingModels}
-            style={{
-              width: '100%',
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={testConnection}
+              disabled={testingConnection}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: testingConnection ? '#6c757d' : '#17a2b8',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: testingConnection ? 'wait' : 'pointer',
+              }}
+              onMouseOver={(e) => !testingConnection && (e.currentTarget.style.backgroundColor = '#138496')}
+              onMouseOut={(e) => !testingConnection && (e.currentTarget.style.backgroundColor = '#17a2b8')}
+            >
+              {testingConnection ? '⏳ Testing...' : '🔌 Test Connection'}
+            </button>
+            <button
+              type="button"
+              onClick={loadBedrockModels}
+              disabled={loadingModels}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: loadingModels ? '#6c757d' : '#28a745',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: loadingModels ? 'wait' : 'pointer',
+              }}
+              onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
+              onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
+            >
+              {loadingModels ? '⏳ Fetching...' : '🔄 Fetch Models'}
+            </button>
+          </div>
+          {connectionTestResult && (
+            <div style={{
+              marginTop: '10px',
               padding: '10px',
-              backgroundColor: loadingModels ? '#6c757d' : '#28a745',
-              color: '#fff',
-              border: 'none',
               borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: loadingModels ? 'wait' : 'pointer',
-            }}
-            onMouseOver={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#218838')}
-            onMouseOut={(e) => !loadingModels && (e.currentTarget.style.backgroundColor = '#28a745')}
-          >
-            {loadingModels ? '⏳ Fetching Models...' : '🔄 Fetch Available Models'}
-          </button>
+              fontSize: '13px',
+              backgroundColor: connectionTestResult.success ? '#d4edda' : '#f8d7da',
+              color: connectionTestResult.success ? '#155724' : '#721c24',
+              border: `1px solid ${connectionTestResult.success ? '#c3e6cb' : '#f5c6cb'}`,
+            }}>
+              {connectionTestResult.message}
+            </div>
+          )}
           <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-            Click to fetch models available in {awsRegion}
+            Test your credentials or fetch models available in {awsRegion}
           </div>
         </div>
       )}

@@ -461,7 +461,7 @@ export class BedrockService implements ILLMProvider {
     });
 
     // Convert Bedrock model summaries to ModelInfo format
-    // Include ALL models - let the frontend decide what to show
+    // Include ALL models - let the frontend filter based on user preference
     const filteredModels = response.modelSummaries
       .filter((model: FoundationModelSummary) => {
         if (!model.modelId) {
@@ -469,9 +469,9 @@ export class BedrockService implements ILLMProvider {
         }
         
         // Log model type for debugging
+        const supportsOnDemand = model.inferenceTypesSupported?.includes('ON_DEMAND');
         const requiresProvisioned = model.inferenceTypesSupported?.includes('PROVISIONED') && 
                                     !model.inferenceTypesSupported?.includes('ON_DEMAND');
-        const supportsOnDemand = model.inferenceTypesSupported?.includes('ON_DEMAND');
         
         console.log(`[Bedrock]   ${model.modelId}: OnDemand=${supportsOnDemand}, RequiresProvisioned=${requiresProvisioned}`);
         

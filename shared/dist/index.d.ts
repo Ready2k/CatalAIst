@@ -1595,8 +1595,8 @@ export declare const AnalyticsMetricsSchema: z.ZodObject<{
     alertTriggered: boolean;
 }>;
 export declare const SessionFiltersSchema: z.ZodObject<{
-    dateFrom: z.ZodOptional<z.ZodString>;
-    dateTo: z.ZodOptional<z.ZodString>;
+    dateFrom: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
+    dateTo: z.ZodEffects<z.ZodOptional<z.ZodString>, string | undefined, string | undefined>;
     category: z.ZodOptional<z.ZodEnum<["Eliminate", "Simplify", "Digitise", "RPA", "AI Agent", "Agentic AI"]>>;
     subject: z.ZodOptional<z.ZodString>;
     model: z.ZodOptional<z.ZodString>;

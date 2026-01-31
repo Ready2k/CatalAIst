@@ -209,10 +209,7 @@ router.post('/submit', async (req: Request, res: Response) => {
       const questionTexts = clarificationResponse.questions.map(q => q.question);
 
       // If no questions were generated, proceed to classification instead
-      if (questionTexts.length === 0) {
-        console.log('No clarification questions generated, proceeding to classification');
-        // Continue to classification below
-      } else {
+      if (questionTexts.length > 0) {
         // Scrub PII from questions
         const scrubbedQuestions = await Promise.all(
           questionTexts.map(q => piiService.scrubOnly(q))
@@ -243,6 +240,9 @@ router.post('/submit', async (req: Request, res: Response) => {
           totalQuestions: questionTexts.length,
           responseTime: Date.now() - startTime
         });
+      } else {
+        console.log('No clarification questions generated, proceeding to classification');
+        // Fall through to classification logic below
       }
     }
 

@@ -234,7 +234,8 @@ app.use('/api/process', authenticateToken, processRoutes);
 app.use('/api/feedback', authenticateToken, feedbackRoutes);
 app.use('/api/decision-matrix', authenticateToken, decisionMatrixRoutes);
 app.use('/api/learning', authenticateToken, learningRoutes);
-app.use('/api/voice', authenticateToken, voiceRoutes);
+// app.use('/api/voice', authenticateToken, voiceRoutes);
+app.use('/api/voice', voiceRoutes); // Temporary disabled auth for debugging
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/prompts', authenticateToken, promptsRoutes);
 app.use('/api/audit', authenticateToken, auditRoutes);

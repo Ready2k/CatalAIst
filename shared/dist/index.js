@@ -232,8 +232,18 @@ exports.AnalyticsMetricsSchema = zod_1.z.object({
 });
 // Enhanced Analytics Schemas
 exports.SessionFiltersSchema = zod_1.z.object({
-    dateFrom: zod_1.z.string().datetime().optional(),
-    dateTo: zod_1.z.string().datetime().optional(),
+    dateFrom: zod_1.z.string().optional().refine((val) => {
+        if (!val)
+            return true;
+        // Accept both ISO datetime and date-only formats
+        return !isNaN(Date.parse(val));
+    }, { message: 'Invalid date format' }),
+    dateTo: zod_1.z.string().optional().refine((val) => {
+        if (!val)
+            return true;
+        // Accept both ISO datetime and date-only formats
+        return !isNaN(Date.parse(val));
+    }, { message: 'Invalid date format' }),
     category: exports.TransformationCategorySchema.optional(),
     subject: zod_1.z.string().optional(),
     model: zod_1.z.string().optional(),

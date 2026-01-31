@@ -519,8 +519,16 @@ export const AnalyticsMetricsSchema = z.object({
 // Enhanced Analytics Schemas
 
 export const SessionFiltersSchema = z.object({
-  dateFrom: z.string().datetime().optional(),
-  dateTo: z.string().datetime().optional(),
+  dateFrom: z.string().optional().refine((val: string | undefined) => {
+    if (!val) return true;
+    // Accept both ISO datetime and date-only formats
+    return !isNaN(Date.parse(val));
+  }, { message: 'Invalid date format' }),
+  dateTo: z.string().optional().refine((val: string | undefined) => {
+    if (!val) return true;
+    // Accept both ISO datetime and date-only formats
+    return !isNaN(Date.parse(val));
+  }, { message: 'Invalid date format' }),
   category: TransformationCategorySchema.optional(),
   subject: z.string().optional(),
   model: z.string().optional(),

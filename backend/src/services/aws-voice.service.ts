@@ -191,131 +191,217 @@ export class AWSVoiceService {
     voice: string,
     config: LLMProviderConfig
   ): Promise<Buffer> {
+    console.log('[Nova 2 Sonic] Synthesizing speech from text (bidirectional stream)... START');
     const { InvokeModelWithBidirectionalStreamCommand } = await import('@aws-sdk/client-bedrock-runtime');
+    const bedrockClient = this.createBedrockClient(config);
 
-    return this.withRetry(async () => {
-      const bedrockClient = this.createBedrockClient(config);
+    try {
+      const sessionId = uuidv4();
+      const promptName = uuidv4();
+      const contentName = uuidv4();
+      const silenceContentId = uuidv4();
+      const systemContentId = uuidv4();
+      const effectiveVoiceId = (voice === 'nova-sonic' || !voice) ? 'ruth' : voice;
 
-      console.log('[Nova 2 Sonic] Synthesizing speech from text (bidirectional stream)...');
-
-      try {
-        const sessionId = uuidv4();
-        const promptName = uuidv4();
-        const contentName = uuidv4();
-
-        // Queued events to establish session and request speech
-        const eventsQueue = [
-          // 1. Session Start
-          {
-            sessionStart: {
-              inferenceConfiguration: { maxTokens: 1024 }
-            }
-          },
-          // 2. Prompt Start - configuration including audio format
-          {
-            promptStart: {
-              promptName,
-              textOutputConfiguration: { mediaType: 'text/plain' },
-              audioOutputConfiguration: {
-                audioType: 'SPEECH',
-                mediaType: 'audio/mpeg', // Request MP3 directly
-                encoding: 'base64',
-                sampleRateHertz: 24000
-              }
-            }
-          },
-          // 3. Content Start
-          {
-            contentStart: {
-              promptName,
-              contentName,
-              type: 'TEXT',
-              role: 'USER'
-            }
-          },
-          // 4. Text Input
-          {
-            textInput: {
-              promptName,
-              contentName,
-              content: text
-            }
-          },
-          // 5. Content End
-          {
-            contentEnd: {
-              promptName,
-              contentName
+      // Queued events to establish session and request speech
+      const eventsQueue = [
+        // 1. Session Start
+        {
+          sessionStart: {
+            inferenceConfiguration: {
+              maxTokens: 1024,
+              topP: 0.9,
+              temperature: 0.7
             }
           }
-        ];
-
-        // Create async iterator for input stream
-        const asyncIterable: any = {
-          [Symbol.asyncIterator]: () => {
-            let index = 0;
-            return {
-              next: async () => {
-                if (index >= eventsQueue.length) {
-                  return { value: undefined, done: true };
-                }
-                const event = eventsQueue[index++];
-
-                return {
-                  value: {
-                    chunk: {
-                      bytes: new TextEncoder().encode(JSON.stringify(event))
-                    }
-                  },
-                  done: false
-                };
-              }
-            };
-          }
-        };
-
-        const command = new InvokeModelWithBidirectionalStreamCommand({
-          modelId: this.NOVA_SONIC_MODEL_ID,
-          body: asyncIterable,
-        });
-
-        const response = await bedrockClient.send(command);
-
-        if (!response.body) {
-          throw new Error('No response body from Nova 2 Sonic');
-        }
-
-        // Process the streaming response to extract audio
-        const audioChunks: Buffer[] = [];
-
-        for await (const event of response.body) {
-          if (event.chunk?.bytes) {
-            try {
-              const chunkData = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
-
-              const audioBase64 = chunkData.event?.audioOutput?.content || chunkData.event?.audioOutput;
-              if (audioBase64) {
-                audioChunks.push(Buffer.from(audioBase64, 'base64'));
-              }
-            } catch (e) {
-              // Ignore parse errors for partial chunks
+        },
+        // 2. Prompt Start
+        {
+          promptStart: {
+            promptName,
+            textOutputConfiguration: { mediaType: 'text/plain' },
+            audioOutputConfiguration: {
+              audioType: 'SPEECH',
+              encoding: 'base64',
+              mediaType: 'audio/lpcm',
+              sampleRateHertz: 24000,
+              sampleSizeBits: 16,
+              channelCount: 1,
+              voiceId: effectiveVoiceId
             }
           }
+        },
+        // 3. System Prompt
+        {
+          contentStart: {
+            promptName,
+            contentName: systemContentId,
+            type: 'TEXT',
+            interactive: false,
+            role: 'SYSTEM',
+            textInputConfiguration: { mediaType: 'text/plain' }
+          }
+        },
+        {
+          textInput: {
+            promptName,
+            contentName: systemContentId,
+            content: `You are a text-to-speech engine. Please read the user's input aloud exactly as written, word for word. Do not answer questions. Do not add any introductory text.`
+          }
+        },
+        {
+          contentEnd: {
+            promptName,
+            contentName: systemContentId
+          }
+        },
+        // 4. Start Audio Context (Interactive - Mimic Streaming Open)
+        {
+          contentStart: {
+            promptName,
+            contentName: silenceContentId,
+            type: 'AUDIO',
+            role: 'USER',
+            interactive: true,
+            audioInputConfiguration: {
+              audioType: 'SPEECH',
+              encoding: 'base64',
+              mediaType: 'audio/lpcm',
+              sampleRateHertz: 16000,
+              sampleSizeBits: 16,
+              channelCount: 1
+            }
+          }
+        },
+        // Inject 1s Silence
+        {
+          audioInput: {
+            promptName,
+            contentName: silenceContentId,
+            content: Buffer.alloc(32000, 0).toString('base64')
+          }
+        },
+        // DO NOT END AUDIO YET - Keep open while sending text
+
+        // 5. User Text (Sent while audio stream is "active")
+        {
+          contentStart: {
+            promptName,
+            contentName,
+            type: 'TEXT',
+            role: 'USER',
+            interactive: true,
+            textInputConfiguration: { mediaType: 'text/plain' }
+          }
+        },
+        {
+          textInput: {
+            promptName,
+            contentName,
+            content: `Role: Interviewer - ask the following text in a professional way\nText: "${text}"\nDO NOT ask any more questions and DO NOT expect a response`
+          }
+        },
+        {
+          contentEnd: {
+            promptName,
+            contentName
+          }
+        },
+
+        // 6. NOW End Audio (Signal end of user turn audio)
+        {
+          contentEnd: {
+            promptName,
+            contentName: silenceContentId
+          }
+        },
+
+        // 7. Prompt End
+        {
+          promptEnd: {
+            promptName
+          }
         }
+      ];
 
-        if (audioChunks.length === 0) {
-          console.warn('[Nova 2 Sonic] No audio data received, returning empty buffer');
-          return Buffer.alloc(0);
+      // Generator for input stream (Fixes AsyncIterable usage)
+      async function* eventGenerator() {
+        for (const event of eventsQueue) {
+          // Nova 2 Sonic expects the event object to be wrapped in a 'chunk' property
+          // with 'bytes' containing the JSON stringified event.
+          yield {
+            chunk: {
+              bytes: new TextEncoder().encode(JSON.stringify({ event }))
+            }
+          };
         }
+      }
 
-        return Buffer.concat(audioChunks);
+      console.log(`[Nova 2 Sonic] Sending ${eventsQueue.length} events...`);
 
-      } catch (error) {
-        console.error('[Nova 2 Sonic] Error synthesizing speech:', error);
-        console.warn('[Nova 2 Sonic] Returning empty buffer due to synthesis error');
+      const response = await bedrockClient.send(new InvokeModelWithBidirectionalStreamCommand({
+        modelId: 'amazon.nova-2-sonic-v1:0',
+        body: eventGenerator()
+      }));
+
+      if (!response.body) {
+        throw new Error('No response body from Nova 2 Sonic');
+      }
+
+      const audioChunks: Buffer[] = [];
+
+      for await (const chunk of response.body) {
+        if (chunk.chunk && chunk.chunk.bytes) {
+          const textDecoder = new TextDecoder('utf-8');
+          const textData = textDecoder.decode(chunk.chunk.bytes);
+
+          try {
+            const jsonEvent = JSON.parse(textData);
+
+            if (jsonEvent.event?.audioOutput) {
+              const audioBase64 = jsonEvent.event.audioOutput.content || jsonEvent.event.audioOutput;
+              const audioBuffer = Buffer.from(audioBase64, 'base64');
+              audioChunks.push(audioBuffer);
+            } else if (jsonEvent.event?.textOutput) {
+              console.log(`[Nova 2 Sonic] Text Output: ${JSON.stringify(jsonEvent.event.textOutput)}`);
+            } else if (jsonEvent.modelStreamErrorException || jsonEvent.internalServerException) {
+              console.error(`[Nova 2 Sonic] Error Event:`, jsonEvent);
+            }
+          } catch (e) {
+            // Ignore non-JSON chunks or malformed JSON
+          }
+        }
+      }
+
+      if (audioChunks.length === 0) {
+        console.warn('[Nova 2 Sonic] No audio data received, returning empty buffer');
         return Buffer.alloc(0);
       }
-    });
+
+      const pcmBuffer = Buffer.concat(audioChunks);
+
+      // Create WAV Header
+      const header = Buffer.alloc(44);
+      header.write('RIFF', 0);
+      header.writeUInt32LE(36 + pcmBuffer.length, 4);
+      header.write('WAVE', 8);
+      header.write('fmt ', 12);
+      header.writeUInt32LE(16, 16);
+      header.writeUInt16LE(1, 20);
+      header.writeUInt16LE(1, 22);
+      header.writeUInt32LE(24000, 24);
+      header.writeUInt32LE(24000 * 1 * 2, 28);
+      header.writeUInt16LE(2, 32);
+      header.writeUInt16LE(16, 34);
+      header.write('data', 36);
+      header.writeUInt32LE(pcmBuffer.length, 40);
+
+      return Buffer.concat([header, pcmBuffer]);
+
+    } catch (error: any) {
+      console.error('[Nova 2 Sonic] Error synthesizing speech:', error);
+      return Buffer.alloc(0);
+    }
   }
 
   /**

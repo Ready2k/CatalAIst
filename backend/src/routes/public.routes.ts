@@ -11,6 +11,109 @@ const bedrockService = new BedrockService();
 const auditLogService = new AuditLogService(dataDir);
 
 /**
+ * POST /api/public/test-connection
+ * Test LLM provider connection by making a simple chat completion request
+ * Public endpoint - no authentication required
+ * Used to validate credentials and model access before saving configuration
+ */
+router.post('/test-connection', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  const { provider, model, apiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, awsRegion } = req.body;
+
+  console.log('[PublicRoutes] /test-connection request:', { provider, model, awsRegion });
+
+  try {
+    if (provider === 'openai') {
+      if (!apiKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing API key'
+        });
+      }
+
+      if (!model) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing model selection'
+        });
+      }
+
+      // Test by making a simple chat completion request
+      const testMessage = [{ role: 'user' as const, content: 'Hello' }];
+      await openaiService.chat(testMessage, model, { provider: 'openai', apiKey });
+      
+      return res.json({
+        success: true,
+        message: `OpenAI connection successful with model ${model}`,
+        model,
+        duration: Date.now() - startTime
+      });
+    } else if (provider === 'bedrock') {
+      if (!awsAccessKeyId || !awsSecretAccessKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing AWS credentials'
+        });
+      }
+
+      if (!model) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing model selection'
+        });
+      }
+
+      // Test by making a simple chat completion request
+      const testMessage = [{ role: 'user' as const, content: 'Hello' }];
+      await bedrockService.chat(testMessage, model, {
+        provider: 'bedrock',
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion: awsRegion || 'us-east-1'
+      });
+
+      return res.json({
+        success: true,
+        message: `AWS Bedrock connection successful with model ${model}`,
+        model,
+        region: awsRegion || 'us-east-1',
+        duration: Date.now() - startTime
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider'
+      });
+    }
+  } catch (error) {
+    console.error('Connection test failed:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Connection test failed';
+    if (error instanceof Error) {
+      if (error.message.includes('Provisioned Throughput') || error.message.includes('provisioned throughput')) {
+        errorMessage = `Model ${model} requires Provisioned Throughput. Please select a different model or configure Provisioned Throughput in AWS.`;
+      } else if (error.message.includes('not authorized') || error.message.includes('AccessDenied')) {
+        errorMessage = 'Access denied. Check your credentials and IAM permissions.';
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        errorMessage = `Model ${model} not found or not available in ${awsRegion || 'us-east-1'}. Try fetching models to see available options.`;
+      } else if (error.message.includes('Invalid API key')) {
+        errorMessage = 'Invalid API key. Please check your credentials.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
+    return res.status(500).json({
+      success: false,
+      error: errorMessage,
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+/**
  * GET /api/public/models
  * List available models (OpenAI or Bedrock)
  * Public endpoint - no authentication required
@@ -560,6 +663,463 @@ stopBtn.onclick = stopRecording;
         </div>
         <h3>Conversation:</h3>
         <div id="transcription" class="transcription-box"></div>
+        <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            <strong>Debug Info:</strong>
+            <pre id="debugLog"></pre>
+        </div>
+    </div>
+    <script>
+    ${jsContent}
+    </script>
+</body>
+</html>`;
+
+  res.send(html);
+});
+
+
+/**
+ * GET /api/public/nova-sonic-text-test
+ * Serve microphone AND text test page with injected credentials
+ * Public endpoint for local testing
+ */
+router.get('/nova-sonic-text-test', (req: Request, res: Response) => {
+  const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const awsSessionToken = process.env.AWS_SESSION_TOKEN || '';
+
+  if (!awsAccessKeyId || !awsSecretAccessKey) {
+    return res.status(500).send('AWS Credentials not configured on server');
+  }
+
+  const jsContent = `
+/**
+ * Text & Microphone Test Script for Nova 2 Sonic
+ * Handles AudioContext, Downsampling, and WebSockets
+ */
+
+const WS_URL = 'ws://localhost:4000/api/nova-sonic/stream';
+let ws = null;
+let audioContext = null;
+let mediaStream = null;
+let workletNode = null;
+let isRecording = false;
+let sessionId = null;
+
+// AWS Credentials injected by server
+const AWS_CONFIG = {
+  accessKeyId: "${awsAccessKeyId}",
+  secretAccessKey: "${awsSecretAccessKey}",
+  sessionToken: "${awsSessionToken}"
+};
+
+// UI Elements
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const sendTextBtn = document.getElementById('sendTextBtn');
+const userInput = document.getElementById('userInput');
+const statusDiv = document.getElementById('connectionStatus');
+const transcriptDiv = document.getElementById('transcription');
+const micLevelDiv = document.getElementById('micLevel');
+const debugLog = document.getElementById('debugLog');
+
+function log(msg) {
+    console.log(msg);
+    const line = document.createElement('div');
+    line.textContent = \`\${new Date().toLocaleTimeString()} - \${msg}\`;
+    debugLog.prepend(line);
+}
+
+function updateStatus(text, type) {
+    statusDiv.textContent = text;
+    statusDiv.className = \`status \${type}\`;
+}
+
+// Initialize WebSocket
+async function connectWebSocket() {
+    return new Promise((resolve, reject) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            resolve(ws);
+            return;
+        }
+
+        const socket = new WebSocket(WS_URL);
+        ws = socket;
+
+        socket.onopen = () => {
+            log('WebSocket Connected');
+            updateStatus('Connected', 'connected');
+            
+            const initMsg = {
+                type: 'initialize',
+                awsAccessKeyId: AWS_CONFIG.accessKeyId,
+                awsSecretAccessKey: AWS_CONFIG.secretAccessKey,
+                awsSessionToken: AWS_CONFIG.sessionToken || undefined,
+                awsRegion: 'us-east-1',
+                systemPrompt: 'You are a helpful assistant.',
+                userId: 'test-user-browser-text'
+            };
+            socket.send(JSON.stringify(initMsg));
+        };
+
+        socket.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            handleMessage(msg);
+        };
+
+        socket.onerror = (error) => {
+            log('WebSocket Error');
+            updateStatus('Connection Error', 'error');
+            reject(error);
+        };
+
+        socket.onclose = () => {
+            log('WebSocket Closed');
+            updateStatus('Disconnected', '');
+            if (ws === socket) {
+                ws = null;
+            }
+        };
+        
+        // Resolve when initialized or just open? 
+        // The original logic resolved on open, but we need session ID for text.
+        // Let's resolve on open and let handleMessage handle the initialized state.
+        resolve(socket);
+    });
+}
+
+let nextStartTime = 0;
+
+async function handleMessage(msg) {
+    if (msg.type === 'initialized') {
+        log(\`Session Initialized: \${msg.sessionId}\`);
+        sessionId = msg.sessionId;
+        startBtn.disabled = false;
+        sendTextBtn.disabled = false;
+        updateStatus('Ready', 'connected');
+    } else if (msg.type === 'transcription') {
+        transcriptDiv.textContent += \`\\n[You]: \${msg.text}\`;
+    } else if (msg.type === 'text_response') {
+        transcriptDiv.textContent += \`\\n[Nova]: \${msg.text}\`;
+    } else if (msg.type === 'audio_response') {
+        playPcmAudio(msg.audio);
+    } else if (msg.type === 'error') {
+        log(\`Error: \${msg.error}\`);
+        updateStatus(\`Error: \${msg.error}\`, 'error');
+    }
+}
+
+function playPcmAudio(base64) {
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    
+    // PCM 16-bit Little Endian
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    
+    for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+    }
+    
+    // Create buffer: 1 channel, 24kHz (Nova Sonic default)
+    const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
+    audioBuffer.getChannelData(0).set(float32);
+    
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    
+    const currentTime = audioContext.currentTime;
+    if (nextStartTime < currentTime) nextStartTime = currentTime;
+    source.start(nextStartTime);
+    nextStartTime += audioBuffer.duration;
+}
+
+// Audio Handling
+async function startRecording() {
+    try {
+        // Force new connection for each recording session to ensure fresh state?
+        // Or reuse if possible? Original code forced new connection. 
+        // We will stick to reuse if possible for text/audio mixing, OR force refresh if that was the fix for issues.
+        // Original: "Force new connection for each recording session"
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+        
+        await connectWebSocket();
+        
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        
+        // Load AudioWorklet for processing
+        mediaStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: { 
+                channelCount: 1, 
+                sampleRate: 16000,
+                echoCancellation: true,
+                noiseSuppression: true
+            } 
+        });
+        
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        
+        // Create ScriptProcessor (BufferSize, InputChannels, OutputChannels)
+        // 4096 samples = ~256ms at 16kHz
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        
+        processor.onaudioprocess = (e) => {
+            if (!isRecording) return;
+            
+            const inputData = e.inputBuffer.getChannelData(0);
+            
+            // Calculate volume for meter
+            let sum = 0;
+            for (let i = 0; i < inputData.length; i++) {
+                sum += inputData[i] * inputData[i];
+            }
+            const rms = Math.sqrt(sum / inputData.length);
+            micLevelDiv.style.width = Math.min(100, rms * 400) + '%';
+
+            // Convert Float32 to Int16
+            const pcmData = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+                // Clamp and scale
+                let s = Math.max(-1, Math.min(1, inputData[i]));
+                pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            
+            // Send via WebSocket
+            // Convert Int16Array to Base64 string
+            const buffer = new Uint8Array(pcmData.buffer);
+            let binary = '';
+            for (let i = 0; i < buffer.byteLength; i++) {
+                binary += String.fromCharCode(buffer[i]);
+            }
+            const base64 = btoa(binary);
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'audio_chunk',
+                    audio: base64,
+                    isComplete: false
+                }));
+            }
+        };
+        
+        source.connect(processor);
+        processor.connect(audioContext.destination); // Required for script processor to run
+        
+        workletNode = processor; // Store reference
+        isRecording = true;
+        
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        updateStatus('Recording...', 'recording');
+        
+        log('Recording started');
+        
+    } catch (err) {
+        log('Error starting recording: ' + err.message);
+        updateStatus('Mic Error', 'error');
+    }
+}
+
+function stopRecording() {
+    isRecording = false;
+    
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+    }
+    // Don't close audio context if we want to play response?
+    // Original closed it. We will keep it for playback? 
+    // Wait, playPcmAudio creates a new one if needed.
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    if (workletNode) {
+        workletNode.disconnect();
+    }
+    
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    updateStatus('Stopped', 'connected');
+    
+    // Send completion signal
+    if (ws && ws.readyState === WebSocket.OPEN) {
+         ws.send(JSON.stringify({
+            type: 'audio_chunk',
+            audio: '', // Empty audio
+            isComplete: true
+        }));
+    }
+    
+    log('Recording stopped');
+}
+
+async function sendText() {
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    try {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            log('WebSocket connecting for text...');
+            await connectWebSocket();
+            // Wait for session ID?
+            let attempts = 0;
+            while (!sessionId && attempts < 20) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+            if (!sessionId) {
+                throw new Error('Session failed to initialize');
+            }
+        }
+
+        ws.send(JSON.stringify({
+            type: 'text_message',
+            text: text
+        }));
+        
+        log('Sent text: ' + text);
+        transcriptDiv.textContent += \`\\n[You (Text)]: \${text}\`;
+        userInput.value = '';
+
+    } catch (err) {
+        log('Error sending text: ' + err.message);
+        updateStatus('Error sending text', 'error');
+    }
+}
+
+startBtn.onclick = startRecording;
+stopBtn.onclick = stopRecording;
+sendTextBtn.onclick = sendText;
+  `;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova 2 Sonic Text & Mic Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { margin-top: 0; color: #333; }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #startBtn { background: #007bff; color: white; }
+        #startBtn:disabled { background: #ccc; }
+        #stopBtn { background: #dc3545; color: white; }
+        #stopBtn:disabled { background: #ccc; }
+        #sendTextBtn { background: #28a745; color: white; }
+        #sendTextBtn:disabled { background: #ccc; }
+        
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .status {
+            margin-bottom: 1rem;
+            padding: 10px;
+            border-radius: 4px;
+            background: #e9ecef;
+        }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.recording { background: #fff3cd; color: #856404; animation: pulse 1.5s infinite; }
+
+        .transcription-box {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            min-height: 200px;
+            background: #fafafa;
+            border-radius: 4px;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        .mic-meter {
+            height: 4px;
+            background: #eee;
+            margin-top: 1rem;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .mic-level {
+            height: 100%;
+            background: #28a745;
+            width: 0%;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nova 2 Sonic Text & Mic Test</h1>
+        <div id="connectionStatus" class="status">Disconnected</div>
+        
+        <div class="controls">
+            <button id="startBtn">Start Recording</button>
+            <button id="stopBtn" disabled>Stop Recording</button>
+        </div>
+
+        <div class="controls" style="flex-direction: column; align-items: stretch;">
+            <textarea id="userInput" placeholder="Type your message here..." rows="3"></textarea>
+            <div style="margin-top: 10px; text-align: right;">
+                <button id="sendTextBtn">Send Text</button>
+            </div>
+        </div>
+
+        <div class="mic-meter">
+            <div id="micLevel" class="mic-level"></div>
+        </div>
+        
+        <h3>Conversation:</h3>
+        <div id="transcription" class="transcription-box"></div>
+        
         <div style="margin-top: 20px; font-size: 12px; color: #666;">
             <strong>Debug Info:</strong>
             <pre id="debugLog"></pre>

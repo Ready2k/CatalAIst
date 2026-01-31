@@ -70,8 +70,11 @@ interface SessionData {
   systemPrompt: string;
   inferenceConfig: typeof DefaultInferenceConfiguration;
   isActive: boolean;
+  isStreamEstablished: boolean; // Track if AWS stream is running
   isPromptStartSent: boolean;
   isAudioContentStartSent: boolean;
+  silenceInterval?: NodeJS.Timeout;
+  lastAudioActivity?: number;
   config: LLMProviderConfig;
   bedrockClient: BedrockRuntimeClient;
   modelId: string;
@@ -121,8 +124,11 @@ export class NovaSonicWebSocketService {
       systemPrompt: systemPrompt || DefaultSystemPrompt,
       inferenceConfig: { ...DefaultInferenceConfiguration },
       isActive: true,
+      isStreamEstablished: false,
       isPromptStartSent: false,
       isAudioContentStartSent: false,
+      silenceInterval: undefined,
+      lastAudioActivity: Date.now(),
       config,
       bedrockClient,
       modelId,
@@ -153,6 +159,11 @@ export class NovaSonicWebSocketService {
       throw new Error(`Session ${sessionId} not found`);
     }
 
+    if (session.isStreamEstablished) {
+      console.log(`[Nova 2 Sonic] Stream already established for session ${sessionId}`);
+      return;
+    }
+
     if (callbacks.onTextResponse) {
       session.responseHandlers.set('textOutput', callbacks.onTextResponse);
     }
@@ -181,10 +192,22 @@ export class NovaSonicWebSocketService {
       );
 
       console.log(`[Nova 2 Sonic] Stream established for session ${sessionId}`);
+      session.isStreamEstablished = true;
+
+      // key: Start silence generation immediately to keep session open
+      this.startSilenceGeneration(sessionId);
+
       await this.processResponseStream(sessionId, response);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[Nova 2 Sonic] Error in session ${sessionId}:`, error);
+      console.error(`[Nova 2 Sonic] Error details: Name: ${error.name}, Message: ${error.message}`);
+      try {
+        console.error(`[Nova 2 Sonic] Error JSON: ${JSON.stringify(error, null, 2)}`);
+      } catch (e) {
+        console.error(`[Nova 2 Sonic] Error could not be stringified`);
+      }
+
       this.dispatchEvent(sessionId, 'error', error);
       if (session.isActive) {
         await this.closeSession(sessionId);
@@ -202,51 +225,61 @@ export class NovaSonicWebSocketService {
 
     console.log(`[Nova 2 Sonic] Setting up initial events for session ${sessionId}`);
 
-    // 1. Session Start
-    this.addEventToQueue(sessionId, {
-      sessionStart: {
-        inferenceConfiguration: session.inferenceConfig,
-      },
-    });
+    // 1. Session Start (Only if stream is not yet established OR we are just starting and haven't sent it)
+    // Actually, we must ensure it's the very first event.
+    // If stream is established (meaning we are mid-conversation), we DEFINITELY skip this.
+    // If stream is NOT established, we add it.
+    if (!session.isStreamEstablished) {
+      this.addEventToQueue(sessionId, {
+        sessionStart: {
+          inferenceConfiguration: session.inferenceConfig,
+        },
+      });
+    }
 
-    // 2. Prompt Start
-    this.addEventToQueue(sessionId, {
-      promptStart: {
-        promptName: session.promptName,
-        textOutputConfiguration: DefaultTextConfiguration,
-        audioOutputConfiguration: DefaultAudioOutputConfiguration,
-      },
-    });
-    session.isPromptStartSent = true;
+    // 2. Prompt Start (Only if not sent for this turn)
+    if (!session.isPromptStartSent) {
+      this.addEventToQueue(sessionId, {
+        promptStart: {
+          promptName: session.promptName,
+          textOutputConfiguration: DefaultTextConfiguration,
+          audioOutputConfiguration: DefaultAudioOutputConfiguration,
+        },
+      });
+      session.isPromptStartSent = true;
 
-    // 3. System Prompt
-    const systemContentId = uuidv4();
+      // 3. System Prompt (Only if new prompt/turn?)
+      // Usually system prompt is attached to the first turn or prompts. 
+      // We will send it for every new prompt start just to be safe/consistent with previous logic, 
+      // unless it's strictly once per session. AWS samples often send it per prompt.
+      const systemContentId = uuidv4();
 
-    this.addEventToQueue(sessionId, {
-      contentStart: {
-        promptName: session.promptName,
-        contentName: systemContentId,
-        type: 'TEXT',
-        interactive: false,
-        role: 'SYSTEM',
-        textInputConfiguration: DefaultTextConfiguration,
-      },
-    });
+      this.addEventToQueue(sessionId, {
+        contentStart: {
+          promptName: session.promptName,
+          contentName: systemContentId,
+          type: 'TEXT',
+          interactive: false,
+          role: 'SYSTEM',
+          textInputConfiguration: DefaultTextConfiguration,
+        },
+      });
 
-    this.addEventToQueue(sessionId, {
-      textInput: {
-        promptName: session.promptName,
-        contentName: systemContentId,
-        content: session.systemPrompt,
-      },
-    });
+      this.addEventToQueue(sessionId, {
+        textInput: {
+          promptName: session.promptName,
+          contentName: systemContentId,
+          content: session.systemPrompt,
+        },
+      });
 
-    this.addEventToQueue(sessionId, {
-      contentEnd: {
-        promptName: session.promptName,
-        contentName: systemContentId,
-      },
-    });
+      this.addEventToQueue(sessionId, {
+        contentEnd: {
+          promptName: session.promptName,
+          contentName: systemContentId,
+        },
+      });
+    }
 
     console.log(`[Nova 2 Sonic] Initial events queued for session ${sessionId}`);
   }
@@ -292,6 +325,8 @@ export class NovaSonicWebSocketService {
     if (!session.isAudioContentStartSent) {
       this.startAudioContent(sessionId);
     }
+
+    session.lastAudioActivity = Date.now();
 
     const base64Audio = audioData.toString('base64');
 
@@ -348,8 +383,9 @@ export class NovaSonicWebSocketService {
 
     const textContentId = uuidv4();
 
-    if (session.isAudioContentStartSent) {
-      await this.endAudioContent(sessionId);
+    // Ensure audio content matches (should be running)
+    if (!session.isAudioContentStartSent) {
+      this.startAudioContent(sessionId);
     }
 
     this.addEventToQueue(sessionId, {
@@ -379,47 +415,12 @@ export class NovaSonicWebSocketService {
     });
     console.log(`[Nova 2 Sonic] DEBUG: Added text events for session ${sessionId}`);
 
-    // Inject silence (required by Nova 2 Sonic even for text-only turns)
-    console.log(`[Nova 2 Sonic] DEBUG: Injecting silence for session ${sessionId}`);
-    const silenceContentId = uuidv4();
-    const SILENCE_FRAME = Buffer.alloc(3200, 0); // 100ms of silence at 16kHz
+    // NO promptEnd for text-only turns in continuous mode
+    // The continuous audio stream keeps the session alive.
+    // If we wanted to force a turn end, we might need promptEnd, 
+    // but the official sample relies on the model responding to the textInput event.
 
-    this.addEventToQueue(sessionId, {
-      contentStart: {
-        promptName: session.promptName,
-        contentName: silenceContentId,
-        type: 'AUDIO',
-        interactive: true,
-        role: 'USER',
-        audioInputConfiguration: DefaultAudioInputConfiguration,
-      },
-    });
-
-    this.addEventToQueue(sessionId, {
-      audioInput: {
-        promptName: session.promptName,
-        contentName: silenceContentId,
-        content: SILENCE_FRAME.toString('base64'),
-      },
-    });
-
-    this.addEventToQueue(sessionId, {
-      contentEnd: {
-        promptName: session.promptName,
-        contentName: silenceContentId,
-      },
-    });
-
-    // Send promptEnd to trigger generation
-    this.addEventToQueue(sessionId, {
-      promptEnd: {
-        promptName: session.promptName,
-      },
-    });
-
-    session.isPromptStartSent = false;
-    session.promptName = uuidv4(); // Generate new prompt name for next turn
-
+    // session.promptName = uuidv4(); // Do not reset prompt name in continuous mode
     this.updateSessionActivity(sessionId);
   }
 
@@ -458,13 +459,17 @@ export class NovaSonicWebSocketService {
       }
     }
 
-    if (!session.isPromptStartSent) {
+    // Initialize/Start Stream if needed
+    if (!session.isStreamEstablished) {
       this.setupInitialEvents(sessionId);
       this.startBidirectionalStream(sessionId, callbacks || {}).catch(err => {
         console.error(`[Nova 2 Sonic] Stream error:`, err);
         callbacks?.onError?.(err instanceof Error ? err : new Error(String(err)));
       });
       await new Promise(resolve => setTimeout(resolve, 200));
+    } else if (!session.isPromptStartSent) {
+      // Stream is established, but we need a new prompt start
+      this.setupInitialEvents(sessionId);
     }
 
     // Convert audio to PCM if it looks like a media file (WebM/Ogg) or if it's the first chunk of a file upload
@@ -567,13 +572,17 @@ export class NovaSonicWebSocketService {
       }
     }
 
-    if (!session.isPromptStartSent) {
+    // Initialize/Start Stream if needed
+    if (!session.isStreamEstablished) {
       this.setupInitialEvents(sessionId);
       this.startBidirectionalStream(sessionId, callbacks || {}).catch(err => {
         console.error(`[Nova 2 Sonic] Stream error:`, err);
         callbacks?.onError?.(err instanceof Error ? err : new Error(String(err)));
       });
       await new Promise(resolve => setTimeout(resolve, 200));
+    } else if (!session.isPromptStartSent) {
+      // Stream is established, but we need a new prompt start
+      this.setupInitialEvents(sessionId);
     }
 
     await this.sendTextMessage(sessionId, text);
@@ -595,36 +604,31 @@ export class NovaSonicWebSocketService {
 
       console.log(`[Nova 2 Sonic] Closing session ${sessionId}`);
 
-      if (session.isAudioContentStartSent) {
-        this.addEventToQueue(sessionId, {
-          contentEnd: {
-            promptName: session.promptName,
-            contentName: session.audioContentId,
-          },
-        });
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      this.stopSilenceGeneration(sessionId);
 
-      if (session.isPromptStartSent) {
-        this.addEventToQueue(sessionId, {
-          promptEnd: {
-            promptName: session.promptName,
-          },
-        });
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      // If stream is established, attempt graceful close
+      if (session.isStreamEstablished) {
+        if (session.isAudioContentStartSent) {
+          await this.endAudioContent(sessionId);
+        }
 
-      this.addEventToQueue(sessionId, {
-        sessionEnd: {},
-      });
-      await new Promise(resolve => setTimeout(resolve, 100));
+        this.addEventToQueue(sessionId, {
+          sessionEnd: {},
+        });
+
+        // Give time for events to flush to the stream
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
 
       session.isActive = false;
+      session.isStreamEstablished = false;
       session.closeSignal.next();
       session.closeSignal.complete();
 
       this.activeSessions.delete(sessionId);
       this.sessionLastActivity.delete(sessionId);
+
+      session.responseHandlers.clear();
 
       console.log(`[Nova 2 Sonic] Session ${sessionId} closed`);
 
@@ -638,6 +642,65 @@ export class NovaSonicWebSocketService {
       }
     } finally {
       this.sessionCleanupInProgress.delete(sessionId);
+    }
+  }
+
+  /**
+   * Start generating continuous silence to keep session open
+   */
+  startSilenceGeneration(sessionId: string): void {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return;
+
+    if (session.silenceInterval) {
+      clearInterval(session.silenceInterval);
+    }
+
+    console.log(`[Nova 2 Sonic] Starting silence generation for session ${sessionId}`);
+
+    // Ensure audio content is started
+    if (!session.isAudioContentStartSent) {
+      this.startAudioContent(sessionId);
+    }
+
+    // 20ms chunk at 16kHz
+    // 16000 samples/sec * 0.02 sec = 320 samples
+    // 16-bit = 2 bytes/sample => 640 bytes
+    const CHUNK_SIZE = 640;
+    const SILENCE_CHUNK = Buffer.alloc(CHUNK_SIZE, 0); // Perfect silence
+
+    session.silenceInterval = setInterval(() => {
+      const now = Date.now();
+      // If recent audio activity (within last 30ms), skip sending silence 
+      // to avoid overlapping mixed audio too much
+      if (session.lastAudioActivity && (now - session.lastAudioActivity) < 30) {
+        return;
+      }
+
+      if (session.isActive && session.isStreamEstablished) {
+        const base64Audio = SILENCE_CHUNK.toString('base64');
+        this.addEventToQueue(sessionId, {
+          audioInput: {
+            promptName: session.promptName,
+            contentName: session.audioContentId, // Reuse continuous content ID
+            content: base64Audio,
+          },
+        });
+      }
+    }, 20); // 20ms interval
+  }
+
+  /**
+   * Stop silence generation
+   */
+  stopSilenceGeneration(sessionId: string): void {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return;
+
+    if (session.silenceInterval) {
+      clearInterval(session.silenceInterval);
+      session.silenceInterval = undefined;
+      console.log(`[Nova 2 Sonic] Stopped silence generation for session ${sessionId}`);
     }
   }
 

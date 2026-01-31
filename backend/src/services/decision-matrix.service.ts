@@ -175,6 +175,12 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
         jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
       }
       
+      // Fix common JSON formatting issues from LLM responses
+      // Remove + signs before numbers (e.g., +0.1 -> 0.1)
+      jsonStr = jsonStr.replace(/:\s*\+(\d)/g, ': $1');
+      jsonStr = jsonStr.replace(/\[\s*\+(\d)/g, '[$1');
+      jsonStr = jsonStr.replace(/,\s*\+(\d)/g, ', $1');
+      
       const parsed = JSON.parse(jsonStr);
       
       // Validate and transform the data
