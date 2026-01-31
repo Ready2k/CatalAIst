@@ -263,7 +263,7 @@ export class AWSVoiceService {
                     }
                 };
 
-                // 3-5. System message - put the text to speak HERE
+                // 3-5. System message - INSTRUCTIONS ONLY
                 console.log('[Nova 2 Sonic TTS] → Event 3: system contentStart');
                 yield {
                     chunk: {
@@ -285,10 +285,10 @@ export class AWSVoiceService {
                 };
 
                 // Use custom prompt if provided, otherwise use default
-                const defaultPrompt = `You are a text-to-speech system, narrating a business use case back to the user. Your only job is to speak the following text EXACTLY as written, word-for-word, without adding any commentary or asking How to Help, no further questions, or additional words are needed, here is the text to say:\n\n${text}`;
-                const systemPrompt = customPrompt ? `${customPrompt}\n\n${text}` : defaultPrompt;
+                const defaultPrompt = `You are a text-to-speech system. Your only job is to speak the user's text EXACTLY as written, word-for-word, without adding any commentary, questions, or additional words.`;
+                const systemPrompt = customPrompt || defaultPrompt;
                 
-                console.log('[Nova 2 Sonic TTS] → Event 4: system textInput (the text to speak)');
+                console.log('[Nova 2 Sonic TTS] → Event 4: system textInput (instructions)');
                 console.log(`[Nova 2 Sonic TTS]   Using prompt: ${customPrompt ? 'CUSTOM' : 'DEFAULT'}`);
                 yield {
                     chunk: {
@@ -318,9 +318,61 @@ export class AWSVoiceService {
                     }
                 };
 
-                // 6-8. Silence "poke" to trigger turn-end (no user text!)
+                // 6-8. USER text message - THE TEXT TO SPEAK
+                console.log('[Nova 2 Sonic TTS] → Event 6: user text contentStart');
+                yield {
+                    chunk: {
+                        bytes: Buffer.from(JSON.stringify({
+                            event: {
+                                contentStart: {
+                                    promptName,
+                                    contentName: textContentName,
+                                    type: "TEXT",
+                                    interactive: true,
+                                    role: "USER",
+                                    textInputConfiguration: {
+                                        mediaType: "text/plain"
+                                    }
+                                }
+                            }
+                        }))
+                    }
+                };
+
+                console.log('[Nova 2 Sonic TTS] → Event 7: user textInput (the text to speak)');
+                console.log(`[Nova 2 Sonic TTS]   Text: "${text}"`);
+                yield {
+                    chunk: {
+                        bytes: Buffer.from(JSON.stringify({
+                            event: {
+                                textInput: {
+                                    promptName,
+                                    contentName: textContentName,
+                                    content: text
+                                }
+                            }
+                        }))
+                    }
+                };
+
+                console.log('[Nova 2 Sonic TTS] → Event 8: user text contentEnd');
+                yield {
+                    chunk: {
+                        bytes: Buffer.from(JSON.stringify({
+                            event: {
+                                contentEnd: {
+                                    promptName,
+                                    contentName: textContentName
+                                }
+                            }
+                        }))
+                    }
+                };
+
+                // 9-11. Silence "poke" to trigger turn-end
                 // Use 16kHz for INPUT (matching working implementation)
-                console.log('[Nova 2 Sonic TTS] → Event 6: audio contentStart (silence poke)');
+                console.log('[Nova 2 Sonic TTS] → Event 9: audio contentStart (silence poke)');
+                console.log('[Nova 2 Sonic TTS] → Event 9: audio contentStart (silence poke)');
                 yield {
                     chunk: {
                         bytes: Buffer.from(JSON.stringify({
@@ -352,7 +404,7 @@ export class AWSVoiceService {
                 const SILENCE_BYTES = (SAMPLE_RATE * SILENCE_DURATION_MS / 1000) * BYTES_PER_SAMPLE;
                 const silenceFrame = Buffer.alloc(SILENCE_BYTES, 0);
                 
-                console.log(`[Nova 2 Sonic TTS] → Event 7: audioInput (${SILENCE_BYTES} bytes silence)`);
+                console.log(`[Nova 2 Sonic TTS] → Event 10: audioInput (${SILENCE_BYTES} bytes silence)`);
                 yield {
                     chunk: {
                         bytes: Buffer.from(JSON.stringify({
@@ -367,7 +419,7 @@ export class AWSVoiceService {
                     }
                 };
 
-                console.log('[Nova 2 Sonic TTS] → Event 8: audio contentEnd');
+                console.log('[Nova 2 Sonic TTS] → Event 11: audio contentEnd');
                 yield {
                     chunk: {
                         bytes: Buffer.from(JSON.stringify({
@@ -382,13 +434,13 @@ export class AWSVoiceService {
                 };
 
                 // Keep generator alive - wait for signal before closing
-                console.log('[Nova 2 Sonic TTS] ✓ All 8 events sent, keeping stream alive...');
+                console.log('[Nova 2 Sonic TTS] ✓ All 11 events sent, keeping stream alive...');
                 while (!canFinish) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
 
-                // 9. Prompt End - send after we've received the response
-                console.log('[Nova 2 Sonic TTS] → Event 9: promptEnd (closing gracefully)');
+                // 12. Prompt End - send after we've received the response
+                console.log('[Nova 2 Sonic TTS] → Event 12: promptEnd (closing gracefully)');
                 yield {
                     chunk: {
                         bytes: Buffer.from(JSON.stringify({
@@ -401,8 +453,8 @@ export class AWSVoiceService {
                     }
                 };
 
-                // 10. Session End
-                console.log('[Nova 2 Sonic TTS] → Event 10: sessionEnd');
+                // 13. Session End
+                console.log('[Nova 2 Sonic TTS] → Event 13: sessionEnd');
                 yield {
                     chunk: {
                         bytes: Buffer.from(JSON.stringify({
