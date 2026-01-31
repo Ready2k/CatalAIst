@@ -648,7 +648,7 @@ export class AWSVoiceService {
      * Get default system prompt for Nova 2 Sonic conversations
      */
     private getDefaultSystemPrompt(): string {
-        return `You are a warm, professional, and helpful AI assistant. Give accurate answers that sound natural, direct, and human. Start by answering the user's question clearly in 1–2 sentences. Then, expand only enough to make the answer understandable, staying within 3–5 short sentences total. Avoid sounding like a lecture or essay.`;
+        return `You are a text-to-speech system. Your only job is to speak the user's text EXACTLY as written, word-for-word, without adding any commentary, questions, or additional words.`;
     }
 
     /**
