@@ -61,11 +61,12 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
+      mediaSrc: ["'self'", "blob:"], // Allow blob URLs for audio playback
       frameSrc: ["'none'"],
     }
   },
@@ -82,16 +83,17 @@ app.use(helmet({
 // CORS configuration - restrict to specific origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:4001', 'http://localhost:3000', 'http://localhost:80'];
+  : ['http://localhost:4001', 'http://localhost:3000', 'http://localhost:80', 'http://localhost:4000', 'http://localhost'];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (like mobile apps, curl, or same-origin)
+    if (!origin || origin === 'null') return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -165,6 +167,43 @@ app.use('/api/process', llmLimiter);
 app.use('/api/voice', llmLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+
+// Nova Sonic test page - serve from frontend/public with injected credentials
+app.get('/nova-sonic-test', async (req, res) => {
+  const path = require('path');
+  const fs = require('fs').promises;
+  
+  try {
+    const htmlPath = path.join(__dirname, '../../frontend/public/nova-sonic-test.html');
+    let html = await fs.readFile(htmlPath, 'utf-8');
+    
+    // Inject credentials from environment
+    const credentials = {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+      sessionToken: process.env.AWS_SESSION_TOKEN || '',
+      region: process.env.AWS_REGION || 'us-east-1'
+    };
+    
+    // Inject credentials into the HTML
+    html = html.replace(
+      'log(\'Test page loaded. Configure credentials and test TTS or bidirectional streaming.\', \'info\');',
+      `log('Test page loaded. Configure credentials and test TTS or bidirectional streaming.', 'info');
+        
+        // Auto-fill credentials from backend environment
+        document.getElementById('accessKeyId').value = '${credentials.accessKeyId}';
+        document.getElementById('secretAccessKey').value = '${credentials.secretAccessKey}';
+        document.getElementById('sessionToken').value = '${credentials.sessionToken}';
+        document.getElementById('region').value = '${credentials.region}';
+        ${credentials.accessKeyId ? "log('✅ Credentials loaded from environment', 'success');" : "log('⚠️ No credentials in environment. Please enter manually.', 'info');"}`
+    );
+    
+    res.send(html);
+  } catch (error) {
+    console.error('Error serving test page:', error);
+    res.status(500).send('Error loading test page');
+  }
+});
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

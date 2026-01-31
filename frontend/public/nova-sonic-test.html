@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Sonic Bidirectional Stream Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .config-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status.idle {
+            background: #e7f3ff;
+            color: #0066cc;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-icon {
+            font-size: 20px;
+        }
+
+        .log-section {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            line-height: 1.5;
+        }
+
+        .log-entry.info {
+            color: #61dafb;
+        }
+
+        .log-entry.success {
+            color: #98c379;
+        }
+
+        .log-entry.error {
+            color: #e06c75;
+        }
+
+        .log-entry.event {
+            color: #c678dd;
+        }
+
+        .log-entry .timestamp {
+            color: #5c6370;
+            margin-right: 10px;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .audio-visualizer {
+            flex: 1;
+            height: 60px;
+            background: #e0e0e0;
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .audio-visualizer canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .recording-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Nova Sonic Bidirectional Stream Test</h1>
+            <p>Test Amazon Bedrock Nova 2 Sonic real-time voice streaming</p>
+        </div>
+
+        <div class="content">
+            <!-- Status -->
+            <div id="status" class="status idle">
+                <span class="status-icon">⚪</span>
+                <span id="statusText">Ready to connect</span>
+            </div>
+
+            <!-- Configuration -->
+            <div class="config-section">
+                <h2>⚙️ Configuration</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="region">AWS Region</label>
+                        <input type="text" id="region" value="us-east-1" placeholder="us-east-1">
+                    </div>
+                    <div class="form-group">
+                        <label for="modelId">Model ID</label>
+                        <input type="text" id="modelId" value="amazon.nova-2-sonic-v1:0" placeholder="amazon.nova-2-sonic-v1:0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="accessKeyId">AWS Access Key ID</label>
+                        <input type="password" id="accessKeyId" placeholder="Enter your access key">
+                    </div>
+                    <div class="form-group">
+                        <label for="secretAccessKey">AWS Secret Access Key</label>
+                        <input type="password" id="secretAccessKey" placeholder="Enter your secret key">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="sessionToken">AWS Session Token (Optional)</label>
+                    <input type="password" id="sessionToken" placeholder="Enter session token if using temporary credentials">
+                </div>
+            </div>
+
+            <!-- Audio Controls -->
+            <div class="audio-controls">
+                <div id="recordingIndicator" class="recording-indicator" style="display: none;"></div>
+                <div class="audio-visualizer">
+                    <canvas id="visualizer"></canvas>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="label">Events Sent</div>
+                    <div class="value" id="eventsSent">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Events Received</div>
+                    <div class="value" id="eventsReceived">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Connection Time</div>
+                    <div class="value" id="connectionTime">0s</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Audio Chunks</div>
+                    <div class="value" id="audioChunks">0</div>
+                </div>
+            </div>
+
+            <!-- TTS Test Section -->
+            <div class="config-section">
+                <h2>🔊 Text-to-Speech Test</h2>
+                <div class="form-group">
+                    <label for="ttsPrompt">System Prompt (Optional - leave empty for default)</label>
+                    <textarea id="ttsPrompt" rows="3" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Enter custom system prompt (e.g., 'You are a narrator. Speak the following text clearly and professionally:')"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="ttsText">Text to Speak</label>
+                    <input type="text" id="ttsText" value="" placeholder="Enter text to synthesize">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ttsVoice">Voice</label>
+                        <select id="ttsVoice">
+                            <option value="matthew">Matthew</option>
+                            <option value="joanna">Joanna</option>
+                            <option value="amy">Amy</option>
+                            <option value="brian">Brian</option>
+                            <option value="emma">Emma</option>
+                            <option value="ruth">Ruth</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button id="ttsBtn" class="btn-primary" style="width: 100%;">🔊 Test TTS</button>
+                    </div>
+                </div>
+                <div id="audioPlayer" style="display: none; margin-top: 15px;">
+                    <audio id="audioElement" controls style="width: 100%;"></audio>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="button-group">
+                <button id="connectBtn" class="btn-primary">🔌 Test Bidirectional Stream</button>
+                <button id="recordBtn" class="btn-secondary" disabled>🎤 Start Recording</button>
+                <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Disconnect</button>
+                <button id="clearLogBtn" class="btn-secondary">🗑️ Clear Log</button>
+            </div>
+
+            <!-- Log -->
+            <div class="config-section" style="margin-top: 20px;">
+                <h2>📋 Event Log</h2>
+                <div id="log" class="log-section"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let isConnected = false;
+        let isRecording = false;
+        let eventsSent = 0;
+        let eventsReceived = 0;
+        let audioChunks = 0;
+        let connectionStartTime = null;
+        let connectionTimeInterval = null;
+        let mediaStream = null;
+        let audioContext = null;
+        let processor = null;
+
+        // DOM Elements
+        const statusEl = document.getElementById('status');
+        const statusTextEl = document.getElementById('statusText');
+        const logEl = document.getElementById('log');
+        const connectBtn = document.getElementById('connectBtn');
+        const recordBtn = document.getElementById('recordBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const clearLogBtn = document.getElementById('clearLogBtn');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const ttsBtn = document.getElementById('ttsBtn');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioElement = document.getElementById('audioElement');
+
+        // Logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(status, message) {
+            statusEl.className = `status ${status}`;
+            statusTextEl.textContent = message;
+            
+            const icons = {
+                idle: '⚪',
+                connecting: '🟡',
+                connected: '🟢',
+                error: '🔴'
+            };
+            
+            statusEl.querySelector('.status-icon').textContent = icons[status] || '⚪';
+        }
+
+        function updateStats() {
+            document.getElementById('eventsSent').textContent = eventsSent;
+            document.getElementById('eventsReceived').textContent = eventsReceived;
+            document.getElementById('audioChunks').textContent = audioChunks;
+        }
+
+        function updateConnectionTime() {
+            if (connectionStartTime) {
+                const elapsed = Math.floor((Date.now() - connectionStartTime) / 1000);
+                document.getElementById('connectionTime').textContent = `${elapsed}s`;
+            }
+        }
+
+        // Audio Visualization
+        function setupVisualizer() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            function draw() {
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (isRecording && audioContext) {
+                    // Simple visualization
+                    const barWidth = 4;
+                    const gap = 2;
+                    const numBars = Math.floor(canvas.width / (barWidth + gap));
+                    
+                    for (let i = 0; i < numBars; i++) {
+                        const height = Math.random() * canvas.height * 0.8;
+                        const x = i * (barWidth + gap);
+                        const y = (canvas.height - height) / 2;
+                        
+                        ctx.fillStyle = '#667eea';
+                        ctx.fillRect(x, y, barWidth, height);
+                    }
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+
+        // Connect to backend proxy
+        async function connectStream() {
+            try {
+                updateStatus('connecting', 'Connecting to stream...');
+                log('Initiating connection to backend...', 'info');
+
+                const region = document.getElementById('region').value;
+                const modelId = document.getElementById('modelId').value;
+                const accessKeyId = document.getElementById('accessKeyId').value;
+                const secretAccessKey = document.getElementById('secretAccessKey').value;
+                const sessionToken = document.getElementById('sessionToken').value;
+
+                if (!accessKeyId || !secretAccessKey) {
+                    throw new Error('AWS credentials are required');
+                }
+
+                // Call backend endpoint to test stream
+                const response = await fetch('/api/voice/test-nova-sonic', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({
+                        region,
+                        modelId,
+                        credentials: {
+                            accessKeyId,
+                            secretAccessKey,
+                            sessionToken: sessionToken || undefined
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Connection failed');
+                }
+
+                const result = await response.json();
+                
+                isConnected = true;
+                connectionStartTime = Date.now();
+                connectionTimeInterval = setInterval(updateConnectionTime, 1000);
+
+                updateStatus('connected', 'Stream connected successfully');
+                log('✅ Stream connection established', 'success');
+                log(`Response: ${JSON.stringify(result, null, 2)}`, 'event');
+
+                connectBtn.disabled = true;
+                recordBtn.disabled = false;
+                disconnectBtn.disabled = false;
+
+                eventsSent = result.eventsSent || 0;
+                eventsReceived = result.eventsReceived || 0;
+                updateStats();
+
+            } catch (error) {
+                updateStatus('error', `Connection failed: ${error.message}`);
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error('Connection error:', error);
+            }
+        }
+
+        // Start recording
+        async function startRecording() {
+            try {
+                log('Requesting microphone access...', 'info');
+                
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    } 
+                });
+
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                processor.onaudioprocess = (e) => {
+                    if (isRecording) {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        // Convert to PCM16
+                        const pcm16 = new Int16Array(inputData.length);
+                        for (let i = 0; i < inputData.length; i++) {
+                            pcm16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+                        }
+                        audioChunks++;
+                        updateStats();
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                isRecording = true;
+                recordingIndicator.style.display = 'block';
+                recordBtn.textContent = '⏸️ Stop Recording';
+                recordBtn.className = 'btn-danger';
+                
+                log('🎤 Recording started', 'success');
+
+            } catch (error) {
+                log(`❌ Microphone error: ${error.message}`, 'error');
+                console.error('Recording error:', error);
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (processor) {
+                processor.disconnect();
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+
+            isRecording = false;
+            recordingIndicator.style.display = 'none';
+            recordBtn.textContent = '🎤 Start Recording';
+            recordBtn.className = 'btn-secondary';
+            
+            log('⏹️ Recording stopped', 'info');
+        }
+
+        // Disconnect
+        function disconnect() {
+            if (isRecording) {
+                stopRecording();
+            }
+
+            if (connectionTimeInterval) {
+                clearInterval(connectionTimeInterval);
+            }
+
+            isConnected = false;
+            connectionStartTime = null;
+
+            updateStatus('idle', 'Disconnected');
+            log('Disconnected from stream', 'info');
+
+            connectBtn.disabled = false;
+            recordBtn.disabled = true;
+            disconnectBtn.disabled = true;
+        }
+
+        // Test TTS
+        async function testTTS() {
+            try {
+                const text = document.getElementById('ttsText').value;
+                const voice = document.getElementById('ttsVoice').value;
+                const customPrompt = document.getElementById('ttsPrompt').value.trim();
+                const region = document.getElementById('region').value;
+                const accessKeyId = document.getElementById('accessKeyId').value;
+                const secretAccessKey = document.getElementById('secretAccessKey').value;
+                const sessionToken = document.getElementById('sessionToken').value;
+
+                if (!text) {
+                    log('❌ Please enter text to synthesize', 'error');
+                    return;
+                }
+
+                if (!accessKeyId || !secretAccessKey) {
+                    log('❌ AWS credentials are required', 'error');
+                    return;
+                }
+
+                ttsBtn.disabled = true;
+                ttsBtn.textContent = '⏳ Synthesizing...';
+                log(`🔊 Testing TTS with voice: ${voice}`, 'info');
+                if (customPrompt) {
+                    log(`📝 Using custom prompt: "${customPrompt}"`, 'info');
+                } else {
+                    log(`📝 Using default prompt`, 'info');
+                }
+                log(`📝 Text: "${text}"`, 'info');
+
+                const requestBody = {
+                    text,
+                    voice,
+                    provider: 'bedrock',
+                    awsAccessKeyId: accessKeyId,
+                    awsSecretAccessKey: secretAccessKey,
+                    awsSessionToken: sessionToken || undefined,
+                    awsRegion: region
+                };
+
+                // Add custom prompt if provided
+                if (customPrompt) {
+                    requestBody.customPrompt = customPrompt;
+                }
+
+                const response = await fetch('/api/voice/synthesize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionStorage.getItem('authToken') || 'test-token'}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'TTS failed');
+                }
+
+                log('✅ TTS synthesis successful!', 'success');
+                
+                // Get audio blob and play it
+                const audioBlob = await response.blob();
+                console.log('Audio blob type:', audioBlob.type);
+                console.log('Audio blob size:', audioBlob.size);
+                
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioElement.src = audioUrl;
+                audioPlayer.style.display = 'block';
+                
+                log(`🎵 Audio ready (${(audioBlob.size / 1024).toFixed(2)} KB, type: ${audioBlob.type})`, 'success');
+                
+                // Wait for audio to load before playing
+                audioElement.onloadedmetadata = () => {
+                    log(`▶️ Audio loaded: ${audioElement.duration.toFixed(2)}s duration`, 'success');
+                    audioElement.play().catch(err => {
+                        log(`❌ Playback error: ${err.message}`, 'error');
+                    });
+                };
+                
+                audioElement.onerror = (e) => {
+                    log(`❌ Audio loading error: ${audioElement.error?.message || 'Unknown error'}`, 'error');
+                    console.error('Audio element error:', audioElement.error);
+                };
+
+            } catch (error) {
+                log(`❌ TTS Error: ${error.message}`, 'error');
+                console.error('TTS error:', error);
+            } finally {
+                ttsBtn.disabled = false;
+                ttsBtn.textContent = '🔊 Test TTS';
+            }
+        }
+
+        // Event Listeners
+        connectBtn.addEventListener('click', connectStream);
+        
+        recordBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        disconnectBtn.addEventListener('click', disconnect);
+        
+        clearLogBtn.addEventListener('click', () => {
+            logEl.innerHTML = '';
+            log('Log cleared', 'info');
+        });
+
+        ttsBtn.addEventListener('click', testTTS);
+
+        // Initialize
+        setupVisualizer();
+        log('Test page loaded. Configure credentials and test TTS or bidirectional streaming.', 'info');
+    </script>
+</body>
+</html>

@@ -217,6 +217,7 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
  */
 router.post('/synthesize', async (req: Request, res: Response) => {
   console.log('[Voice Route] /synthesize called');
+  console.log('[Voice Route] Request body:', JSON.stringify(req.body, null, 2));
   try {
     const {
       text,
@@ -224,6 +225,7 @@ router.post('/synthesize', async (req: Request, res: Response) => {
       provider = 'openai',
       sessionId,
       userId = 'anonymous',
+      customPrompt, // NEW: Allow custom prompt for TTS
       // OpenAI
       apiKey,
       // AWS
@@ -314,13 +316,23 @@ router.post('/synthesize', async (req: Request, res: Response) => {
           apiKey
         });
       } else {
-        audioBuffer = await awsVoiceService.synthesize(text, voice, {
-          provider: 'bedrock',
-          awsAccessKeyId: awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID,
-          awsSecretAccessKey: awsSecretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
-          awsSessionToken: awsSessionToken || process.env.AWS_SESSION_TOKEN,
-          awsRegion: awsRegion || process.env.AWS_REGION || 'us-east-1'
-        });
+        console.log('[Voice Route] Calling AWS Voice Service synthesize...');
+        console.log('[Voice Route] Text:', text);
+        console.log('[Voice Route] Voice:', voice);
+        console.log('[Voice Route] Custom Prompt:', customPrompt ? 'YES' : 'NO');
+        try {
+          audioBuffer = await awsVoiceService.synthesize(text, voice, {
+            provider: 'bedrock',
+            awsAccessKeyId: awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID,
+            awsSecretAccessKey: awsSecretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
+            awsSessionToken: awsSessionToken || process.env.AWS_SESSION_TOKEN,
+            awsRegion: awsRegion || process.env.AWS_REGION || 'us-east-1'
+          }, customPrompt); // Pass custom prompt
+          console.log('[Voice Route] AWS Voice Service returned buffer of size:', audioBuffer.length);
+        } catch (awsError) {
+          console.error('[Voice Route] AWS Voice Service error:', awsError);
+          throw awsError;
+        }
       }
 
       const latencyMs = Date.now() - startTime;
@@ -407,6 +419,288 @@ router.delete('/cache', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Failed to clean cache',
       message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/voice/test-nova-sonic
+ * Test Nova 2 Sonic bidirectional streaming
+ */
+router.post('/test-nova-sonic', async (req: Request, res: Response) => {
+  try {
+    const { region, modelId, credentials } = req.body;
+
+    // Use provided credentials or fallback to environment variables
+    const accessKeyId = credentials?.accessKeyId || process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = credentials?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY;
+    const sessionToken = credentials?.sessionToken || process.env.AWS_SESSION_TOKEN;
+
+    if (!accessKeyId || !secretAccessKey) {
+      return res.status(400).json({
+        error: 'Missing credentials',
+        message: 'AWS Access Key ID and Secret Access Key are required (provide in request or set in environment)'
+      });
+    }
+
+    console.log('Testing Nova Sonic streaming...');
+    console.log(`Region: ${region}`);
+    console.log(`Model: ${modelId}`);
+
+    // Import AWS SDK
+    const { BedrockRuntimeClient, InvokeModelWithBidirectionalStreamCommand } = require('@aws-sdk/client-bedrock-runtime');
+
+    const config: any = { region: region || 'us-east-1' };
+    config.credentials = {
+      accessKeyId: accessKeyId,
+      secretAccessKey: secretAccessKey,
+      sessionToken: sessionToken
+    };
+
+    const client = new BedrockRuntimeClient(config);
+
+    let eventsSent = 0;
+    let eventsReceived = 0;
+
+    // Create input stream generator
+    async function* inputStream(): AsyncGenerator<any> {
+      const promptName = `prompt-${Date.now()}`;
+      const contentName = `audio-${Date.now()}`;
+
+      // 1. Session Start
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              sessionStart: {
+                inferenceConfiguration: {
+                  maxTokens: 2048,
+                  topP: 0.9,
+                  temperature: 0.7
+                },
+                turnDetectionConfiguration: {
+                  endpointingSensitivity: "MEDIUM"
+                }
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 2. Prompt Start
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              promptStart: {
+                promptName,
+                textOutputConfiguration: {
+                  mediaType: "text/plain"
+                },
+                audioOutputConfiguration: {
+                  mediaType: "audio/lpcm",
+                  sampleRateHertz: 16000,
+                  sampleSizeBits: 16,
+                  channelCount: 1,
+                  voiceId: "matthew",
+                  encoding: "base64",
+                  audioType: "SPEECH"
+                }
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 3. System Content Start
+      const systemContentName = `system-${Date.now()}`;
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              contentStart: {
+                promptName,
+                contentName: systemContentName,
+                type: "TEXT",
+                interactive: false,
+                role: "SYSTEM",
+                textInputConfiguration: {
+                  mediaType: "text/plain"
+                }
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 4. System Text Input
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              textInput: {
+                promptName,
+                contentName: systemContentName,
+                content: "You are a helpful assistant."
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 5. System Content End
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              contentEnd: {
+                promptName,
+                contentName: systemContentName
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 6. User Audio Content Start
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              contentStart: {
+                promptName,
+                contentName,
+                type: "AUDIO",
+                interactive: true,
+                role: "USER",
+                audioInputConfiguration: {
+                  mediaType: "audio/lpcm",
+                  sampleRateHertz: 16000,
+                  sampleSizeBits: 16,
+                  channelCount: 1,
+                  audioType: "SPEECH",
+                  encoding: "base64"
+                }
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 7. Audio Input (Silence)
+      for (let i = 0; i < 5; i++) {
+        yield {
+          chunk: {
+            bytes: Buffer.from(JSON.stringify({
+              event: {
+                audioInput: {
+                  promptName,
+                  contentName,
+                  content: Buffer.alloc(1024).toString('base64')
+                }
+              }
+            }))
+          }
+        };
+        eventsSent++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // 8. User Content End
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              contentEnd: {
+                promptName,
+                contentName
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 9. Prompt End
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              promptEnd: {
+                promptName
+              }
+            }
+          }))
+        }
+      };
+      eventsSent++;
+
+      // 10. Session End
+      yield {
+        chunk: {
+          bytes: Buffer.from(JSON.stringify({
+            event: {
+              sessionEnd: {}
+            }
+          }))
+        }
+      };
+      eventsSent++;
+    }
+
+    const command = new InvokeModelWithBidirectionalStreamCommand({
+      modelId: modelId || 'amazon.nova-2-sonic-v1:0',
+      body: inputStream()
+    });
+
+    const response = await client.send(command);
+
+    console.log('✅ Stream connection established');
+    console.log('Response status:', response.$metadata.httpStatusCode);
+
+    const receivedEvents: any[] = [];
+
+    // Handle response stream
+    if (response.body) {
+      for await (const event of response.body) {
+        if (event.chunk && event.chunk.bytes) {
+          const rawEvent = JSON.parse(Buffer.from(event.chunk.bytes).toString());
+          receivedEvents.push(rawEvent);
+          eventsReceived++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Nova Sonic streaming test successful',
+      eventsSent,
+      eventsReceived,
+      statusCode: response.$metadata.httpStatusCode,
+      receivedEvents: receivedEvents.slice(0, 5) // Return first 5 events
+    });
+
+  } catch (error: any) {
+    console.error('❌ Nova Sonic test failed:', error.name);
+    console.error('Message:', error.message);
+
+    let conclusion = 'Unknown error';
+    if (error.name === 'AccessDeniedException') {
+      conclusion = 'Your credentials are valid but lack permission for "bedrock:InvokeModelWithBidirectionalStream"';
+    } else if (error.name === 'ValidationException') {
+      conclusion = 'Model ID or Region might be incorrect, or you lack access to this model';
+    }
+
+    res.status(500).json({
+      error: error.name,
+      message: error.message,
+      conclusion
     });
   }
 });
