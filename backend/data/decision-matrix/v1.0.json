@@ -1,8 +1,8 @@
 {
-  "version": "1.16",
-  "createdAt": "2026-02-02T14:06:20.396Z",
+  "version": "1.15",
+  "createdAt": "2026-02-02T14:06:10.711Z",
   "createdBy": "admin",
-  "description": "Applied learning suggestion: To reduce misclassifications of 'Eliminate' processes being classified as 'AI Agent', we need to pri",
+  "description": "Applied learning suggestion: To address the frequent misclassification of 'AI Agent' processes that should be 'Eliminate', we nee",
   "attributes": [
     {
       "name": "frequency",
