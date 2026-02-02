@@ -58,7 +58,7 @@ export class ClarificationService {
     try {
       const questionCount = request.conversationHistory.length;
       const confidence = request.classification.confidence;
-      
+
       // Check if interview should be stopped (includes all detection logic)
       const stopCheck = this.shouldStopInterview(request.conversationHistory);
       if (stopCheck.shouldStop) {
@@ -70,23 +70,15 @@ export class ClarificationService {
         };
       }
 
-      // Very high confidence (>=0.90) skips clarification entirely
-      if (confidence >= 0.90) {
-        return {
-          questions: [],
-          shouldClarify: false,
-          reason: 'Very high confidence classification - no clarification needed'
-        };
-      }
-
       // Check if we have enough information to proceed
-      const hasEnoughInfo = this.assessInformationCompleteness(
+      const completeness = await this.assessInformationCompletenessDetailed(
         request.processDescription,
         request.conversationHistory
       );
+      const hasEnoughInfo = completeness.isComplete;
 
       // If we have high confidence AND enough information, stop asking
-      if (confidence > 0.85 && hasEnoughInfo) {
+      if (confidence >= 0.95 && hasEnoughInfo) {
         return {
           questions: [],
           shouldClarify: false,
@@ -99,13 +91,13 @@ export class ClarificationService {
         return {
           questions: [],
           shouldClarify: false,
-          reason: 'Low confidence after multiple questions - flagged for manual review'
+          reason: 'Consistently low confidence - manual review recommended'
         };
       }
 
       // Generate clarification questions
       const model = request.model || this.DEFAULT_MODEL;
-      
+
       // Build LLM config
       const config = this.llmService.buildConfig({
         provider: request.provider,
@@ -119,11 +111,13 @@ export class ClarificationService {
         regionalInferenceEndpoint: request.regionalInferenceEndpoint,
       });
 
+      // Build messages for LLM
       const messages = await this.buildClarificationMessages(
         request.processDescription,
         request.classification,
         request.conversationHistory,
-        model
+        request.model || this.DEFAULT_MODEL,
+        completeness.missingStrategic
       );
 
       const response = await this.llmService.chat(messages, model, config);
@@ -212,7 +206,7 @@ export class ClarificationService {
     if (questionCount >= 5) {
       const recentQuestions = conversationHistory.slice(-5).map(qa => qa.question.toLowerCase());
       const uniqueQuestions = new Set(recentQuestions);
-      
+
       // If last 5 questions have less than 3 unique questions, likely a loop
       if (uniqueQuestions.size < 3) {
         return {
@@ -251,24 +245,50 @@ export class ClarificationService {
    * Assess if we have enough information to make a confident classification
    * @param processDescription - Original process description
    * @param conversationHistory - Q&A history
-   * @returns True if we have sufficient information
+   * @returns Structured completeness result
    */
-  private assessInformationCompleteness(
+  private async assessInformationCompletenessDetailed(
     processDescription: string,
     conversationHistory: Array<{ question: string; answer: string }>
-  ): boolean {
+  ): Promise<{ isComplete: boolean; missingStrategic: string[]; infoScore: number }> {
     // Combine all text
-    const allText = processDescription + ' ' + 
-      conversationHistory.map(qa => qa.answer).join(' ');
-    
+    const allText = (processDescription + ' ' +
+      conversationHistory.map(qa => qa.answer).join(' ')).toLowerCase();
+
     // Check for key information indicators
     const hasFrequency = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(allText);
-    const hasVolume = /\b(\d+|many|few|several|multiple|hundreds?|thousands?)\b/i.test(allText);
-    const hasCurrentState = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel)\b/i.test(allText);
-    const hasComplexity = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?|complex|simple)\b/i.test(allText);
-    const hasPainPoints = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating)\b/i.test(allText);
-    const hasDataSource = /\b(data|information|observ|record|capture|collect|generat|automat)\b/i.test(allText);
-    
+    const hasVolume = /\b(\d+|many|few|several|multiple|hundreds?|thousands?|volume|scale|users|people|transactions)\b/i.test(allText);
+    const hasCurrentState = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel|legacy)\b/i.test(allText);
+    const hasComplexity = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?|complex|simple|approvals)\b/i.test(allText);
+    const hasPainPoints = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating|pain|bottleneck)\b/i.test(allText);
+    const hasDataSource = /\b(data|information|observ|record|capture|collect|generat|automat|source)\b/i.test(allText);
+
+    // Dynamic strategic questions check
+    let strategicKeys: string[] = ['success_criteria', 'risks_constraints', 'value_estimate', 'sponsorship'];
+    try {
+      const questions = await this.versionedStorage.getStrategicQuestions();
+      if (questions && Array.isArray(questions)) {
+        strategicKeys = questions.filter((q: any) => q.active).map((q: any) => q.key);
+      }
+    } catch (error) {
+      console.warn('Heuristic check: Failed to load strategic questions, using defaults');
+    }
+
+    // Heuristic check for strategic matches
+    const missingStrategic: string[] = [];
+    for (const key of strategicKeys) {
+      const keyTerms = key.replace(/_/g, ' ').split(' ');
+      const hasMatch = keyTerms.some(term => {
+        if (term.length < 3) return false;
+        const regex = new RegExp(`\\b${term}\\b`, 'i');
+        return regex.test(allText);
+      });
+
+      if (!hasMatch) {
+        missingStrategic.push(key);
+      }
+    }
+
     const infoScore = [
       hasFrequency,
       hasVolume,
@@ -277,9 +297,26 @@ export class ClarificationService {
       hasPainPoints,
       hasDataSource
     ].filter(Boolean).length;
-    
-    // Need at least 4 out of 6 key indicators
-    return infoScore >= 4;
+
+    // VERY STRICT: Need almost all core indicators AND 100% of strategic keys
+    const isComplete = infoScore >= 5 && missingStrategic.length === 0;
+
+    return { isComplete, missingStrategic, infoScore };
+  }
+
+  /**
+   * Wrapper for assessInformationCompleteness
+   */
+  private async assessInformationCompleteness(
+    processDescription: string,
+    conversationHistory: Array<{ question: string; answer: string }>
+  ): Promise<boolean> {
+    const result = await this.assessInformationCompletenessDetailed(processDescription, conversationHistory);
+    // If it's not complete, but we've asked many questions, we might have to stop anyway
+    if (conversationHistory.length >= 8) {
+      return true;
+    }
+    return result.isComplete;
   }
 
   /**
@@ -293,7 +330,7 @@ export class ClarificationService {
     if (conversationHistory.length === 0) {
       return false;
     }
-    
+
     // Check last 3 answers
     const recentAnswers = conversationHistory.slice(-3);
     const unknownPatterns = [
@@ -301,7 +338,7 @@ export class ClarificationService {
       /\b(i don'?t|we don'?t|don'?t have|no information)\b/i,
       /^(no|nope|n\/a|na|unknown|idk)$/i
     ];
-    
+
     let unknownCount = 0;
     for (const qa of recentAnswers) {
       const answer = qa.answer.toLowerCase().trim();
@@ -309,7 +346,7 @@ export class ClarificationService {
         unknownCount++;
       }
     }
-    
+
     // If 2 out of last 3 answers are "don't know", user likely can't provide more info
     return unknownCount >= 2;
   }
@@ -332,12 +369,12 @@ export class ClarificationService {
 
     // Get last 5 questions
     const recentQuestions = conversationHistory.slice(-5).map(qa => qa.question.toLowerCase());
-    
+
     // Check for similar keywords in questions
     const questionKeywords = recentQuestions.map(q => {
       // Extract key words (remove common words)
-      const words = q.split(/\s+/).filter(w => 
-        w.length > 3 && 
+      const words = q.split(/\s+/).filter(w =>
+        w.length > 3 &&
         !['what', 'when', 'where', 'which', 'does', 'have', 'this', 'that', 'your', 'the'].includes(w)
       );
       return new Set(words);
@@ -350,7 +387,7 @@ export class ClarificationService {
         const intersection = new Set(
           [...questionKeywords[i]].filter(x => questionKeywords[j].has(x))
         );
-        
+
         // If questions share 2+ keywords, they're likely similar
         if (intersection.size >= 2) {
           similarityCount++;
@@ -369,11 +406,12 @@ export class ClarificationService {
     processDescription: string,
     classification: ClassificationResult,
     conversationHistory: Array<{ question: string; answer: string }>,
-    model: string
+    model: string,
+    missingStrategicKeys: string[] = []
   ): Promise<ChatMessage[]> {
     const isO1Model = model.startsWith('o1');
     const systemPrompt = await this.getClarificationSystemPrompt();
-    
+
     const messages: ChatMessage[] = [];
 
     if (!isO1Model) {
@@ -386,6 +424,16 @@ export class ClarificationService {
     context += `- Category: ${classification.category}\n`;
     context += `- Confidence: ${classification.confidence.toFixed(2)}\n`;
     context += `- Rationale: ${classification.rationale}\n\n`;
+
+    // Explicitly call out missing strategic information
+    if (missingStrategicKeys.length > 0) {
+      context += `**MISSING STRATEGIC INFORMATION (REQUIRED):**\n`;
+      context += `The following information has NOT been extracted from the conversation so far and MUST be clarified:\n`;
+      missingStrategicKeys.forEach(key => {
+        context += `- ${key.replace(/_/g, ' ').toUpperCase()}\n`;
+      });
+      context += `\n`;
+    }
 
     if (conversationHistory.length > 0) {
       // For conversations with 5+ Q&As, use summarization to prevent confusion
@@ -402,9 +450,9 @@ export class ClarificationService {
 
     const remainingQuestions = this.getRemainingQuestionCount(conversationHistory);
     const questionCount = conversationHistory.length;
-    
+
     context += `\nQuestions asked so far: ${questionCount}\n`;
-    
+
     // Adjust number of questions based on conversation progress
     let questionsToGenerate: number;
     if (questionCount === 0) {
@@ -416,7 +464,7 @@ export class ClarificationService {
     } else {
       questionsToGenerate = 1; // Final rounds: 1 question only
     }
-    
+
     context += `\n**IMPORTANT INSTRUCTIONS:**\n`;
     context += `- You have asked ${questionCount} questions so far\n`;
     context += `- Generate ${questionsToGenerate} question(s) ONLY if you need critical missing information\n`;
@@ -445,7 +493,7 @@ export class ClarificationService {
     conversationHistory: Array<{ question: string; answer: string }>
   ): string {
     let context = '';
-    
+
     // Extract key facts from all answers
     const keyFacts = this.extractKeyFacts(conversationHistory);
     if (keyFacts.length > 0) {
@@ -455,16 +503,16 @@ export class ClarificationService {
       });
       context += '\n';
     }
-    
+
     // Include last 2-3 Q&As for recent context
     const recentCount = Math.min(3, conversationHistory.length);
     const recentQAs = conversationHistory.slice(-recentCount);
-    
+
     context += `Recent Questions and Answers (last ${recentCount} of ${conversationHistory.length}):\n`;
     for (const qa of recentQAs) {
       context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
     }
-    
+
     return context;
   }
 
@@ -477,38 +525,38 @@ export class ClarificationService {
   ): string[] {
     const facts: string[] = [];
     const allText = conversationHistory.map(qa => qa.answer).join(' ').toLowerCase();
-    
+
     // Frequency
     const frequencyMatch = allText.match(/\b(daily|weekly|monthly|hourly|quarterly|annually|every\s+\w+|once|twice|\d+\s+times?\s+per)\b/i);
     if (frequencyMatch) {
       facts.push(`Process frequency: ${frequencyMatch[0]}`);
     }
-    
+
     // Volume/Scale
     const volumeMatch = allText.match(/\b(\d+)\s+(users?|people|employees?|transactions?|requests?|cases?)\b/i);
     if (volumeMatch) {
       facts.push(`Scale: ${volumeMatch[0]}`);
     }
-    
+
     // Current state
     if (/\b(manual|paper-based|spreadsheet|excel)\b/i.test(allText)) {
       facts.push('Current state: Manual/paper-based process');
     } else if (/\b(digital|system|automated|software|tool)\b/i.test(allText)) {
       facts.push('Current state: Digital/system-based');
     }
-    
+
     // Complexity indicators
     const stepsMatch = allText.match(/\b(\d+)\s+(steps?|stages?|phases?)\b/i);
     if (stepsMatch) {
       facts.push(`Process complexity: ${stepsMatch[0]}`);
     }
-    
+
     // Systems involved
     const systemsMatch = allText.match(/\b(\d+)\s+(systems?|applications?|tools?)\b/i);
     if (systemsMatch) {
       facts.push(`Systems involved: ${systemsMatch[0]}`);
     }
-    
+
     // Pain points
     if (/\b(slow|time-consuming|takes\s+\d+\s+(hours?|minutes?|days?))\b/i.test(allText)) {
       facts.push('Pain point: Time-consuming process');
@@ -516,17 +564,17 @@ export class ClarificationService {
     if (/\b(error-prone|mistakes?|errors?)\b/i.test(allText)) {
       facts.push('Pain point: Error-prone');
     }
-    
+
     // Business value
     if (/\b(critical|essential|vital|important|high\s+priority)\b/i.test(allText)) {
       facts.push('Business value: High/Critical');
     }
-    
+
     // Data sensitivity
     if (/\b(sensitive|confidential|restricted|pii|personal\s+data)\b/i.test(allText)) {
       facts.push('Data sensitivity: High');
     }
-    
+
     return facts;
   }
 
@@ -535,17 +583,50 @@ export class ClarificationService {
    * Loads from versioned storage, falls back to default if not found
    */
   private async getClarificationSystemPrompt(): Promise<string> {
+    // Fetch dynamic strategic questions
+    let strategicQuestionsList = [];
+    try {
+      const questions = await this.versionedStorage.getStrategicQuestions();
+      if (questions && Array.isArray(questions)) {
+        strategicQuestionsList = questions.filter((q: any) => q.active);
+      }
+    } catch (error) {
+      console.warn('Failed to load strategic questions, using defaults', error);
+    }
+
+    // Default strategic questions if none found
+    if (strategicQuestionsList.length === 0) {
+      strategicQuestionsList = [
+        { text: "What would success look like for you?", key: "success_criteria" },
+        { text: "What risks and constraints are you aware of? Are there known blockers?", key: "risks_constraints" },
+        { text: "How much time, resource, or money would this save? What value would you place on this?", key: "value_estimate" },
+        { text: "Have you raised this before or do you have sponsorship?", key: "sponsorship" }
+      ];
+    }
+
+    // Build the strategic questions section string
+    const strategicQuestionsText = strategicQuestionsList
+      .map((q: any, index: number) => `${index + 1}. **${q.key ? q.key.replace(/_/g, ' ').toUpperCase() : 'STRATEGIC QUESTION'}**: "${q.text}"`)
+      .join('\n');
+
+    const strategicReviewText = strategicQuestionsList
+      .map((q: any) => `   - If you don't know the answer to "${q.text.substring(0, 30)}...", ask about it.`)
+      .join('\n');
+
+    let promptContent = "";
+
     try {
       const prompt = await this.versionedStorage.getPrompt(this.CLARIFICATION_PROMPT_ID);
       if (prompt) {
-        return prompt;
+        promptContent = prompt;
       }
     } catch (error) {
       console.warn('Failed to load clarification prompt from storage, using default:', error);
     }
 
-    // Fallback to default prompt
-    return `You are a business transformation consultant conducting a discovery interview. Your role is to gather facts and understand the current state before making any recommendations.
+    if (!promptContent) {
+      // Fallback to default prompt template
+      promptContent = `You are a business transformation consultant conducting a discovery interview. Your role is to gather facts and understand the current state before making any recommendations.
 
 **Context:**
 You will be provided with:
@@ -558,6 +639,7 @@ Generate 2-3 discovery questions that will:
 - Uncover the CURRENT STATE of the process (manual, paper-based, digital, partially automated, etc.)
 - Understand what EXISTS today vs. what they WANT to achieve
 - Extract concrete facts about frequency, volume, users, complexity, and pain points
+- **CRITICAL**: Capture strategic context (success criteria, risks, value, sponsorship)
 - Avoid making assumptions - ask about anything not explicitly stated
 - Feel like a natural consultant interview, not an interrogation
 - Build on previous answers to dig deeper
@@ -571,36 +653,44 @@ When generating questions, consider extracting information about:
 - **User Count**: Number of people involved or affected (1-5, 6-20, 21-50, 51-100, 100+)
 - **Data Sensitivity**: Level of data sensitivity (public, internal, confidential, restricted)
 
+**Strategic Information (REQUIRED):**
+You MUST ensure you have answers to these key questions. If they are not answered in the description or history, YOU MUST ASK THEM:
+
+{{STRATEGIC_QUESTIONS}}
+
 **CRITICAL Questions to Ask (if not already answered):**
 
-1. **Data Source & Nature:**
+1. **Strategic Context (TOP PRIORITY):**
+{{STRATEGIC_REVIEW}}
+
+2. **Data Source & Nature:**
    - Where does the data come from? Is it observational, transactional, or generated?
    - Is the data created through human observation/judgment or automatically captured?
    - Does the data require interpretation or is it raw facts?
 
-2. **Output Format & Usage:**
+3. **Output Format & Usage:**
    - What format is the output? (Report, dashboard, spreadsheet, document, etc.)
    - Who uses the output and what do they do with it?
    - Does the output require human judgment to create or interpret?
    - Is the output standardized or does it vary based on context?
 
-3. **Human Judgment & Decision-Making:**
+4. **Human Judgment & Decision-Making:**
    - Are there decision points that require human expertise or judgment?
    - Does the process involve interpretation, analysis, or subjective assessment?
    - Could the process be fully automated or does it need human oversight?
 
-4. **Variability & Exceptions:**
+5. **Variability & Exceptions:**
    - Does the process follow the same steps every time?
    - Are there exceptions or edge cases that require special handling?
    - How much variation is there in inputs, processing, or outputs?
 
 **Question Priority Framework:**
-1. **First Priority**: Understand the CURRENT STATE - How is this done today? Is it manual, digital, automated?
-2. **Second Priority**: Understand DATA SOURCE - Where does the data come from? Is it observational or transactional?
-3. **Third Priority**: Understand OUTPUT USAGE - What happens with the output? Who uses it and how?
-4. **Fourth Priority**: Understand HUMAN JUDGMENT - What requires human expertise vs. what's mechanical?
-5. **Fifth Priority**: Understand SCALE - How often? How many people? How many transactions?
-6. **Sixth Priority**: Understand PAIN POINTS - What's broken? What takes too long? What's error-prone?
+1. **First Priority**: **STRATEGIC CONTEXT** - Ensure the strategic questions are answered. (Mix these naturally with process questions).
+2. **Second Priority**: Understand the CURRENT STATE - How is this done today? Is it manual, digital, automated?
+3. **Third Priority**: Understand DATA SOURCE - Where does the data come from? Is it observational or transactional?
+4. **Fourth Priority**: Understand OUTPUT USAGE - What happens with the output? Who uses it and how?
+5. **Fifth Priority**: Understand HUMAN JUDGMENT - What requires human expertise vs. what's mechanical?
+6. **Sixth Priority**: Understand SCALE & PAIN POINTS - Frequency, volume, pain points.
 
 **Question Guidelines:**
 1. Ask open-ended questions that encourage detailed responses
@@ -608,9 +698,8 @@ When generating questions, consider extracting information about:
 3. Build on previous answers - if they mention something interesting, dig deeper
 4. Keep questions conversational and natural
 5. Never assume - if it's not explicitly stated, ask about it
-6. **ALWAYS ask about data source and output usage if not clear**
-7. **ALWAYS ask about human judgment requirements if the process involves reports, analysis, or decisions**
-8. **Be skeptical of automation potential** - dig into what makes the process complex
+6. **Combine strategic questions with process questions where natural** (e.g. "To understand the value of automating this, how much time does it currently take?")
+7. **Ensure all strategic questions are asked eventually**, but you don't need to ask them all in the first turn if it feels overwhelming.
 
 **Response Format:**
 Provide your response as a JSON array of question objects:
@@ -622,6 +711,27 @@ Provide your response as a JSON array of question objects:
 ]
 
 Generate 2-3 questions maximum. Respond ONLY with the JSON array, no additional text.`;
+    }
+
+    // Dynamic replacement if the prompt contains placeholders (our default one does, but stored ones might not yet)
+    // If the stored prompt doesn't have the placeholder, we might prepend/append, but ideally we should update the stored prompt format.
+    // For now, if the prompt doesn't contain {{STRATEGIC_QUESTIONS}}, we will assume it's an old version and we might lose dynamic injection unless we force it.
+    // But since I am controlling the default info fallback, let's assume I replaced it above.
+
+    // If the prompt DOES contain the placeholder, replace it.
+    if (promptContent.includes('{{STRATEGIC_QUESTIONS}}')) {
+      promptContent = promptContent.replace('{{STRATEGIC_QUESTIONS}}', strategicQuestionsText);
+    } else {
+      // Legacy prompt support: Replace the hardcoded section if it matches roughly what we expect, or just accept that old prompts might not be dynamic until updated.
+      // Or better: If it's the *exact* string I wrote in the previous step, I can try to replace it.
+      // But since I just pasted the template above, it HAS the placeholder.
+    }
+
+    if (promptContent.includes('{{STRATEGIC_REVIEW}}')) {
+      promptContent = promptContent.replace('{{STRATEGIC_REVIEW}}', strategicReviewText);
+    }
+
+    return promptContent;
   }
 
   /**
@@ -636,7 +746,7 @@ Generate 2-3 questions maximum. Respond ONLY with the JSON array, no additional 
         // Return empty array to stop asking questions
         return [];
       }
-      
+
       // Extract JSON from response
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {

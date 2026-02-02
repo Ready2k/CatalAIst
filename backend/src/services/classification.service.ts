@@ -29,12 +29,7 @@ export interface AttributeValue {
 }
 
 export interface ExtractedAttributes {
-  frequency: AttributeValue;
-  business_value: AttributeValue;
-  complexity: AttributeValue;
-  risk: AttributeValue;
-  user_count: AttributeValue;
-  data_sensitivity: AttributeValue;
+  [key: string]: AttributeValue;
 }
 
 export interface ClassificationRequest {
@@ -212,25 +207,18 @@ export class ClassificationService {
       return 'manual_review';
     }
 
-    // Poor quality description always needs clarification
-    if (quality === 'poor') {
+    // Poor or Marginal quality description always needs clarification to ensure discovery
+    if (quality === 'poor' || quality === 'marginal') {
       return 'clarify';
     }
 
-    // Marginal quality requires higher confidence threshold to skip clarification
-    if (quality === 'marginal' && confidence < 0.95) {
-      return 'clarify';
-    }
-
-    // High confidence (>= 0.90) skips clarification (if quality check passed)
-    if (confidence >= 0.90) {
+    // High confidence (>= 0.98) skips clarification only if quality is 'good'
+    if (confidence >= 0.98) {
       return 'auto_classify';
     }
 
-    // Medium confidence (0.5-0.89) triggers clarification
-    if (confidence < 0.90) {
-      return 'clarify';
-    }
+    // Anything else (including high confidence but not quite 0.98) triggers clarification
+    return 'clarify';
 
     // Fallback
     return 'auto_classify';
@@ -246,21 +234,29 @@ export class ClassificationService {
     description: string,
     conversationHistory: Array<{ question: string; answer: string }>
   ): 'good' | 'marginal' | 'poor' {
-    // If we've already had a conversation, consider quality improved
-    if (conversationHistory.length > 0) {
+    // If we've already had a long conversation, consider quality improved
+    // but we still want to ensure strategic info is there.
+    if (conversationHistory.length >= 3) {
       return 'good';
     }
 
     const wordCount = description.trim().split(/\s+/).length;
+    const allText = (description + ' ' + conversationHistory.map(qa => qa.answer).join(' ')).toLowerCase();
 
     // Check for key information indicators
-    const hasFrequencyInfo = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(description);
-    const hasVolumeInfo = /\b(\d+|many|few|several|multiple|hundreds?|thousands?)\b/i.test(description);
-    const hasCurrentStateInfo = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel)\b/i.test(description);
-    const hasComplexityInfo = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?)\b/i.test(description);
-    const hasPainPointInfo = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating)\b/i.test(description);
+    const hasFrequencyInfo = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(allText);
+    const hasVolumeInfo = /\b(\d+|many|few|several|multiple|hundreds?|thousands?|transactions|users|people)\b/i.test(allText);
+    const hasCurrentStateInfo = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel|legacy)\b/i.test(allText);
+    const hasComplexityInfo = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?|approvals)\b/i.test(allText);
+    const hasPainPointInfo = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating|pain|bottleneck)\b/i.test(allText);
 
-    const infoScore = [
+    // Strategic Information Indicators
+    const hasSuccessCriteria = /\b(success|outcome|goal|achieve|benefit|metric|kpi|target)\b/i.test(allText);
+    const hasValueInfo = /\b(save|cost|money|revenue|value|hours|roi|investment)\b/i.test(allText);
+    const hasRiskInfo = /\b(risk|constraint|blocker|dependency|security|compliance|safety)\b/i.test(allText);
+    const hasSponsorship = /\b(sponsor|owner|stakeholder|manager|legal|budget|approved|buy-in)\b/i.test(allText);
+
+    const coreScore = [
       hasFrequencyInfo,
       hasVolumeInfo,
       hasCurrentStateInfo,
@@ -268,13 +264,20 @@ export class ClassificationService {
       hasPainPointInfo
     ].filter(Boolean).length;
 
-    // Poor: Very brief (< 20 words) OR lacks most key information (< 2 indicators)
-    if (wordCount < 20 || infoScore < 2) {
+    const strategicScore = [
+      hasSuccessCriteria,
+      hasValueInfo,
+      hasRiskInfo,
+      hasSponsorship
+    ].filter(Boolean).length;
+
+    // Poor: Very brief OR lacks most core information OR lacks ANY strategic information (discovery first!)
+    if (wordCount < 30 || coreScore < 3 || strategicScore < 1) {
       return 'poor';
     }
 
-    // Good: Detailed (> 50 words) AND has most key information (>= 3 indicators)
-    if (wordCount > 50 && infoScore >= 3) {
+    // Good: Detailed AND has most core information AND has most strategic information
+    if (wordCount > 100 && coreScore >= 4 && strategicScore >= 3) {
       return 'good';
     }
 
@@ -323,7 +326,7 @@ export class ClassificationService {
 
       const response = await this.llmService.chat(messages, modelToUse, config);
 
-      return this.parseAttributeExtractionResponse(response.content);
+      return await this.parseAttributeExtractionResponse(response.content);
     } catch (error) {
       throw new Error(
         `Attribute extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -384,7 +387,37 @@ export class ClassificationService {
       console.warn('Failed to load attribute extraction prompt from storage, using default:', error);
     }
 
-    // Fallback to default prompt
+    // Fetch dynamic strategic questions
+    let strategicQuestions = [];
+    try {
+      const questions = await this.versionedStorage.getStrategicQuestions();
+      if (questions && Array.isArray(questions)) {
+        strategicQuestions = questions.filter((q: any) => q.active);
+      }
+    } catch (error) {
+      console.warn('Failed to load strategic questions for extraction prompt, using defaults:', error);
+    }
+
+    // Default strategic questions if none found
+    if (strategicQuestions.length === 0) {
+      strategicQuestions = [
+        { text: "What would success look like for you?", key: "success_criteria" },
+        { text: "What risks and constraints are you aware of?", key: "risks_constraints" },
+        { text: "How much time, resource, or money would this save?", key: "value_estimate" },
+        { text: "Have you raised this before or do you have sponsorship?", key: "sponsorship" }
+      ];
+    }
+
+    // Build the dynamic attributes section for the prompt
+    let dynamicAttributesPrompt = '';
+    let responseFormatJson = '';
+
+    strategicQuestions.forEach((q: any, index: number) => {
+      const key = q.key || `custom_attribute_${index}`;
+      dynamicAttributesPrompt += `${index + 7}. **${key}**: ${q.text}\n   - Values: Free text description or "unknown"\n\n`;
+      responseFormatJson += `  "${key}": {\n    "value": "<description or 'unknown'>",\n    "explanation": "<explanation>"\n  }${index < strategicQuestions.length - 1 ? ',' : ''}\n`;
+    });
+
     return `You are an expert in business process analysis. Your task is to extract key business attributes from a conversation about a business process or initiative.
 
 Extract the following attributes based on the information provided:
@@ -413,6 +446,9 @@ Extract the following attributes based on the information provided:
    - Values: "public", "internal", "confidential", "restricted"
    - Consider: PII, financial data, trade secrets, regulatory data
 
+**Strategic Information:**
+${dynamicAttributesPrompt}
+
 **Instructions:**
 - Extract attributes based on explicit information in the conversation
 - Make reasonable inferences when information is implied but not stated
@@ -423,30 +459,30 @@ Extract the following attributes based on the information provided:
 Provide your response as a JSON object:
 {
   "frequency": {
-    "value": "<one of the frequency values or 'unknown'>",
-    "explanation": "<brief explanation of how this was determined>"
+    "value": "<value>",
+    "explanation": "<explanation>"
   },
   "business_value": {
-    "value": "<one of the business_value values or 'unknown'>",
-    "explanation": "<brief explanation>"
+    "value": "<value>",
+    "explanation": "<explanation>"
   },
   "complexity": {
-    "value": "<one of the complexity values or 'unknown'>",
-    "explanation": "<brief explanation>"
+    "value": "<value>",
+    "explanation": "<explanation>"
   },
   "risk": {
-    "value": "<one of the risk values or 'unknown'>",
-    "explanation": "<brief explanation>"
+    "value": "<value>",
+    "explanation": "<explanation>"
   },
   "user_count": {
-    "value": "<one of the user_count values or 'unknown'>",
-    "explanation": "<brief explanation>"
+    "value": "<value>",
+    "explanation": "<explanation>"
   },
   "data_sensitivity": {
-    "value": "<one of the data_sensitivity values or 'unknown'>",
-    "explanation": "<brief explanation>"
-  }
-}
+    "value": "<value>",
+    "explanation": "<explanation>"
+  },
+${responseFormatJson}}
 
 Respond ONLY with the JSON object, no additional text.`;
   }
@@ -454,7 +490,7 @@ Respond ONLY with the JSON object, no additional text.`;
   /**
    * Parse the attribute extraction response from OpenAI
    */
-  private parseAttributeExtractionResponse(content: string): ExtractedAttributes {
+  private async parseAttributeExtractionResponse(content: string): Promise<ExtractedAttributes> {
     try {
       // Extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -464,8 +500,8 @@ Respond ONLY with the JSON object, no additional text.`;
 
       const parsed = JSON.parse(jsonMatch[0]);
 
-      // Required attributes with defaults
-      const requiredAttributes = [
+      // Required core attributes
+      const coreAttributes = [
         'frequency',
         'business_value',
         'complexity',
@@ -474,9 +510,27 @@ Respond ONLY with the JSON object, no additional text.`;
         'data_sensitivity'
       ];
 
+      // Fetch dynamic strategic keys to ensure they are included in result
+      let strategicKeys = [
+        'success_criteria',
+        'risks_constraints',
+        'value_estimate',
+        'sponsorship'
+      ];
+      try {
+        const questions = await this.versionedStorage.getStrategicQuestions();
+        if (questions && Array.isArray(questions)) {
+          strategicKeys = questions.filter((q: any) => q.active).map((q: any) => q.key);
+        }
+      } catch (error) {
+        console.warn('Failed to load strategic questions for parser, using defaults');
+      }
+
+      const allExpectedKeys = [...coreAttributes, ...strategicKeys];
+
       // Fill in missing attributes with "unknown"
       const result: any = {};
-      for (const attr of requiredAttributes) {
+      for (const attr of allExpectedKeys) {
         if (parsed[attr] && parsed[attr].value) {
           result[attr] = parsed[attr];
         } else {
@@ -485,6 +539,14 @@ Respond ONLY with the JSON object, no additional text.`;
             value: 'unknown',
             explanation: 'Insufficient information provided'
           };
+        }
+      }
+
+      // Also include any other keys the LLM might have returned that we didn't explicitly expect
+      // but are not in our list yet (protection against future/dynamic keys)
+      for (const key of Object.keys(parsed)) {
+        if (!result[key] && parsed[key].value) {
+          result[key] = parsed[key];
         }
       }
 
@@ -644,17 +706,65 @@ Respond ONLY with the JSON object, no additional text.`;
    * Loads from versioned storage, falls back to default if not found
    */
   private async getClassificationSystemPrompt(): Promise<string> {
+    let promptContent = '';
     try {
       const prompt = await this.versionedStorage.getPrompt(this.CLASSIFICATION_PROMPT_ID);
       if (prompt) {
-        return prompt;
+        promptContent = prompt;
       }
     } catch (error) {
       console.warn('Failed to load classification prompt from storage, using default:', error);
     }
 
-    // Fallback to default prompt
-    return `You are an expert in business transformation and process optimization. Your task is to classify business initiatives into one of six transformation categories, evaluated in sequential order:
+    // Fetch dynamic strategic questions
+    let strategicQuestions = [];
+    try {
+      const questions = await this.versionedStorage.getStrategicQuestions();
+      if (questions && Array.isArray(questions)) {
+        strategicQuestions = questions.filter((q: any) => q.active);
+      }
+    } catch (error) {
+      console.warn('Failed to load strategic questions for classification prompt, using defaults');
+    }
+
+    if (strategicQuestions.length === 0) {
+      strategicQuestions = [
+        { text: "What would success look like for you?", key: "success_criteria" },
+        { text: "What risks and constraints are you aware of?", key: "risks_constraints" },
+        { text: "How much time, resource, or money would this save?", key: "value_estimate" },
+        { text: "Have you raised this before or do you have sponsorship?", key: "sponsorship" }
+      ];
+    }
+
+    const strategicRequirements = strategicQuestions.map((q: any, i: number) =>
+      `  * ${q.key}: ${q.text}`
+    ).join('\n');
+
+    const discoveryRules = `
+**Confidence Scoring:**
+- 0.95-1.0: High confidence - ONLY when you have explicit, detailed information about ALL of these:
+  * Current state (manual/paper-based/digital/automated) - explicitly stated, not assumed
+  * Process frequency and volume - specific numbers provided
+  * Number of users/stakeholders involved - explicitly stated
+  * Complexity (steps, systems, decision points) - clearly described
+  * Business value and impact - explicitly mentioned
+  * Pain points and inefficiencies - clearly articulated
+${strategicRequirements}
+- 0.5-0.90: Medium confidence - Use this when ANY of the above information is missing, vague, or assumed. Clarification questions MUST be asked.
+- 0.0-0.5: Low confidence - Very vague, contradictory, or insufficient information, requires manual review
+
+**CRITICAL RULES:**
+1. NEVER assume the answer to any strategic question - if the user hasn't explicitly stated it, you MUST consider it missing.
+2. NEVER assume the current state - if they don't explicitly say "it's currently manual" or "we have a digital system", you MUST ask.
+3. NEVER assume complexity, frequency, or user count - these must be explicitly stated.
+4. If you're missing ANY of the key information listed above (including strategic questions), your confidence MUST be 0.85 or lower to trigger clarification.
+5. Default to asking questions rather than making assumptions.
+6. The goal is DISCOVERY first, classification second.
+`;
+
+    if (!promptContent) {
+      // Use the full default prompt
+      return `You are an expert in business transformation and process optimization. Your task is to classify business initiatives into one of six transformation categories, evaluated in sequential order:
 
 1. **Eliminate**: Remove the process entirely as it adds no value
 2. **Simplify**: Streamline the process by removing unnecessary steps
@@ -688,25 +798,20 @@ Provide your response as a JSON object with the following structure:
   "futureOpportunities": "<potential for progression to higher categories>"
 }
 
-**Confidence Scoring:**
-- 0.90-1.0: High confidence - ONLY when you have explicit, detailed information about ALL of these:
-  * Current state (manual/paper-based/digital/automated) - explicitly stated, not assumed
-  * Process frequency and volume - specific numbers provided
-  * Number of users/stakeholders involved - explicitly stated
-  * Complexity (steps, systems, decision points) - clearly described
-  * Business value and impact - explicitly mentioned
-  * Pain points and inefficiencies - clearly articulated
-- 0.5-0.90: Medium confidence - Use this when ANY key information is missing, vague, or assumed. Clarification questions MUST be asked.
-- 0.0-0.5: Low confidence - Very vague, contradictory, or insufficient information, requires manual review
-
-**CRITICAL RULES:**
-1. NEVER assume the current state - if they don't explicitly say "it's currently manual" or "we have a digital system", you MUST ask
-2. NEVER assume complexity, frequency, or user count - these must be explicitly stated
-3. If you're making ANY assumptions to reach your classification, your confidence MUST be 0.6-0.85 or lower
-4. Default to asking questions rather than making assumptions
-5. The goal is DISCOVERY first, classification second
+${discoveryRules}
 
 Respond ONLY with the JSON object, no additional text.`;
+    }
+
+    // If using custom prompt, ensure discovery rules are included
+    if (promptContent.includes('{{STRATEGIC_QUESTIONS}}')) {
+      return promptContent.replace('{{STRATEGIC_QUESTIONS}}', strategicRequirements);
+    } else if (!promptContent.includes('Confidence Scoring')) {
+      // Automatically append discovery rules if they seem to be missing
+      return `${promptContent}\n\n${discoveryRules}\n\nRespond ONLY with the JSON object, no additional text.`;
+    }
+
+    return promptContent;
   }
 
   /**

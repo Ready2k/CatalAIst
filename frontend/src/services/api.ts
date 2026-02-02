@@ -1096,6 +1096,18 @@ class ApiService {
   }> {
     return this.request('/api/admin/review-stats');
   }
+  // Strategic Questions endpoints
+  async getStrategicQuestions(): Promise<any> {
+    return this.request('/api/strategic-questions');
+  }
+
+  async saveStrategicQuestions(questions: any[]): Promise<any> {
+    return this.request('/api/strategic-questions', {
+      method: 'PUT',
+      body: JSON.stringify(questions),
+    });
+  }
 }
 
 export const apiService = new ApiService();
+

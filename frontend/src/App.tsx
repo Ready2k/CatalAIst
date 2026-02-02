@@ -10,13 +10,14 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import DecisionMatrixAdmin from './components/DecisionMatrixAdmin';
 import LearningAdmin from './components/LearningAdmin';
 import PromptAdmin from './components/PromptAdmin';
+import StrategicQuestionsAdmin from './components/StrategicQuestionsAdmin';
 import AuditTrail from './components/AuditTrail';
 import UserManagement from './components/UserManagement';
 import AdminReview from './components/AdminReview';
 import { apiService } from './services/api';
 import { Classification, TransformationCategory } from '../../shared/types';
 
-type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'audit' | 'configuration' | 'users' | 'admin-review';
+type AppView = 'main' | 'analytics' | 'decision-matrix' | 'learning' | 'prompts' | 'strategic' | 'audit' | 'configuration' | 'users' | 'admin-review';
 type WorkflowState = 'input' | 'clarification' | 'result' | 'feedback' | 'submitted';
 
 function App() {
@@ -565,6 +566,27 @@ function App() {
                 Prompts
               </button>
               <button
+                onClick={() => setCurrentView('strategic')}
+                style={{
+                  padding: '8px 14px',
+                  backgroundColor: currentView === 'strategic' ? '#007bff' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentView !== 'strategic') e.currentTarget.style.backgroundColor = '#495057';
+                }}
+                onMouseOut={(e) => {
+                  if (currentView !== 'strategic') e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                Strategic Qs
+              </button>
+              <button
                 onClick={() => setCurrentView('audit')}
                 style={{
                   padding: '8px 14px',
@@ -1041,6 +1063,10 @@ function App() {
           onLoadPrompt={(id) => apiService.getPrompt(id)}
           onUpdatePrompt={(id, content) => apiService.updatePrompt(id, content)}
         />
+      )}
+
+      {currentView === 'strategic' && (
+        <StrategicQuestionsAdmin />
       )}
 
       {currentView === 'audit' && (

@@ -8,6 +8,7 @@ import decisionMatrixRoutes from './routes/decision-matrix.routes';
 import learningRoutes from './routes/learning.routes';
 import sessionRoutes from './routes/session.routes';
 import publicRoutes from './routes/public.routes';
+import strategicQuestionsRoutes from './routes/strategic-questions.routes';
 import processRoutes from './routes/process.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import voiceRoutes from './routes/voice.routes';
@@ -172,11 +173,11 @@ app.use('/api/auth/register', authLimiter);
 app.get('/nova-sonic-test', async (req, res) => {
   const path = require('path');
   const fs = require('fs').promises;
-  
+
   try {
     const htmlPath = path.join(__dirname, '../../frontend/public/nova-sonic-test.html');
     let html = await fs.readFile(htmlPath, 'utf-8');
-    
+
     // Inject credentials from environment
     const credentials = {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
@@ -184,7 +185,7 @@ app.get('/nova-sonic-test', async (req, res) => {
       sessionToken: process.env.AWS_SESSION_TOKEN || '',
       region: process.env.AWS_REGION || 'us-east-1'
     };
-    
+
     // Inject credentials into the HTML
     html = html.replace(
       'log(\'Test page loaded. Configure credentials and test TTS or bidirectional streaming.\', \'info\');',
@@ -197,7 +198,7 @@ app.get('/nova-sonic-test', async (req, res) => {
         document.getElementById('region').value = '${credentials.region}';
         ${credentials.accessKeyId ? "log('✅ Credentials loaded from environment', 'success');" : "log('⚠️ No credentials in environment. Please enter manually.', 'info');"}`
     );
-    
+
     res.send(html);
   } catch (error) {
     console.error('Error serving test page:', error);
@@ -281,6 +282,7 @@ app.use('/api/audit', authenticateToken, auditRoutes);
 app.use('/api/subjects', authenticateToken, subjectsRoutes);
 app.use('/api/admin', authenticateToken, requireRole('admin'), adminReviewRoutes);
 app.use('/api/nova-sonic', authenticateToken, novaSonicRoutes);
+app.use('/api/strategic-questions', authenticateToken, strategicQuestionsRoutes);
 
 // Initialize application on startup
 initializeApplication()

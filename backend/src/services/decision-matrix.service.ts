@@ -25,7 +25,7 @@ export class DecisionMatrixService {
    */
   async generateInitialMatrix(llmConfig: LLMProviderConfig, model: string = 'gpt-4'): Promise<DecisionMatrix> {
     const prompt = await this.getDecisionMatrixGenerationPrompt();
-    
+
     const response = await this.llmService.chat(
       [
         {
@@ -43,7 +43,7 @@ export class DecisionMatrixService {
 
     // Parse the LLM response to extract the decision matrix structure
     const matrixData = this.parseMatrixResponse(response.content);
-    
+
     // Create the decision matrix object
     const matrix: DecisionMatrix = {
       version: '1.0',
@@ -73,6 +73,20 @@ export class DecisionMatrixService {
       }
     } catch (error) {
       console.warn('Failed to load decision matrix generation prompt from storage, using default:', error);
+    }
+
+    // Fetch dynamic strategic keys
+    let strategicKeysString = 'success_criteria, risks_constraints, value_estimate, sponsorship';
+    try {
+      const questions = await this.versionedStorage.getStrategicQuestions();
+      if (questions && Array.isArray(questions)) {
+        const keys = questions.filter((q: any) => q.active).map((q: any) => q.key);
+        if (keys.length > 0) {
+          strategicKeysString = keys.join(', ');
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load strategic questions for decision matrix prompt, using defaults');
     }
 
     // Fallback to default prompt (should not happen after initialization)
@@ -108,7 +122,7 @@ Generate rules that follow transformation best practices:
 - Manual processes with no automation potential should be Digitise
 
 CRITICAL VALIDATION RULES - YOU MUST FOLLOW THESE:
-1. **Attribute Names**: Only use these exact attribute names: frequency, business_value, complexity, risk, user_count, data_sensitivity
+1. **Attribute Names**: Only use these exact attribute names: frequency, business_value, complexity, risk, user_count, data_sensitivity, ${strategicKeysString}
 2. **Attribute Values**: ONLY use values from the possibleValues array for each attribute
 3. **No Custom Attributes**: Do NOT create attributes like "subject", "domain", "department" - these are NOT supported
 4. **Condition Values**: Every condition value MUST exist in the attribute's possibleValues array
@@ -169,20 +183,20 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
     try {
       // Extract JSON from the response (handle markdown code blocks)
       let jsonStr = content.trim();
-      
+
       // Remove markdown code blocks if present
       if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
       }
-      
+
       // Fix common JSON formatting issues from LLM responses
       // Remove + signs before numbers (e.g., +0.1 -> 0.1)
       jsonStr = jsonStr.replace(/:\s*\+(\d)/g, ': $1');
       jsonStr = jsonStr.replace(/\[\s*\+(\d)/g, '[$1');
       jsonStr = jsonStr.replace(/,\s*\+(\d)/g, ', $1');
-      
+
       const parsed = JSON.parse(jsonStr);
-      
+
       // Validate and transform the data
       const attributes: Attribute[] = parsed.attributes.map((attr: any) => ({
         name: attr.name,
@@ -240,7 +254,7 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
             action.targetCategory = action.targetCategory[0];
             console.warn(`Rule "${rule.name}" had targetCategory as array, using first value: ${action.targetCategory}`);
           }
-          
+
           // Validate category
           if (!validCategories.includes(action.targetCategory as TransformationCategory)) {
             console.warn(`Rule "${rule.name}" has invalid targetCategory "${action.targetCategory}", defaulting to adjust_confidence`);
@@ -249,7 +263,7 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
             delete action.targetCategory;
           }
         }
-        
+
         return {
           ruleId: rule.ruleId || uuidv4(),
           name: rule.name,
@@ -287,7 +301,7 @@ Generate at least 6 attributes and 10-15 rules covering various scenarios.`;
    */
   async ensureInitialMatrix(llmConfig: LLMProviderConfig, model: string = 'gpt-4'): Promise<DecisionMatrix> {
     const existing = await this.versionedStorage.getLatestDecisionMatrix();
-    
+
     if (existing) {
       return existing;
     }

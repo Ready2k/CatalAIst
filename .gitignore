@@ -16,12 +16,16 @@ frontend/build/
 .env.production.local
 
 # Backend data directory (runtime data)
-# Keep versioned prompts but exclude everything else
+# Keep versioned prompts and decision matrices but exclude everything else
 backend/data/*
 !backend/data/prompts/
 backend/data/prompts/*
 !backend/data/prompts/.gitkeep
 !backend/data/prompts/*-v*.txt
+!backend/data/decision-matrix/
+backend/data/decision-matrix/*
+!backend/data/decision-matrix/.gitkeep
+!backend/data/decision-matrix/v*.json
 
 # IDE
 .vscode/

@@ -1,0 +1,540 @@
+{
+  "version": "1.16",
+  "createdAt": "2026-02-02T14:06:20.396Z",
+  "createdBy": "admin",
+  "description": "Applied learning suggestion: To reduce misclassifications of 'Eliminate' processes being classified as 'AI Agent', we need to pri",
+  "attributes": [
+    {
+      "name": "frequency",
+      "type": "categorical",
+      "possibleValues": [
+        "rare",
+        "monthly",
+        "weekly",
+        "daily",
+        "hourly"
+      ],
+      "weight": 0.15,
+      "description": "How often the process runs"
+    },
+    {
+      "name": "business_value",
+      "type": "categorical",
+      "possibleValues": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "weight": 0.3,
+      "description": "Impact on business outcomes"
+    },
+    {
+      "name": "complexity",
+      "type": "categorical",
+      "possibleValues": [
+        "low",
+        "medium",
+        "high",
+        "very_high"
+      ],
+      "weight": 0.15,
+      "description": "Process complexity level"
+    },
+    {
+      "name": "risk",
+      "type": "categorical",
+      "possibleValues": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "weight": 0.15,
+      "description": "Risk level if automated"
+    },
+    {
+      "name": "user_count",
+      "type": "categorical",
+      "possibleValues": [
+        "1-10",
+        "11-50",
+        "51-200",
+        "200+"
+      ],
+      "weight": 0.15,
+      "description": "Number of users affected"
+    },
+    {
+      "name": "data_sensitivity",
+      "type": "categorical",
+      "possibleValues": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "weight": 0.2,
+      "description": "Sensitivity of data handled"
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rule-1",
+      "name": "Critical data sensitivity review",
+      "description": "Flag for review processes handling restricted data",
+      "conditions": [
+        {
+          "attribute": "data_sensitivity",
+          "operator": "==",
+          "value": "restricted"
+        }
+      ],
+      "action": {
+        "type": "flag_review",
+        "rationale": "Restricted data requires special handling and security considerations"
+      },
+      "priority": 100,
+      "active": true
+    },
+    {
+      "ruleId": "rule-2",
+      "name": "High-risk processes review",
+      "description": "Flag for review high-risk processes",
+      "conditions": [
+        {
+          "attribute": "risk",
+          "operator": "in",
+          "value": [
+            "high",
+            "critical"
+          ]
+        }
+      ],
+      "action": {
+        "type": "flag_review",
+        "rationale": "High-risk processes need careful evaluation before automation"
+      },
+      "priority": 95,
+      "active": true
+    },
+    {
+      "ruleId": "rule-3",
+      "name": "Low-value elimination",
+      "description": "Eliminate low-value processes",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "==",
+          "value": "low"
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Eliminate",
+        "rationale": "Low-value processes should be removed to focus on higher-value work"
+      },
+      "priority": 90,
+      "active": true
+    },
+    {
+      "ruleId": "rule-4",
+      "name": "High-frequency low-complexity RPA",
+      "description": "RPA is ideal for high-frequency, low-complexity processes",
+      "conditions": [
+        {
+          "attribute": "frequency",
+          "operator": "in",
+          "value": [
+            "daily",
+            "hourly"
+          ]
+        },
+        {
+          "attribute": "complexity",
+          "operator": "==",
+          "value": "low"
+        },
+        {
+          "attribute": "risk",
+          "operator": "==",
+          "value": "low"
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "RPA",
+        "rationale": "High-frequency, low-complexity, low-risk processes are perfect for RPA"
+      },
+      "priority": 85,
+      "active": true
+    },
+    {
+      "ruleId": "rule-5",
+      "name": "High-complexity high-value AI Agent",
+      "description": "AI Agent for high-complexity, high-value processes",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "in",
+          "value": [
+            "high",
+            "critical"
+          ]
+        },
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "high",
+            "very_high"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "AI Agent",
+        "rationale": "High-value, high-complexity processes benefit from AI assistance with human oversight"
+      },
+      "priority": 80,
+      "active": true
+    },
+    {
+      "ruleId": "rule-6",
+      "name": "Agentic AI for autonomous decisions",
+      "description": "Agentic AI for processes requiring autonomous decision-making",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "in",
+          "value": [
+            "high",
+            "critical"
+          ]
+        },
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "very_high"
+          ]
+        },
+        {
+          "attribute": "risk",
+          "operator": "==",
+          "value": "low"
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Agentic AI",
+        "rationale": "Low-risk, very high-value, very high-complexity processes can be automated with Agentic AI"
+      },
+      "priority": 75,
+      "active": true
+    },
+    {
+      "ruleId": "rule-7",
+      "name": "Manual processes Digitise",
+      "description": "Digitise manual processes with no automation potential",
+      "conditions": [
+        {
+          "attribute": "complexity",
+          "operator": "==",
+          "value": "low"
+        },
+        {
+          "attribute": "business_value",
+          "operator": "in",
+          "value": [
+            "low",
+            "medium"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Digitise",
+        "rationale": "Low-complexity, low-to-medium value manual processes should be digitised"
+      },
+      "priority": 70,
+      "active": true
+    },
+    {
+      "ruleId": "rule-8",
+      "name": "Simplify medium-value processes",
+      "description": "Simplify medium-value processes to reduce complexity",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "==",
+          "value": "medium"
+        },
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Simplify",
+        "rationale": "Medium-value processes with medium-to-high complexity should be simplified"
+      },
+      "priority": 65,
+      "active": true
+    },
+    {
+      "ruleId": "rule-9",
+      "name": "Adjust confidence for large user base",
+      "description": "Decrease confidence for processes affecting many users",
+      "conditions": [
+        {
+          "attribute": "user_count",
+          "operator": "in",
+          "value": [
+            "51-200",
+            "200+"
+          ]
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.1,
+        "rationale": "Processes affecting many users require more careful consideration"
+      },
+      "priority": 60,
+      "active": true
+    },
+    {
+      "ruleId": "rule-10",
+      "name": "Adjust confidence for medium risk",
+      "description": "Decrease confidence for medium-risk processes",
+      "conditions": [
+        {
+          "attribute": "risk",
+          "operator": "==",
+          "value": "medium"
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.05,
+        "rationale": "Medium-risk processes need additional scrutiny"
+      },
+      "priority": 55,
+      "active": true
+    },
+    {
+      "ruleId": "rule-11",
+      "name": "Adjust confidence for weekly frequency",
+      "description": "Increase confidence for weekly frequency processes",
+      "conditions": [
+        {
+          "attribute": "frequency",
+          "operator": "==",
+          "value": "weekly"
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": 0.05,
+        "rationale": "Weekly processes have good automation potential"
+      },
+      "priority": 50,
+      "active": true
+    },
+    {
+      "ruleId": "rule-12",
+      "name": "Adjust confidence for internal data",
+      "description": "Decrease confidence for processes handling internal data",
+      "conditions": [
+        {
+          "attribute": "data_sensitivity",
+          "operator": "==",
+          "value": "internal"
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.05,
+        "rationale": "Internal data requires careful handling considerations"
+      },
+      "priority": 45,
+      "active": true
+    },
+    {
+      "ruleId": "rule-13",
+      "name": "Adjust confidence for monthly frequency",
+      "description": "Decrease confidence for monthly frequency processes",
+      "conditions": [
+        {
+          "attribute": "frequency",
+          "operator": "==",
+          "value": "monthly"
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.05,
+        "rationale": "Monthly processes may have less immediate automation ROI"
+      },
+      "priority": 40,
+      "active": true
+    },
+    {
+      "ruleId": "rule-14",
+      "name": "Adjust confidence for rare frequency",
+      "description": "Decrease confidence for rare frequency processes",
+      "conditions": [
+        {
+          "attribute": "frequency",
+          "operator": "==",
+          "value": "rare"
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.1,
+        "rationale": "Rare processes may not justify automation investment"
+      },
+      "priority": 35,
+      "active": true
+    },
+    {
+      "ruleId": "rule-15",
+      "name": "Adjust confidence for high complexity",
+      "description": "Decrease confidence for high complexity processes",
+      "conditions": [
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "high",
+            "very_high"
+          ]
+        }
+      ],
+      "action": {
+        "type": "adjust_confidence",
+        "confidenceAdjustment": -0.1,
+        "rationale": "High complexity processes require more resources and expertise"
+      },
+      "priority": 30,
+      "active": true
+    },
+    {
+      "name": "High-interaction AI Agent",
+      "description": "Processes that require high interaction and decision-making should be handled by AI Agent",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "in",
+          "value": [
+            "high",
+            "critical"
+          ]
+        },
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "high",
+            "very_high"
+          ]
+        },
+        {
+          "attribute": "risk",
+          "operator": "in",
+          "value": [
+            "low",
+            "medium"
+          ]
+        },
+        {
+          "attribute": "user_count",
+          "operator": "in",
+          "value": [
+            "51-200",
+            "200+"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "AI Agent",
+        "rationale": "Correctly identifying processes that require AI Agent for interaction and decision-making."
+      },
+      "priority": 70,
+      "active": true,
+      "ruleId": "6e0869e6-9418-4c0e-b0fe-7d018f9d9efd"
+    },
+    {
+      "name": "Redundant process elimination",
+      "description": "Processes that are redundant and do not add value should be eliminated",
+      "conditions": [
+        {
+          "attribute": "business_value",
+          "operator": "==",
+          "value": "low"
+        },
+        {
+          "attribute": "complexity",
+          "operator": "in",
+          "value": [
+            "low",
+            "medium"
+          ]
+        },
+        {
+          "attribute": "frequency",
+          "operator": "in",
+          "value": [
+            "daily",
+            "weekly",
+            "monthly"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Eliminate",
+        "rationale": "Redundant, low-value processes should be eliminated to free up resources for higher-value tasks"
+      },
+      "priority": 85,
+      "active": true,
+      "ruleId": "4f1204c1-8d7f-45b9-b38f-75aa7e2fcb7b"
+    },
+    {
+      "name": "Low complexity, low business value elimination",
+      "description": "Processes that are low complexity and low business value should be eliminated",
+      "conditions": [
+        {
+          "attribute": "complexity",
+          "operator": "==",
+          "value": "low"
+        },
+        {
+          "attribute": "business_value",
+          "operator": "in",
+          "value": [
+            "low",
+            "medium"
+          ]
+        }
+      ],
+      "action": {
+        "type": "override",
+        "targetCategory": "Eliminate",
+        "rationale": "Processes that are low complexity and low business value should be eliminated"
+      },
+      "priority": 92,
+      "active": true,
+      "ruleId": "95db5a3f-a936-42c1-8dbe-3f87243fd3bc"
+    }
+  ],
+  "active": true
+}
