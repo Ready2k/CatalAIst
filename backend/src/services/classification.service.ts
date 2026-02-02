@@ -72,7 +72,7 @@ export class ClassificationService {
   async classify(request: ClassificationRequest): Promise<ClassificationResult> {
     try {
       const model = request.model || this.DEFAULT_MODEL;
-      
+
       // Build LLM config
       const config = this.llmService.buildConfig({
         provider: request.provider,
@@ -113,7 +113,7 @@ export class ClassificationService {
   async classifyWithLLMData(request: ClassificationRequest): Promise<ClassificationWithLLMData> {
     try {
       const model = request.model || this.DEFAULT_MODEL;
-      
+
       // Build LLM config
       const config = this.llmService.buildConfig({
         provider: request.provider,
@@ -165,7 +165,7 @@ export class ClassificationService {
       request.processDescription,
       request.conversationHistory || []
     );
-    
+
     return {
       result,
       action
@@ -184,7 +184,7 @@ export class ClassificationService {
       request.processDescription,
       request.conversationHistory || []
     );
-    
+
     return {
       result: classificationWithLLM.result,
       action,
@@ -205,22 +205,34 @@ export class ClassificationService {
     processDescription: string,
     conversationHistory: Array<{ question: string; answer: string }>
   ): ConfidenceAction {
+    const quality = this.assessDescriptionQuality(processDescription, conversationHistory);
+
     // Low confidence always goes to manual review
     if (confidence < 0.5) {
       return 'manual_review';
     }
-    
-    // Very high confidence (>= 0.90) skips clarification entirely
+
+    // Poor quality description always needs clarification
+    if (quality === 'poor') {
+      return 'clarify';
+    }
+
+    // Marginal quality requires higher confidence threshold to skip clarification
+    if (quality === 'marginal' && confidence < 0.95) {
+      return 'clarify';
+    }
+
+    // High confidence (>= 0.90) skips clarification (if quality check passed)
     if (confidence >= 0.90) {
       return 'auto_classify';
     }
-    
+
     // Medium confidence (0.5-0.89) triggers clarification
     if (confidence < 0.90) {
       return 'clarify';
     }
-    
-    // Fallback (should not reach here)
+
+    // Fallback
     return 'auto_classify';
   }
 
@@ -238,16 +250,16 @@ export class ClassificationService {
     if (conversationHistory.length > 0) {
       return 'good';
     }
-    
+
     const wordCount = description.trim().split(/\s+/).length;
-    
+
     // Check for key information indicators
     const hasFrequencyInfo = /\b(daily|weekly|monthly|hourly|quarterly|annually|every|once|twice|times? per)\b/i.test(description);
     const hasVolumeInfo = /\b(\d+|many|few|several|multiple|hundreds?|thousands?)\b/i.test(description);
     const hasCurrentStateInfo = /\b(currently|now|today|manual|paper|digital|automated|system|tool|software|spreadsheet|excel)\b/i.test(description);
     const hasComplexityInfo = /\b(steps?|process|workflow|involves?|requires?|needs?|systems?|departments?)\b/i.test(description);
     const hasPainPointInfo = /\b(problem|issue|slow|error|mistake|difficult|time-consuming|inefficient|frustrating)\b/i.test(description);
-    
+
     const infoScore = [
       hasFrequencyInfo,
       hasVolumeInfo,
@@ -255,17 +267,17 @@ export class ClassificationService {
       hasComplexityInfo,
       hasPainPointInfo
     ].filter(Boolean).length;
-    
+
     // Poor: Very brief (< 20 words) OR lacks most key information (< 2 indicators)
     if (wordCount < 20 || infoScore < 2) {
       return 'poor';
     }
-    
+
     // Good: Detailed (> 50 words) AND has most key information (>= 3 indicators)
     if (wordCount > 50 && infoScore >= 3) {
       return 'good';
     }
-    
+
     // Marginal: Everything in between
     return 'marginal';
   }
@@ -284,7 +296,7 @@ export class ClassificationService {
   ): Promise<ExtractedAttributes> {
     try {
       const modelToUse = request.model || this.DEFAULT_MODEL;
-      
+
       // Build LLM config
       const config = this.llmService.buildConfig({
         provider: request.provider,
@@ -329,7 +341,7 @@ export class ClassificationService {
   ): Promise<ChatMessage[]> {
     const isO1Model = model.startsWith('o1');
     const systemPrompt = await this.getAttributeExtractionPrompt();
-    
+
     const messages: ChatMessage[] = [];
 
     if (!isO1Model) {
@@ -338,7 +350,7 @@ export class ClassificationService {
 
     // Build conversation context
     let conversationContext = `Process Description:\n${processDescription}\n\n`;
-    
+
     if (conversationHistory.length > 0) {
       conversationContext += 'Conversation History:\n';
       for (const qa of conversationHistory) {
@@ -497,7 +509,7 @@ Respond ONLY with the JSON object, no additional text.`;
     // O1 models don't support system messages, so we need to adapt
     const isO1Model = model?.startsWith('o1');
     const systemPrompt = await this.getClassificationSystemPrompt();
-    
+
     const messages: ChatMessage[] = [];
 
     if (!isO1Model) {
@@ -507,7 +519,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
     // Build context with smart summarization for long conversations
     let contextText = `Process Description:\n${processDescription}\n\n`;
-    
+
     if (conversationHistory && conversationHistory.length > 0) {
       // For conversations with 5+ Q&As, use summarization to prevent confusion
       if (conversationHistory.length >= 5) {
@@ -542,7 +554,7 @@ Respond ONLY with the JSON object, no additional text.`;
     conversationHistory: Array<{ question: string; answer: string }>
   ): string {
     let context = '';
-    
+
     // Extract key facts from all answers
     const keyFacts = this.extractKeyFacts(conversationHistory);
     if (keyFacts.length > 0) {
@@ -552,16 +564,16 @@ Respond ONLY with the JSON object, no additional text.`;
       });
       context += '\n';
     }
-    
+
     // Include last 2-3 Q&As for recent context
     const recentCount = Math.min(3, conversationHistory.length);
     const recentQAs = conversationHistory.slice(-recentCount);
-    
+
     context += `Recent Clarifications (last ${recentCount} of ${conversationHistory.length}):\n`;
     for (const qa of recentQAs) {
       context += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
     }
-    
+
     return context;
   }
 
@@ -574,38 +586,38 @@ Respond ONLY with the JSON object, no additional text.`;
   ): string[] {
     const facts: string[] = [];
     const allText = conversationHistory.map(qa => qa.answer).join(' ').toLowerCase();
-    
+
     // Frequency
     const frequencyMatch = allText.match(/\b(daily|weekly|monthly|hourly|quarterly|annually|every\s+\w+|once|twice|\d+\s+times?\s+per)\b/i);
     if (frequencyMatch) {
       facts.push(`Process frequency: ${frequencyMatch[0]}`);
     }
-    
+
     // Volume/Scale
     const volumeMatch = allText.match(/\b(\d+)\s+(users?|people|employees?|transactions?|requests?|cases?)\b/i);
     if (volumeMatch) {
       facts.push(`Scale: ${volumeMatch[0]}`);
     }
-    
+
     // Current state
     if (/\b(manual|paper-based|spreadsheet|excel)\b/i.test(allText)) {
       facts.push('Current state: Manual/paper-based process');
     } else if (/\b(digital|system|automated|software|tool)\b/i.test(allText)) {
       facts.push('Current state: Digital/system-based');
     }
-    
+
     // Complexity indicators
     const stepsMatch = allText.match(/\b(\d+)\s+(steps?|stages?|phases?)\b/i);
     if (stepsMatch) {
       facts.push(`Process complexity: ${stepsMatch[0]}`);
     }
-    
+
     // Systems involved
     const systemsMatch = allText.match(/\b(\d+)\s+(systems?|applications?|tools?)\b/i);
     if (systemsMatch) {
       facts.push(`Systems involved: ${systemsMatch[0]}`);
     }
-    
+
     // Pain points
     if (/\b(slow|time-consuming|takes\s+\d+\s+(hours?|minutes?|days?))\b/i.test(allText)) {
       facts.push('Pain point: Time-consuming process');
@@ -613,17 +625,17 @@ Respond ONLY with the JSON object, no additional text.`;
     if (/\b(error-prone|mistakes?|errors?)\b/i.test(allText)) {
       facts.push('Pain point: Error-prone');
     }
-    
+
     // Business value
     if (/\b(critical|essential|vital|important|high\s+priority)\b/i.test(allText)) {
       facts.push('Business value: High/Critical');
     }
-    
+
     // Data sensitivity
     if (/\b(sensitive|confidential|restricted|pii|personal\s+data)\b/i.test(allText)) {
       facts.push('Data sensitivity: High');
     }
-    
+
     return facts;
   }
 
@@ -703,14 +715,14 @@ Respond ONLY with the JSON object, no additional text.`;
   private parseClassificationResponse(content: string): ClassificationResult {
     try {
       console.log('[Classification] Raw LLM response:', content.substring(0, 500));
-      
+
       // Check for malformed responses (e.g., "Clarification 9")
       const trimmedContent = content.trim();
       if (/^Clarification\s+\d+$/i.test(trimmedContent)) {
         console.error('[Classification] Detected clarification loop response:', trimmedContent);
         throw new Error('LLM returned clarification loop response instead of classification. This may indicate the model is confused or has been asked too many questions.');
       }
-      
+
       // Extract JSON from response (handle cases where model adds extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {

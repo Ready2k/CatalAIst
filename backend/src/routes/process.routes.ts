@@ -34,11 +34,11 @@ const subjectExtractionService = new SubjectExtractionService();
  */
 router.post('/submit', async (req: Request, res: Response) => {
   const startTime = Date.now();
-  
+
   try {
-    const { 
-      description, 
-      sessionId, 
+    const {
+      description,
+      sessionId,
       subject: manualSubject, // User-provided subject (optional)
       apiKey,
       awsAccessKeyId,
@@ -110,7 +110,7 @@ router.post('/submit', async (req: Request, res: Response) => {
 
     // Determine subject: use manual subject if provided, otherwise auto-extract
     let subject: string | undefined = manualSubject;
-    
+
     if (!subject) {
       // Auto-extract subject from process description
       try {
@@ -166,7 +166,7 @@ router.post('/submit', async (req: Request, res: Response) => {
 
     // Save session
     await sessionStorage.saveSession(session);
-    
+
     // Invalidate analytics cache on new session
     analyticsService.invalidateCache();
 
@@ -326,16 +326,16 @@ router.post('/submit', async (req: Request, res: Response) => {
       llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
-    
+
     session.classification = classificationToStore;
-    
+
     // Determine session status based on user role
     // Regular users (profile type) get pending_admin_review status (blind evaluation)
     // Admins get completed status (they can see results immediately)
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role || 'user';
     session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
-    
+
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -395,7 +395,7 @@ router.post('/submit', async (req: Request, res: Response) => {
  */
 router.post('/classify', async (req: Request, res: Response) => {
   const startTime = Date.now();
-  
+
   try {
     const {
       sessionId,
@@ -603,14 +603,14 @@ router.post('/classify', async (req: Request, res: Response) => {
       llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
-    
+
     session.classification = classificationToStore;
-    
+
     // Determine session status based on user role (blind evaluation for regular users)
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role || 'user';
     session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
-    
+
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -673,7 +673,7 @@ router.post('/classify', async (req: Request, res: Response) => {
  */
 router.post('/clarify', async (req: Request, res: Response) => {
   const startTime = Date.now();
-  
+
   try {
     const {
       sessionId,
@@ -749,7 +749,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
     for (let i = 0; i < answers.length; i++) {
       // Use provided questions if available, otherwise use placeholder
       const question = questions && questions[i] ? questions[i] : `Clarification ${latestConversation.clarificationQA.length + 1}`;
-      
+
       latestConversation.clarificationQA.push({
         question,
         answer: scrubbedAnswers[i].scrubbedText
@@ -796,44 +796,34 @@ router.post('/clarify', async (req: Request, res: Response) => {
 
     // Check if more clarification is needed
     if (classificationResult.action === 'clarify') {
-      // Detect clarification loops by checking recent audit logs
-      const recentLogs = await auditLogService.getLogsBySession(sessionId);
-      const clarificationLogs = recentLogs.filter(log => log.eventType === 'clarification');
-      
-      // Check for loop: Look at question/answer patterns
-      const recentClarifications = clarificationLogs.slice(-3);
-      
-      // Count how many times we asked questions but got no new questions back
-      let emptyQuestionRounds = 0;
-      
-      for (const log of recentClarifications) {
-        const questionsInLog = log.data.questions?.length || 0;
-        const answersInLog = log.data.answers?.length || 0;
-        
-        if (questionsInLog === 0 && answersInLog > 0) {
-          emptyQuestionRounds++;
-        }
-      }
-      
-      // Detect loop if we have 2+ rounds where answers were given but no questions asked
-      // This indicates the LLM is stuck and not generating new questions
-      if (emptyQuestionRounds >= 2) {
-        console.warn(`[Clarification Loop Detected] Session ${sessionId}: Empty question rounds: ${emptyQuestionRounds}. Stopping clarification.`);
-        
-        // Force auto-classify to break the loop
-        classificationResult.action = 'auto_classify';
-        
-        // Log the loop detection
+      // Generate clarification questions
+      const clarificationResponse = await clarificationService.generateQuestions({
+        processDescription: latestConversation.processDescription,
+        classification: classificationResult.result,
+        conversationHistory: latestConversation.clarificationQA,
+        provider: llmProvider,
+        apiKey,
+        awsAccessKeyId,
+        awsSecretAccessKey,
+        awsSessionToken,
+        awsRegion,
+        model
+      });
+
+      // Check if clarification service says to stop (shouldClarify = false or empty questions)
+      if (!clarificationResponse.shouldClarify || clarificationResponse.questions.length === 0) {
+        console.log(`[Clarification] Stopping clarification: ${clarificationResponse.reason}`);
+
+        // Log that we're stopping clarification
         await auditLogService.log({
           sessionId,
           timestamp: new Date().toISOString(),
           eventType: 'clarification',
           userId,
           data: {
-            loopDetected: true,
-            reason: 'Multiple consecutive answer-only responses - LLM not generating questions',
-            emptyQuestionRounds,
-            action: 'forced_auto_classify'
+            stoppedClarification: true,
+            reason: clarificationResponse.reason,
+            action: 'auto_classify'
           },
           piiScrubbed: false,
           metadata: {
@@ -841,79 +831,40 @@ router.post('/clarify', async (req: Request, res: Response) => {
             llmProvider
           }
         });
-        
+
+        // Force auto-classify
+        classificationResult.action = 'auto_classify';
         // Continue to auto-classify section below
       } else {
-        // Generate clarification questions
-        const clarificationResponse = await clarificationService.generateQuestions({
-          processDescription: latestConversation.processDescription,
-          classification: classificationResult.result,
-          conversationHistory: latestConversation.clarificationQA,
-          provider: llmProvider,
-          apiKey,
-          awsAccessKeyId,
-          awsSecretAccessKey,
-          awsSessionToken,
-          awsRegion,
-          model
+        // We have valid questions to ask
+        const questionTexts = clarificationResponse.questions.map(q => q.question);
+        const scrubbedQuestions = await Promise.all(
+          questionTexts.map(q => piiService.scrubOnly(q))
+        );
+
+        await auditLogService.logClarification(
+          sessionId,
+          userId,
+          questionTexts,
+          [],
+          scrubbedQuestions.map(sq => sq.scrubbedText),
+          [],
+          scrubbedQuestions.some(sq => sq.hasPII),
+          undefined,
+          undefined,
+          {
+            modelVersion: model,
+            llmProvider,
+            latencyMs: classificationLatency,
+            action: 'clarify'
+          }
+        );
+
+        return res.json({
+          clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
+          totalQuestions: questionTexts.length,
+          sessionId
         });
-
-        // Check if clarification service says to stop (shouldClarify = false or empty questions)
-        if (!clarificationResponse.shouldClarify || clarificationResponse.questions.length === 0) {
-          console.log(`[Clarification] Stopping clarification: ${clarificationResponse.reason}`);
-          
-          // Log that we're stopping clarification
-          await auditLogService.log({
-            sessionId,
-            timestamp: new Date().toISOString(),
-            eventType: 'clarification',
-            userId,
-            data: {
-              stoppedClarification: true,
-              reason: clarificationResponse.reason,
-              action: 'auto_classify'
-            },
-            piiScrubbed: false,
-            metadata: {
-              modelVersion: model,
-              llmProvider
-            }
-          });
-          
-          // Force auto-classify
-          classificationResult.action = 'auto_classify';
-          // Continue to auto-classify section below
-        } else {
-          // We have valid questions to ask
-          const questionTexts = clarificationResponse.questions.map(q => q.question);
-          const scrubbedQuestions = await Promise.all(
-            questionTexts.map(q => piiService.scrubOnly(q))
-          );
-
-          await auditLogService.logClarification(
-            sessionId,
-            userId,
-            questionTexts,
-            [],
-            scrubbedQuestions.map(sq => sq.scrubbedText),
-            [],
-            scrubbedQuestions.some(sq => sq.hasPII),
-            undefined,
-            undefined,
-            {
-              modelVersion: model,
-              llmProvider,
-              latencyMs: classificationLatency,
-              action: 'clarify'
-            }
-          );
-
-          return res.json({
-            clarificationQuestions: scrubbedQuestions.map(sq => sq.scrubbedText),
-            totalQuestions: questionTexts.length,
-            sessionId
-          });
-        }
       }
     }
 
@@ -1013,14 +964,14 @@ router.post('/clarify', async (req: Request, res: Response) => {
       llmProvider,
       decisionMatrixEvaluation: decisionMatrixEvaluation || undefined
     };
-    
+
     session.classification = classificationToStore;
-    
+
     // Determine session status based on user role (blind evaluation for regular users)
     const authReq = req as AuthRequest;
     const userRole = authReq.user?.role || 'user';
     session.status = userRole === 'admin' ? 'completed' : 'pending_admin_review';
-    
+
     session.updatedAt = new Date().toISOString();
     await sessionStorage.saveSession(session);
     analyticsService.invalidateCache();
@@ -1079,7 +1030,7 @@ router.post('/clarify', async (req: Request, res: Response) => {
  */
 router.post('/reclassify', async (req: Request, res: Response) => {
   const startTime = Date.now();
-  
+
   try {
     const {
       sessionId,
@@ -1210,7 +1161,7 @@ router.post('/reclassify', async (req: Request, res: Response) => {
       );
 
       finalClassification = decisionMatrixEvaluation.finalClassification;
-      
+
       console.log(`[Reclassify] After decision matrix: ${finalClassification.category} (${finalClassification.confidence})`);
     }
 
