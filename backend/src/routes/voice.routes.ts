@@ -226,6 +226,7 @@ router.post('/synthesize', async (req: Request, res: Response) => {
       sessionId,
       userId = 'anonymous',
       customPrompt, // NEW: Allow custom prompt for TTS
+      bypassCache, // NEW: Allow bypassing cache for fresh generation
       // OpenAI
       apiKey,
       // AWS
@@ -296,18 +297,25 @@ router.post('/synthesize', async (req: Request, res: Response) => {
     const cacheKey = `${Buffer.from(text).toString('base64').substring(0, 50)}_${voice}_${provider}`;
     const cachedFilePath = path.join(cacheDir, `${cacheKey}.mp3`);
 
-    let audioBuffer: Buffer;
+    let audioBuffer: Buffer | undefined;
     let fromCache = false;
 
-    try {
-      // Try to read from cache
-      audioBuffer = await fs.readFile(cachedFilePath);
-      fromCache = true;
+    // Try to read from cache ONLY if bypassCache is false (or undefined)
+    if (!bypassCache) {
+      try {
+        audioBuffer = await fs.readFile(cachedFilePath);
+        fromCache = true;
+        // Update file access time
+        await fs.utimes(cachedFilePath, new Date(), new Date());
+      } catch (cacheError) {
+        // Cache miss or error - ignore and proceed to synthesis
+      }
+    } else {
+      console.log('[Voice Route] Bypassing cache for fresh generation');
+    }
 
-      // Update file access time
-      await fs.utimes(cachedFilePath, new Date(), new Date());
-    } catch (cacheError) {
-      // Not in cache, synthesize new audio
+    // Synthesize if not found in cache or bypassed
+    if (!audioBuffer) {
       const startTime = Date.now();
 
       if (provider === 'openai') {

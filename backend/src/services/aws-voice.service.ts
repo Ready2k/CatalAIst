@@ -196,7 +196,7 @@ export class AWSVoiceService {
         console.log('[Nova 2 Sonic TTS] Starting synthesis...');
         console.log(`[Nova 2 Sonic TTS] Text: "${text}"`);
         console.log(`[Nova 2 Sonic TTS] Voice: ${voice}`);
-        
+
         const { InvokeModelWithBidirectionalStreamCommand } = await import('@aws-sdk/client-bedrock-runtime');
         const bedrockClient = this.createBedrockClient(config);
 
@@ -205,7 +205,7 @@ export class AWSVoiceService {
             const textContentName = `text-${Date.now()}`;
             const audioContentName = `audio-${Date.now()}`;
             const systemContentName = `system-${Date.now()}`;
-            
+
             // Map voice to valid Nova voice ID
             const effectiveVoiceId = voice === 'nova-sonic' || voice === 'sonic' ? 'matthew' : voice.toLowerCase();
             console.log(`[Nova 2 Sonic TTS] Using voice ID: ${effectiveVoiceId}`);
@@ -213,6 +213,8 @@ export class AWSVoiceService {
             // Signal to keep generator alive until we receive response
             let canFinish = false;
             const finishSignal = () => { canFinish = true; };
+
+            const effectiveSystemPrompt = this.getDefaultSystemPrompt();
 
             // Create input stream generator
             async function* inputStream(): AsyncGenerator<any> {
@@ -285,9 +287,9 @@ export class AWSVoiceService {
                 };
 
                 // Use custom prompt if provided, otherwise use default
-                const defaultPrompt = `You are a text-to-speech system. Your only job is to speak the user's text EXACTLY as written, word-for-word, without adding any commentary, questions, or additional words.`;
-                const systemPrompt = customPrompt || defaultPrompt;
-                
+                // Capture prompt outside generator to avoid 'this' context issues
+                const systemPrompt = customPrompt || effectiveSystemPrompt;
+
                 console.log('[Nova 2 Sonic TTS] → Event 4: system textInput (instructions)');
                 console.log(`[Nova 2 Sonic TTS]   Using prompt: ${customPrompt ? 'CUSTOM' : 'DEFAULT'}`);
                 yield {
@@ -403,7 +405,7 @@ export class AWSVoiceService {
                 const BYTES_PER_SAMPLE = 2; // 16-bit
                 const SILENCE_BYTES = (SAMPLE_RATE * SILENCE_DURATION_MS / 1000) * BYTES_PER_SAMPLE;
                 const silenceFrame = Buffer.alloc(SILENCE_BYTES, 0);
-                
+
                 console.log(`[Nova 2 Sonic TTS] → Event 10: audioInput (${SILENCE_BYTES} bytes silence)`);
                 yield {
                     chunk: {
@@ -464,7 +466,7 @@ export class AWSVoiceService {
                         }))
                     }
                 };
-                
+
                 console.log('[Nova 2 Sonic TTS] ✓ Stream closed gracefully');
             }
 
@@ -648,7 +650,7 @@ export class AWSVoiceService {
      * Get default system prompt for Nova 2 Sonic conversations
      */
     private getDefaultSystemPrompt(): string {
-        return `You are a text-to-speech system. Your only job is to speak the user's text EXACTLY as written, word-for-word, without adding any commentary, questions, or additional words.`;
+        return `Your only job is to speak the user's text EXACTLY as written, word-for-word, without adding any commentary, questions, or additional words.`;
     }
 
     /**

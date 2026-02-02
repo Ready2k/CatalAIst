@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -250,8 +251,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
 
         .stats {
@@ -291,6 +299,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -315,7 +324,8 @@
                     </div>
                     <div class="form-group">
                         <label for="modelId">Model ID</label>
-                        <input type="text" id="modelId" value="amazon.nova-2-sonic-v1:0" placeholder="amazon.nova-2-sonic-v1:0">
+                        <input type="text" id="modelId" value="amazon.nova-2-sonic-v1:0"
+                            placeholder="amazon.nova-2-sonic-v1:0">
                     </div>
                 </div>
                 <div class="form-row">
@@ -330,7 +340,8 @@
                 </div>
                 <div class="form-group">
                     <label for="sessionToken">AWS Session Token (Optional)</label>
-                    <input type="password" id="sessionToken" placeholder="Enter session token if using temporary credentials">
+                    <input type="password" id="sessionToken"
+                        placeholder="Enter session token if using temporary credentials">
                 </div>
             </div>
 
@@ -367,7 +378,9 @@
                 <h2>🔊 Text-to-Speech Test</h2>
                 <div class="form-group">
                     <label for="ttsPrompt">System Prompt (Optional - leave empty for default)</label>
-                    <textarea id="ttsPrompt" rows="3" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical;" placeholder="Enter custom system prompt (e.g., 'You are a narrator. Speak the following text clearly and professionally:')"></textarea>
+                    <textarea id="ttsPrompt" rows="3"
+                        style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical;"
+                        placeholder="Enter custom system prompt (e.g., 'You are a narrator. Speak the following text clearly and professionally:')"></textarea>
                 </div>
                 <div class="form-group">
                     <label for="ttsText">Text to Speak</label>
@@ -450,14 +463,14 @@
         function updateStatus(status, message) {
             statusEl.className = `status ${status}`;
             statusTextEl.textContent = message;
-            
+
             const icons = {
                 idle: '⚪',
                 connecting: '🟡',
                 connected: '🟢',
                 error: '🔴'
             };
-            
+
             statusEl.querySelector('.status-icon').textContent = icons[status] || '⚪';
         }
 
@@ -490,12 +503,12 @@
                     const barWidth = 4;
                     const gap = 2;
                     const numBars = Math.floor(canvas.width / (barWidth + gap));
-                    
+
                     for (let i = 0; i < numBars; i++) {
                         const height = Math.random() * canvas.height * 0.8;
                         const x = i * (barWidth + gap);
                         const y = (canvas.height - height) / 2;
-                        
+
                         ctx.fillStyle = '#667eea';
                         ctx.fillRect(x, y, barWidth, height);
                     }
@@ -547,7 +560,7 @@
                 }
 
                 const result = await response.json();
-                
+
                 isConnected = true;
                 connectionStartTime = Date.now();
                 connectionTimeInterval = setInterval(updateConnectionTime, 1000);
@@ -575,14 +588,14 @@
         async function startRecording() {
             try {
                 log('Requesting microphone access...', 'info');
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 16000,
                         channelCount: 1,
                         echoCancellation: true,
                         noiseSuppression: true
-                    } 
+                    }
                 });
 
                 audioContext = new AudioContext({ sampleRate: 16000 });
@@ -609,7 +622,7 @@
                 recordingIndicator.style.display = 'block';
                 recordBtn.textContent = '⏸️ Stop Recording';
                 recordBtn.className = 'btn-danger';
-                
+
                 log('🎤 Recording started', 'success');
 
             } catch (error) {
@@ -634,7 +647,7 @@
             recordingIndicator.style.display = 'none';
             recordBtn.textContent = '🎤 Start Recording';
             recordBtn.className = 'btn-secondary';
-            
+
             log('⏹️ Recording stopped', 'info');
         }
 
@@ -697,7 +710,8 @@
                     awsAccessKeyId: accessKeyId,
                     awsSecretAccessKey: secretAccessKey,
                     awsSessionToken: sessionToken || undefined,
-                    awsRegion: region
+                    awsRegion: region,
+                    bypassCache: true // Always bypass cache for testing
                 };
 
                 // Add custom prompt if provided
@@ -720,18 +734,18 @@
                 }
 
                 log('✅ TTS synthesis successful!', 'success');
-                
+
                 // Get audio blob and play it
                 const audioBlob = await response.blob();
                 console.log('Audio blob type:', audioBlob.type);
                 console.log('Audio blob size:', audioBlob.size);
-                
+
                 const audioUrl = URL.createObjectURL(audioBlob);
                 audioElement.src = audioUrl;
                 audioPlayer.style.display = 'block';
-                
+
                 log(`🎵 Audio ready (${(audioBlob.size / 1024).toFixed(2)} KB, type: ${audioBlob.type})`, 'success');
-                
+
                 // Wait for audio to load before playing
                 audioElement.onloadedmetadata = () => {
                     log(`▶️ Audio loaded: ${audioElement.duration.toFixed(2)}s duration`, 'success');
@@ -739,7 +753,7 @@
                         log(`❌ Playback error: ${err.message}`, 'error');
                     });
                 };
-                
+
                 audioElement.onerror = (e) => {
                     log(`❌ Audio loading error: ${audioElement.error?.message || 'Unknown error'}`, 'error');
                     console.error('Audio element error:', audioElement.error);
@@ -756,7 +770,7 @@
 
         // Event Listeners
         connectBtn.addEventListener('click', connectStream);
-        
+
         recordBtn.addEventListener('click', () => {
             if (isRecording) {
                 stopRecording();
@@ -766,7 +780,7 @@
         });
 
         disconnectBtn.addEventListener('click', disconnect);
-        
+
         clearLogBtn.addEventListener('click', () => {
             logEl.innerHTML = '';
             log('Log cleared', 'info');
@@ -779,4 +793,5 @@
         log('Test page loaded. Configure credentials and test TTS or bidirectional streaming.', 'info');
     </script>
 </body>
+
 </html>
