@@ -36,6 +36,7 @@ usage() {
     echo "  backup      Backup application data"
     echo "  restore     Restore application data"
     echo "  admin       Create admin user"
+    echo "  password-reset Reset a user's password"
     echo "  update      Update to latest version"
     echo ""
     echo "Options:"
@@ -630,6 +631,21 @@ create_admin() {
     fi
 }
 
+# Function to reset user password
+reset_password() {
+    if [ "$MODE" = "docker" ]; then
+        echo -e "${BLUE}Resetting password (Docker mode)...${NC}"
+        
+        cd "$SCRIPT_DIR"
+        docker-compose exec backend npm run reset-password
+    else
+        echo -e "${BLUE}Resetting password (Local development mode)...${NC}"
+        
+        cd "$SCRIPT_DIR/backend"
+        npm run reset-password:dev
+    fi
+}
+
 # Function to update application
 update_app() {
     echo -e "${BLUE}Updating CatalAIst...${NC}"
@@ -737,6 +753,9 @@ main() {
             ;;
         admin)
             create_admin
+            ;;
+        password-reset)
+            reset_password
             ;;
         update)
             update_app

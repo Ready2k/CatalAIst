@@ -31,7 +31,7 @@ async function createAdmin() {
 
   try {
     const username = await question('Enter admin username: ');
-    
+
     if (!username || username.length < 3) {
       console.error('Error: Username must be at least 3 characters');
       process.exit(1);
@@ -40,19 +40,23 @@ async function createAdmin() {
     // Check if user already exists
     const existingUser = await userService.getUserByUsername(username);
     if (existingUser) {
-      console.error(`Error: User '${username}' already exists`);
+      console.error(`Error: User '${username}' already exists.`);
+      console.log(`\nTip: If you want to change this user's password, use:`);
+      console.log(`npm run reset-password:dev (Local mode)`);
+      console.log(`or`);
+      console.log(`./catalai.sh password-reset (Script mode)`);
       process.exit(1);
     }
 
     const password = await question('Enter admin password (min 8 characters): ');
-    
+
     if (!password || password.length < 8) {
       console.error('Error: Password must be at least 8 characters');
       process.exit(1);
     }
 
     const confirmPassword = await question('Confirm password: ');
-    
+
     if (password !== confirmPassword) {
       console.error('Error: Passwords do not match');
       process.exit(1);
