@@ -48,14 +48,16 @@ async function createAdmin() {
       process.exit(1);
     }
 
-    const password = await question('Enter admin password (min 8 characters): ');
+    let password = await question('Enter admin password (min 8 characters): ');
+    password = password.trim();
 
     if (!password || password.length < 8) {
       console.error('Error: Password must be at least 8 characters');
       process.exit(1);
     }
 
-    const confirmPassword = await question('Confirm password: ');
+    let confirmPassword = await question('Confirm password: ');
+    confirmPassword = confirmPassword.trim();
 
     if (password !== confirmPassword) {
       console.error('Error: Passwords do not match');
