@@ -231,7 +231,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         try {
           vadRef.current = new VoiceActivityDetector({
             silenceThreshold: -50,
-            silenceDuration: 2000,
+            silenceDuration: 3000,
             minRecordingDuration: 1000,
           });
 

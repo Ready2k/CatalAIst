@@ -9,6 +9,7 @@ import { SessionStorageService } from '../services/session-storage.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { JsonStorageService } from '../services/storage.service';
 import { AudioTranscription } from '../types';
+import { LLMProviderConfig } from '../services/llm-provider.interface';
 
 const router = Router();
 
@@ -77,7 +78,8 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
       awsSecretAccessKey,
       awsSessionToken,
       awsRegion,
-      userId = 'anonymous'
+      userId = 'anonymous',
+      voiceService
     } = req.body;
 
     if (!req.file) {
@@ -131,16 +133,25 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
         apiKey
       });
     } else {
-      // Use Nova 2 Sonic for Bedrock users (speech-to-speech)
-      const fileStream = require('fs').createReadStream(audioFilePath);
-
-      transcriptionResult = await awsVoiceService.transcribe(fileStream, {
+      // Use standard non-streaming transcription via HTTP
+      const llmConfig: LLMProviderConfig = {
         provider: 'bedrock',
         awsAccessKeyId,
         awsSecretAccessKey,
         awsSessionToken,
-        awsRegion: awsRegion || 'us-east-1'
-      });
+        awsRegion: awsRegion || 'us-east-1',
+        voiceService
+      };
+
+      if (llmConfig.provider === 'bedrock' && llmConfig.voiceService === 'polly') {
+        transcriptionResult = await awsVoiceService.transcribeWithStandard(req.file.path, llmConfig);
+      } else {
+        // Fallback to streaming for other bedrock voice services or if transcribeWithStandard is not applicable
+        const fileStream = require('fs').createReadStream(audioFilePath);
+        transcriptionResult = await awsVoiceService.transcribe(fileStream, llmConfig);
+      }
+      console.log('[Voice Route] Transcription completed. Length:', transcriptionResult.transcription.length);
+      console.log('[Voice Route] Result:', transcriptionResult.transcription);
     }
 
     const latencyMs = Date.now() - startTime;
@@ -233,7 +244,8 @@ router.post('/synthesize', async (req: Request, res: Response) => {
       awsAccessKeyId,
       awsSecretAccessKey,
       awsSessionToken,
-      awsRegion
+      awsRegion,
+      voiceService
     } = req.body;
 
     if (!text) {
@@ -334,7 +346,8 @@ router.post('/synthesize', async (req: Request, res: Response) => {
             awsAccessKeyId: awsAccessKeyId || process.env.AWS_ACCESS_KEY_ID,
             awsSecretAccessKey: awsSecretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
             awsSessionToken: awsSessionToken || process.env.AWS_SESSION_TOKEN,
-            awsRegion: awsRegion || process.env.AWS_REGION || 'us-east-1'
+            awsRegion: awsRegion || process.env.AWS_REGION || 'us-east-1',
+            voiceService
           }, customPrompt); // Pass custom prompt
           console.log('[Voice Route] AWS Voice Service returned buffer of size:', audioBuffer.length);
         } catch (awsError) {

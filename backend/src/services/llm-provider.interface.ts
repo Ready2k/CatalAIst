@@ -43,6 +43,7 @@ export interface LLMProviderConfig {
   useRegionalInference?: boolean; // For AWS Bedrock regional inference
   regionalInferenceEndpoint?: string; // Custom regional inference endpoint
   modelId?: string; // Specific model ID
+  voiceService?: 'nova-sonic' | 'polly'; // Specific voice service to use
 }
 
 /**

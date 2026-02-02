@@ -46,6 +46,7 @@ function App() {
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
     awsRegion?: string;
+    voiceService?: 'nova-sonic' | 'polly';
   } | null>(null);
 
   // Derived voice enabled flag for convenience
@@ -161,14 +162,16 @@ function App() {
             awsSecretAccessKey: config.awsSecretAccessKey,
             awsSessionToken: config.awsSessionToken,
             awsRegion: config.awsRegion
-          })
+          }),
+          voiceService: config.voiceService
         });
         // Store in session storage for persistence (without credentials)
         sessionStorage.setItem('voiceConfig', JSON.stringify({
           enabled: true,
           voiceType: config.voiceType || (config.provider === 'bedrock' ? 'nova-sonic' : 'alloy'),
           streamingMode: config.streamingMode || false,
-          provider: config.provider
+          provider: config.provider,
+          voiceService: config.voiceService
         }));
       } else {
         // Voice is disabled
@@ -176,7 +179,8 @@ function App() {
           enabled: false,
           voiceType: config.provider === 'bedrock' ? 'nova-sonic' : 'alloy',
           streamingMode: false,
-          provider: config.provider
+          provider: config.provider,
+          voiceService: config.voiceService
         });
         // Clear voice config from session storage
         sessionStorage.removeItem('voiceConfig');
@@ -383,7 +387,7 @@ function App() {
     setClassification(null);
     setSubmissionReference('');
     setError('');
-    
+
     // Create a new session if we have LLM config
     if (llmConfig) {
       try {
@@ -420,16 +424,16 @@ function App() {
           <h1 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: 'bold', lineHeight: '1.2' }}>
             CatalAIst
           </h1>
-          <span style={{ 
-            fontSize: '10px', 
-            color: '#adb5bd', 
+          <span style={{
+            fontSize: '10px',
+            color: '#adb5bd',
             marginTop: '2px',
             fontFamily: 'monospace'
           }}>
             v3.1.3 • 2026-01-31
           </span>
         </div>
-        
+
         {/* Center: Navigation buttons */}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flex: 1, justifyContent: 'center' }}>
           <button
@@ -628,14 +632,14 @@ function App() {
         </div>
 
         {/* Right side: User info and logout */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           gap: '10px',
           minWidth: '180px',
           justifyContent: 'flex-end'
         }}>
-          <span style={{ 
+          <span style={{
             color: '#e9ecef',
             fontSize: '14px',
             fontWeight: '500'
@@ -643,7 +647,7 @@ function App() {
             {username}
           </span>
           {userRole === 'admin' ? (
-            <span 
+            <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -661,7 +665,7 @@ function App() {
               A
             </span>
           ) : (
-            <span 
+            <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -765,7 +769,7 @@ function App() {
                         llmConfig.voiceType === 'nova' ? 'Nova 2 Sonic' :
                           llmConfig.voiceType === 'ruth' ? 'Nova 2 Sonic (Ruth)' :
                             llmConfig.voiceType ? llmConfig.voiceType.charAt(0).toUpperCase() + llmConfig.voiceType.slice(1) : 'Default'}
-                    {llmConfig.provider === 'bedrock' && ' (Nova 2 Sonic)'}
+                    {llmConfig.provider === 'bedrock' && (llmConfig.voiceService === 'polly' ? ' (Polly)' : ' (Nova 2 Sonic)')}
                     {llmConfig.provider === 'openai' && ' (OpenAI TTS)'}
                   </div>
                   <div style={{ fontSize: '14px', marginBottom: '8px' }}>
@@ -887,7 +891,7 @@ function App() {
                   <p style={{ fontSize: '18px', color: '#155724', marginBottom: '20px' }}>
                     Your submission has been recorded and will be reviewed by an administrator.
                   </p>
-                  
+
                   {submissionReference && (
                     <div style={{
                       margin: '30px auto',
@@ -897,9 +901,9 @@ function App() {
                       border: '1px solid #c3e6cb',
                       maxWidth: '600px'
                     }}>
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: '#666', 
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#666',
                         marginBottom: '8px',
                         fontWeight: '500'
                       }}>
@@ -928,7 +932,7 @@ function App() {
                       </div>
                     </div>
                   )}
-                  
+
                   <button
                     onClick={resetWorkflow}
                     style={{

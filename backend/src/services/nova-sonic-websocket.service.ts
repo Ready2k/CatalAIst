@@ -233,6 +233,9 @@ export class NovaSonicWebSocketService {
       this.addEventToQueue(sessionId, {
         sessionStart: {
           inferenceConfiguration: session.inferenceConfig,
+          turnDetectionConfiguration: {
+            endpointingSensitivity: "MEDIUM" // Adjust based on needs, MEDIUM is a good balance
+          }
         },
       });
     }
@@ -671,9 +674,10 @@ export class NovaSonicWebSocketService {
 
     session.silenceInterval = setInterval(() => {
       const now = Date.now();
-      // If recent audio activity (within last 30ms), skip sending silence 
-      // to avoid overlapping mixed audio too much
-      if (session.lastAudioActivity && (now - session.lastAudioActivity) < 30) {
+      // Only send silence if there has been NO audio activity for at least 2 seconds.
+      // Bedrock Nova Sonic needs input to keep the session alive, but sending zeros
+      // during active speech (even in 20ms gaps) can break transcription.
+      if (session.lastAudioActivity && (now - session.lastAudioActivity) < 2000) {
         return;
       }
 
@@ -687,7 +691,7 @@ export class NovaSonicWebSocketService {
           },
         });
       }
-    }, 20); // 20ms interval
+    }, 500); // 500ms interval (plenty to keep AWS alive)
   }
 
   /**
@@ -760,11 +764,13 @@ export class NovaSonicWebSocketService {
               const payload = { event: nextEvent };
               const jsonString = JSON.stringify(payload);
 
-              // Debug logging for specific events (excluding raw audio chunks)
+              // Debug logging for specific events (excluding raw audio chunks and silence)
               const eventKeys = Object.keys(nextEvent);
               if (eventKeys.includes('audioInput')) {
-                // Don't log full audio payload
-                console.log(`[Nova 2 Sonic] Sending ---> audioInput chunk (${nextEvent.audioInput.content.length} chars)`);
+                // Only log real audio content (roughly), or skip logging for audioInput altogether
+                // unless it is an error or something special.
+                // We will silence all audioInput logs to prevent log flooding.
+                // console.log(`[Nova 2 Sonic] Sending ---> audioInput chunk (${nextEvent.audioInput.content.length} chars)`);
               } else {
                 console.log(`[Nova 2 Sonic] Sending ---> ${jsonString}`);
               }
@@ -837,7 +843,7 @@ export class NovaSonicWebSocketService {
               } else if (jsonResponse.event?.transcript) {
                 // Dispatch transcript events
                 const transcript = jsonResponse.event.transcript.content || jsonResponse.event.transcript;
-                console.log(`[Nova 2 Sonic] Transcript found: "${transcript}"`);
+                console.log(`[Nova 2 Sonic] [${new Date().toISOString().split('T')[1]}] Transcript segment: "${transcript}" (length: ${transcript.length})`);
                 this.dispatchEvent(sessionId, 'transcription', transcript);
               } else {
                 const eventKeys = Object.keys(jsonResponse.event || {});

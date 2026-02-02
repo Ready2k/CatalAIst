@@ -23,24 +23,25 @@ export interface LLMConfig {
   voiceEnabled?: boolean;        // Auto-set based on provider
   voiceType?: VoiceType;         // Voice selection for TTS
   streamingMode?: boolean;       // Auto-play questions (streaming mode)
+  voiceService?: 'nova-sonic' | 'polly'; // Voice service selection
 }
 
 const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) => {
   const [provider, setProvider] = useState<'openai' | 'bedrock'>('openai');
   const [model, setModel] = useState('gpt-4');
-  
+
   // OpenAI
   const [apiKey, setApiKey] = useState('');
-  const [models, setModels] = useState<Array<{ 
-    id: string; 
-    created: number; 
+  const [models, setModels] = useState<Array<{
+    id: string;
+    created: number;
     ownedBy: string;
     supportsOnDemand?: boolean;
     requiresProvisioned?: boolean;
     isInferenceProfile?: boolean;
     modelType?: 'foundation' | 'inference-profile';
   }>>([]);
-  
+
   // Debug: Log models state changes
   useEffect(() => {
     console.log('[Frontend] Models state changed:', models.length, 'models', models.map(m => m.id));
@@ -51,7 +52,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     success: boolean;
     message: string;
   } | null>(null);
-  
+
   // AWS Bedrock
   const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
   const [awsSecretAccessKey, setAwsSecretAccessKey] = useState('');
@@ -59,15 +60,27 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   const [awsRegion, setAwsRegion] = useState('us-east-1');
   const [useRegionalInference, setUseRegionalInference] = useState(false);
   const [regionalInferenceEndpoint, setRegionalInferenceEndpoint] = useState('');
-  
+
   // Voice Settings (NEW)
   const [voiceType, setVoiceType] = useState<VoiceType>('alloy');
   const [streamingMode, setStreamingMode] = useState(false);
-  
+  const [voiceService, setVoiceService] = useState<'nova-sonic' | 'polly'>('nova-sonic');
+
+  // Handle voice service change
+  const handleVoiceServiceChange = (service: 'nova-sonic' | 'polly') => {
+    setVoiceService(service);
+    // Reset voice to default for the selected service
+    if (service === 'polly') {
+      setVoiceType('joanna' as VoiceType);
+    } else {
+      setVoiceType('nova-sonic' as VoiceType);
+    }
+  };
+
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [modelsFetched, setModelsFetched] = useState(false);
-  
+
   // Model filtering options
   const [showProvisionedModels, setShowProvisionedModels] = useState(false);
   const [showInferenceProfiles, setShowInferenceProfiles] = useState(true);
@@ -79,10 +92,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       try {
         const config = JSON.parse(storedConfig);
         console.log('[LLMConfig] Restoring saved configuration:', config);
-        
+
         setProvider(config.provider || 'openai');
         setModel(config.model || 'gpt-4');
-        
+
         if (config.provider === 'openai') {
           setApiKey(config.apiKey || '');
         } else {
@@ -93,9 +106,10 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           setUseRegionalInference(config.useRegionalInference || false);
           setRegionalInferenceEndpoint(config.regionalInferenceEndpoint || '');
         }
-        
+
         setVoiceType(config.voiceType || 'alloy');
         setStreamingMode(config.streamingMode || false);
+        setVoiceService(config.voiceService || 'nova-sonic');
       } catch (err) {
         console.warn('[LLMConfig] Failed to restore configuration:', err);
       }
@@ -116,11 +130,12 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       regionalInferenceEndpoint: provider === 'bedrock' ? regionalInferenceEndpoint : undefined,
       voiceType,
       streamingMode,
+      voiceService,
     };
-    
+
     sessionStorage.setItem('llmConfigDraft', JSON.stringify(config));
-  }, [provider, model, apiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken, 
-      awsRegion, useRegionalInference, regionalInferenceEndpoint, voiceType, streamingMode]);
+  }, [provider, model, apiKey, awsAccessKeyId, awsSecretAccessKey, awsSessionToken,
+    awsRegion, useRegionalInference, regionalInferenceEndpoint, voiceType, streamingMode, voiceService]);
 
   // Default models - defined outside useEffect to avoid dependency issues
   const openAIModels = React.useMemo(() => [
@@ -199,7 +214,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
 
   const loadOpenAIModels = async (key: string) => {
     if (!key || !key.startsWith('sk-')) return;
-    
+
     setLoadingModels(true);
     try {
       const response = await apiService.listModels('openai', { apiKey: key });
@@ -215,7 +230,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
 
   const loadBedrockModels = async () => {
     if (!awsAccessKeyId || !awsSecretAccessKey) return;
-    
+
     setLoadingModels(true);
     setError(''); // Clear any previous errors
     try {
@@ -229,18 +244,18 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
         regionalInferenceEndpoint: regionalInferenceEndpoint || undefined
       });
       console.log('[Frontend] Received models:', response.models?.length || 0, response.models);
-      
+
       if (response.models && response.models.length > 0) {
         // Filter out any models that might have slipped through (like haiku-4-5)
-        const filteredModels = response.models.filter(m => 
+        const filteredModels = response.models.filter(m =>
           !m.id.includes('haiku-4-5') && !m.id.includes('4-5')
         );
         console.log('[Frontend] After filtering:', filteredModels.length, 'models');
-        
+
         setModels(filteredModels.length > 0 ? filteredModels : response.models);
         setModelsFetched(true); // Mark that we've fetched models
         console.log('[Frontend] Set models state to:', filteredModels.length, 'models');
-        
+
         // Set first model as default if current model is not in the list
         if (!response.models.find(m => m.id === model)) {
           setModel(response.models[0].id);
@@ -261,7 +276,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
     setTestingConnection(true);
     setConnectionTestResult(null);
     setError('');
-    
+
     try {
       const response = await fetch('/api/public/test-connection', {
         method: 'POST',
@@ -280,7 +295,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setConnectionTestResult({
           success: true,
@@ -342,7 +357,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (provider === 'openai') {
       if (validateOpenAI()) {
         onConfigSubmit({
@@ -370,6 +385,7 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           voiceEnabled: true,
           voiceType, // Use the selected voice type from the form
           streamingMode, // Streaming mode supported by Nova 2 Sonic
+          voiceService, // Selected voice service
         });
       }
     }
@@ -765,16 +781,16 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
       <p style={{ color: '#666', marginBottom: '20px' }}>
         Choose your LLM provider and configure credentials. Your credentials are stored securely in your session and never persisted.
       </p>
-      
+
       <form onSubmit={handleSubmit}>
         {renderProviderTabs()}
 
         {provider === 'openai' ? renderOpenAIForm() : renderBedrockForm()}
 
         {error && (
-          <div style={{ 
-            color: '#dc3545', 
-            fontSize: '14px', 
+          <div style={{
+            color: '#dc3545',
+            fontSize: '14px',
             marginBottom: '15px',
             padding: '10px',
             backgroundColor: '#f8d7da',
@@ -842,28 +858,28 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             {(() => {
               // Filter models based on user preferences
               let filteredModels = models;
-              
+
               if (provider === 'bedrock') {
                 filteredModels = models.filter(m => {
                   // Always show on-demand models
                   if (m.supportsOnDemand && !m.requiresProvisioned) {
                     return true;
                   }
-                  
+
                   // Show provisioned models only if enabled
                   if (m.requiresProvisioned && !showProvisionedModels) {
                     return false;
                   }
-                  
+
                   // Show inference profiles only if enabled
                   if (m.isInferenceProfile && !showInferenceProfiles) {
                     return false;
                   }
-                  
+
                   return true;
                 });
               }
-              
+
               return filteredModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.id}
@@ -880,22 +896,22 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
           )}
           {!loadingModels && (
             <div style={{ color: '#666', fontSize: '12px', marginTop: '5px' }}>
-              {provider === 'openai' 
+              {provider === 'openai'
                 ? 'GPT-4 is recommended for best results.'
-                : modelsFetched 
+                : modelsFetched
                   ? (() => {
-                      // Calculate filtered count for display
-                      let filteredCount = models.length;
-                      if (provider === 'bedrock') {
-                        filteredCount = models.filter(m => {
-                          if (m.supportsOnDemand && !m.requiresProvisioned) return true;
-                          if (m.requiresProvisioned && !showProvisionedModels) return false;
-                          if (m.isInferenceProfile && !showInferenceProfiles) return false;
-                          return true;
-                        }).length;
-                      }
-                      return `Showing ${filteredCount} of ${models.length} models available in ${awsRegion}`;
-                    })()
+                    // Calculate filtered count for display
+                    let filteredCount = models.length;
+                    if (provider === 'bedrock') {
+                      filteredCount = models.filter(m => {
+                        if (m.supportsOnDemand && !m.requiresProvisioned) return true;
+                        if (m.requiresProvisioned && !showProvisionedModels) return false;
+                        if (m.isInferenceProfile && !showInferenceProfiles) return false;
+                        return true;
+                      }).length;
+                    }
+                    return `Showing ${filteredCount} of ${models.length} models available in ${awsRegion}`;
+                  })()
                   : 'Click "Fetch Available Models" button above to load models from AWS Bedrock'}
             </div>
           )}
@@ -909,9 +925,11 @@ const LLMConfiguration: React.FC<LLMConfigurationProps> = ({ onConfigSubmit }) =
             onVoiceTypeChange={setVoiceType}
             onStreamingModeChange={setStreamingMode}
             provider={provider}
+            voiceService={voiceService}
+            onVoiceServiceChange={handleVoiceServiceChange}
           />
         )}
-        
+
         <button
           type="submit"
           style={{

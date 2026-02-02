@@ -2,6 +2,16 @@ import {
     BedrockRuntimeClient,
     InvokeModelWithResponseStreamCommand,
 } from '@aws-sdk/client-bedrock-runtime';
+import { spawn } from 'child_process';
+import {
+    TranscribeStreamingClient,
+    StartStreamTranscriptionCommand,
+} from '@aws-sdk/client-transcribe-streaming';
+import {
+    PollyClient,
+    SynthesizeSpeechCommand,
+    VoiceId,
+} from '@aws-sdk/client-polly';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import https from 'https';
 import { Readable } from 'stream';
@@ -193,6 +203,13 @@ export class AWSVoiceService {
         config: LLMProviderConfig,
         customPrompt?: string
     ): Promise<Buffer> {
+        // Route to Polly if configured or if using a Polly-only voice (not mapped to Nova)
+        const isNovaVoice = ['nova-sonic', 'sonic', 'nova', 'ruth', 'matthew', 'amy'].includes(voice.toLowerCase());
+
+        if (config.voiceService === 'polly' || (!isNovaVoice && config.voiceService !== 'nova-sonic')) {
+            return this.synthesizeWithPolly(text, voice, config);
+        }
+
         console.log('[Nova 2 Sonic TTS] Starting synthesis...');
         console.log(`[Nova 2 Sonic TTS] Text: "${text}"`);
         console.log(`[Nova 2 Sonic TTS] Voice: ${voice}`);
@@ -790,6 +807,8 @@ export class AWSVoiceService {
         audioStream: Readable,
         config: LLMProviderConfig
     ): Promise<{ transcription: string; duration: number }> {
+        // Route to standard Transcribe if configured
+
         console.log('[Nova 2 Sonic] Transcribing audio using bidirectional streaming...');
 
         const { InvokeModelWithBidirectionalStreamCommand } = await import('@aws-sdk/client-bedrock-runtime');
@@ -1024,6 +1043,157 @@ export class AWSVoiceService {
                 throw new Error('Model ID or Region might be incorrect, or you lack access to this model.');
             }
 
+            throw error;
+        }
+    }
+
+    /**
+     * Synthesize speech using Amazon Polly
+     */
+    async synthesizeWithPolly(
+        text: string,
+        voiceId: string,
+        config: LLMProviderConfig
+    ): Promise<Buffer> {
+        console.log(`[AWS Polly] Synthesizing with voice: ${voiceId}`);
+
+        const client = new PollyClient({
+            region: config.awsRegion || 'us-east-1',
+            credentials: {
+                accessKeyId: config.awsAccessKeyId!,
+                secretAccessKey: config.awsSecretAccessKey!,
+                sessionToken: config.awsSessionToken
+            }
+        });
+
+        // Use standard (non-neural) voices if requested, but default to neural
+        // Note: Nova Sonic voices (Matthew, Amy, etc) map to Polly Neural voices
+        const pollyVoiceId = this.mapVoiceToPolly(voiceId);
+
+        const command = new SynthesizeSpeechCommand({
+            Text: text,
+            VoiceId: pollyVoiceId as VoiceId,
+            OutputFormat: 'mp3',
+            Engine: 'neural' // Prefer neural engine
+        });
+
+        try {
+            const response = await client.send(command);
+            if (response.AudioStream) {
+                // @ts-ignore - transformToByteArray exists on the stream body in newer SDKs
+                return Buffer.from(await response.AudioStream.transformToByteArray());
+            }
+            throw new Error('No audio stream returned from Polly');
+        } catch (error) {
+            console.error('[AWS Polly] Synthesis error:', error);
+            throw error;
+        }
+    }
+
+
+    /**
+     * Transcribe using Amazon Transcribe Streaming
+     */
+    async transcribeWithStandard(
+        audioFilePath: string,
+        config: LLMProviderConfig
+    ): Promise<{ transcription: string; duration: number }> {
+        console.log('[AWS Transcribe] Starting standard transcription...');
+
+        const client = new TranscribeStreamingClient({
+            region: config.awsRegion || 'us-east-1',
+            credentials: {
+                accessKeyId: config.awsAccessKeyId!,
+                secretAccessKey: config.awsSecretAccessKey!,
+                sessionToken: config.awsSessionToken
+            }
+        });
+
+        // Use ffmpeg to convert input file (likely WebM/WAV) to PCM 16kHz Mono
+        const ffmpeg = spawn('ffmpeg', [
+            '-i', audioFilePath,
+            '-f', 's16le',
+            '-ac', '1',
+            '-ar', '16000',
+            'pipe:1'
+        ]);
+
+        const audioStream = ffmpeg.stdout;
+
+        // Handle fs stream errors
+        ffmpeg.stderr.on('data', (data) => {
+            // Optional: Log ffmpeg errors if needed, but be careful of noise
+            // console.log(`[FFmpeg Error]: ${data}`);
+        });
+
+        // Convert audio stream to async generator for Transcribe
+        // Transcribe Streaming requires small chunks (e.g. < 15KB). Default fs stream chunks (64KB) are too big.
+        const audioGenerator = async function* () {
+            const CHUNK_SIZE = 8 * 1024; // 8KB chunks
+            let buffer = Buffer.alloc(0);
+
+            for await (const chunk of audioStream) {
+                buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
+
+                while (buffer.length >= CHUNK_SIZE) {
+                    yield { AudioEvent: { AudioChunk: buffer.subarray(0, CHUNK_SIZE) } };
+                    buffer = buffer.subarray(CHUNK_SIZE);
+                }
+            }
+
+            if (buffer.length > 0) {
+                yield { AudioEvent: { AudioChunk: buffer } };
+            }
+        };
+
+        const command = new StartStreamTranscriptionCommand({
+            LanguageCode: 'en-US',
+            MediaEncoding: 'pcm', // Assuming PCM input from frontend
+            MediaSampleRateHertz: 16000,
+            AudioStream: audioGenerator()
+        });
+
+        try {
+            const response = await client.send(command);
+            let fullTranscript = '';
+            let lastPartial = '';
+
+            if (response.TranscriptResultStream) {
+                for await (const event of response.TranscriptResultStream) {
+                    if (event.TranscriptEvent) {
+                        const results = event.TranscriptEvent.Transcript?.Results;
+                        if (results && results.length > 0) {
+                            const transcript = results[0].Alternatives?.[0]?.Transcript || '';
+                            // Debug log for stream events
+                            // console.log(`[AWS Transcribe] Event: IsPartial=${results[0].IsPartial}, Text="${transcript}"`);
+
+                            if (!results[0].IsPartial) {
+                                fullTranscript += transcript + ' ';
+                                lastPartial = '';
+                            } else {
+                                lastPartial = transcript;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Append any remaining partial content that wasn't finalized
+            if (lastPartial) {
+                console.log(`[AWS Transcribe] Appending remaining partial: "${lastPartial}"`);
+                fullTranscript += lastPartial;
+            }
+
+            const finalTranscription = fullTranscript.trim();
+            console.log(`[AWS Transcribe] Completed. Final Length: ${finalTranscription.length}`);
+            console.log(`[AWS Transcribe] Transcription: ${finalTranscription}`);
+
+            return {
+                transcription: finalTranscription,
+                duration: 0
+            };
+        } catch (error) {
+            console.error('[AWS Transcribe] Transcription error:', error);
             throw error;
         }
     }

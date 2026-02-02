@@ -122,7 +122,12 @@ export function initializeNovaSonicWebSocket(server: any): void {
     // Handle initialize message
     async function handleInitialize(ws: WebSocket, connectionId: string, message: any) {
       try {
-        console.log('[Nova 2 Sonic] Received initialization message:', JSON.stringify(message, null, 2));
+        // Sanitize message for logging
+        const sanitizedMessage = { ...message };
+        if (sanitizedMessage.awsSecretAccessKey) sanitizedMessage.awsSecretAccessKey = '***';
+        if (sanitizedMessage.awsAccessKeyId) sanitizedMessage.awsAccessKeyId = sanitizedMessage.awsAccessKeyId.substring(0, 4) + '...';
+
+        console.log('[Nova 2 Sonic] Received initialization message:', JSON.stringify(sanitizedMessage, null, 2));
 
         // Extract AWS credentials and config from message
         const {
@@ -201,7 +206,7 @@ export function initializeNovaSonicWebSocket(server: any): void {
     async function handleAudioChunk(ws: WebSocket, connectionId: string, message: any) {
       const { audio, isComplete } = message;
       const dataSize = audio ? audio.length : 0;
-      console.log(`[Nova 2 Sonic] Handling chunk: ${dataSize} chars, isComplete: ${isComplete} for ${connectionId}`);
+      // console.log(`[Nova 2 Sonic] Handling chunk: ${dataSize} chars, isComplete: ${isComplete} for ${connectionId}`);
 
       const connection = activeConnections.get(connectionId);
       if (!connection || !connection.sessionId) {

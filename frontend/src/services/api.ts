@@ -20,6 +20,7 @@ export interface LLMConfig {
   awsRegion?: string;
   useRegionalInference?: boolean;
   regionalInferenceEndpoint?: string;
+  voiceService?: 'nova-sonic' | 'polly';
 }
 
 class ApiService {
@@ -427,6 +428,8 @@ class ApiService {
       throw error;
     }
 
+    console.log('[API] transcribeAudio called. Config:', JSON.stringify(this.llmConfig));
+
     if (!this.sessionId) {
       const error: ApiError = { message: 'No active session. Please reconfigure your LLM provider in the Configuration tab.', status: 400 };
       throw error;
@@ -438,8 +441,9 @@ class ApiService {
       sessionId: this.sessionId
     });
 
-    // Use WebSocket for Bedrock (Nova 2 Sonic), HTTP for OpenAI
-    if (this.llmConfig.provider === 'bedrock') {
+    // Use WebSocket for Bedrock (Nova 2 Sonic) ONLY if voiceService is not 'polly'
+    // Route to HTTP for 'polly' (Amazon Transcribe) or 'openai'
+    if (this.llmConfig.provider === 'bedrock' && this.llmConfig.voiceService !== 'polly') {
       return this.transcribeAudioWithNovaSonic(audioFile);
     } else {
       return this.transcribeAudioWithHTTP(audioFile);
@@ -544,6 +548,9 @@ class ApiService {
         formData.append('awsSessionToken', this.llmConfig!.awsSessionToken);
       }
       formData.append('awsRegion', this.llmConfig!.awsRegion || 'us-east-1');
+      if (this.llmConfig!.voiceService) {
+        formData.append('voiceService', this.llmConfig!.voiceService);
+      }
     }
 
     // Get auth token for protected endpoint
@@ -600,7 +607,8 @@ class ApiService {
       text,
       sessionId: this.sessionId,
       provider: this.llmConfig.provider,
-      voice: voice || (this.llmConfig.provider === 'bedrock' ? 'nova-sonic' : 'alloy')
+      voice: voice || (this.llmConfig.provider === 'bedrock' ? 'nova-sonic' : 'alloy'),
+      voiceService: this.llmConfig.voiceService
     };
 
     // Add provider-specific credentials
