@@ -48,9 +48,9 @@ Deployment guides and procedures
 
 ### 📋 [releases/](./releases/)
 Release notes and changelogs
+- v3.2.0 - Discovery-First Intelligence
 - v3.1.0 - AI Learning & Export/Import
 - v3.0.0 - Major release
-- v2.x.x - Previous versions
 
 ### 🔒 [security/](./security/)
 Security documentation and audits
@@ -89,24 +89,17 @@ Bug fixes and corrections
 - [Voice Troubleshooting](./troubleshooting/VOICE_TROUBLESHOOTING.md)
 
 ### Latest Release
-- [Release Notes v3.1.0](./releases/RELEASE_NOTES_v3.1.0.md)
+- [Release Notes v3.2.0](./releases/RELEASE_NOTES_v3.2.0.md)
 
-## 🔄 Recent Updates (November 2025)
+## 🔄 Recent Updates (February 2026)
 
-### v3.1.3 - LLM Prompt Improvements
-- Enhanced decision matrix generation prompt with validation rules
-- Improved learning suggestion prompt
-- Added validation in parsing to filter invalid rules
-- Self-healing matrix generation
-
-### v3.1.2 - Validation Progress UX
-- Added progress UI for matrix validation testing
-- Improved error handling in validation
-- Better user feedback during testing
-
-### v3.1.1 - Validation Credentials Fix
-- Fixed matrix validation testing credentials
-- Added LLM config to validation method
+### v3.2.0 - Discovery-First Intelligence & Dynamic Config
+- **95% Confidence Threshold** for auto-classification
+- **Dynamic Strategic Questions** managed via Admin UI
+- **Robust Attribute Parser** with fallback and alias support
+- **2-Hour Session Timeout** for inactive sessions
+- **Git-Based Versioning** for Decision Matrix
+- **Information Completeness** assessment and gap detection
 
 ### v3.1.0 - AI Learning & Export/Import
 - Date range filtering with batching
@@ -144,6 +137,6 @@ For questions or issues:
 
 ---
 
-**Last Updated:** November 16, 2025  
-**Version:** 3.1.3  
-**Total Documents:** 70+
+**Last Updated:** February 2, 2026  
+**Version:** 3.2.0  
+**Total Documents:** 80+

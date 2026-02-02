@@ -5,12 +5,12 @@ import { SessionStorageService } from '../services/session-storage.service';
 import { JsonStorageService } from '../services/storage.service';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { z } from 'zod';
-import { 
+import {
   SessionFilters,
-  SessionFiltersSchema, 
+  SessionFiltersSchema,
   PaginationParams,
   PaginationParamsSchema,
-  TransformationCategory 
+  TransformationCategory
 } from '../types';
 
 // Defensive check for schema availability
@@ -57,9 +57,15 @@ export { analyticsService };
  */
 router.get('/sessions', authenticateToken, requireRole('admin'), generalLimiter, async (req: AuthRequest, res: Response) => {
   try {
+    // Run cleanup for stale sessions (2 hour timeout)
+    // We don't await this to keep the response fast, it runs in the background
+    sessionStorage.cleanupStaleSessions(2 * 60 * 60 * 1000).catch(err =>
+      console.error('[Session Cleanup] Background cleanup failed:', err)
+    );
+
     // Parse and validate filters
     const filters: any = {};
-    
+
     if (req.query.dateFrom) {
       filters.dateFrom = req.query.dateFrom as string;
     }
@@ -216,7 +222,7 @@ router.get('/sessions/export', authenticateToken, requireRole('admin'), exportLi
   try {
     // Parse and validate filters (same as /sessions endpoint)
     const filters: any = {};
-    
+
     if (req.query.dateFrom) {
       filters.dateFrom = req.query.dateFrom as string;
     }

@@ -378,10 +378,11 @@ export class ClassificationService {
    * Loads from versioned storage, falls back to default if not found
    */
   private async getAttributeExtractionPrompt(): Promise<string> {
+    let templatePrompt = '';
     try {
       const prompt = await this.versionedStorage.getPrompt(this.ATTRIBUTE_EXTRACTION_PROMPT_ID);
       if (prompt) {
-        return prompt;
+        templatePrompt = prompt;
       }
     } catch (error) {
       console.warn('Failed to load attribute extraction prompt from storage, using default:', error);
@@ -418,7 +419,9 @@ export class ClassificationService {
       responseFormatJson += `  "${key}": {\n    "value": "<description or 'unknown'>",\n    "explanation": "<explanation>"\n  }${index < strategicQuestions.length - 1 ? ',' : ''}\n`;
     });
 
-    return `You are an expert in business process analysis. Your task is to extract key business attributes from a conversation about a business process or initiative.
+    const strategicRequirements = `**Strategic Information:**\n${dynamicAttributesPrompt}`;
+
+    const defaultPrompt = `You are an expert in business process analysis. Your task is to extract key business attributes from a conversation about a business process or initiative.
 
 Extract the following attributes based on the information provided:
 
@@ -446,8 +449,7 @@ Extract the following attributes based on the information provided:
    - Values: "public", "internal", "confidential", "restricted"
    - Consider: PII, financial data, trade secrets, regulatory data
 
-**Strategic Information:**
-${dynamicAttributesPrompt}
+${strategicRequirements}
 
 **Instructions:**
 - Extract attributes based on explicit information in the conversation
@@ -485,6 +487,20 @@ Provide your response as a JSON object:
 ${responseFormatJson}}
 
 Respond ONLY with the JSON object, no additional text.`;
+
+    if (!templatePrompt) {
+      return defaultPrompt;
+    }
+
+    // If using custom prompt, ensure strategic questions are included
+    if (templatePrompt.includes('{{STRATEGIC_QUESTIONS}}')) {
+      return templatePrompt.replace('{{STRATEGIC_QUESTIONS}}', strategicRequirements);
+    } else if (!templatePrompt.includes('Strategic Information')) {
+      // Automatically append strategic requirements if they seem to be missing
+      return `${templatePrompt}\n\n${strategicRequirements}\n\nRespond ONLY with the JSON object, no additional text.`;
+    }
+
+    return templatePrompt;
   }
 
   /**
@@ -500,14 +516,18 @@ Respond ONLY with the JSON object, no additional text.`;
 
       const parsed = JSON.parse(jsonMatch[0]);
 
-      // Required core attributes
+      // Required core attributes (including those critical for decision matrix)
       const coreAttributes = [
         'frequency',
         'business_value',
         'complexity',
         'risk',
         'user_count',
-        'data_sensitivity'
+        'data_sensitivity',
+        'data_source',
+        'output_type',
+        'judgment_required',
+        'current_state'
       ];
 
       // Fetch dynamic strategic keys to ensure they are included in result
@@ -528,34 +548,85 @@ Respond ONLY with the JSON object, no additional text.`;
 
       const allExpectedKeys = [...coreAttributes, ...strategicKeys];
 
-      // Fill in missing attributes with "unknown"
+      // Robust parsing: Handle flat JSON or nested objects
       const result: any = {};
       for (const attr of allExpectedKeys) {
-        if (parsed[attr] && parsed[attr].value) {
-          result[attr] = parsed[attr];
+        const val = parsed[attr];
+
+        if (val !== undefined && val !== null) {
+          if (typeof val === 'object' && val.value !== undefined) {
+            // Nested object format: { value: "...", explanation: "..." }
+            result[attr] = {
+              value: val.value || 'unknown',
+              explanation: val.explanation || 'Extracted from conversation'
+            };
+          } else {
+            // Flat format or simple string
+            result[attr] = {
+              value: String(val),
+              explanation: 'Extracted from conversation (flat format)'
+            };
+          }
         } else {
-          console.warn(`Missing attribute ${attr}, using unknown`);
-          result[attr] = {
-            value: 'unknown',
-            explanation: 'Insufficient information provided'
-          };
+          // Check for aliases (e.g., "judgement_required" vs "judgment_required")
+          const aliasKey = this.findAliasKey(attr, parsed);
+          if (aliasKey) {
+            const aliasVal = parsed[aliasKey];
+            if (typeof aliasVal === 'object' && aliasVal.value !== undefined) {
+              result[attr] = aliasVal;
+            } else {
+              result[attr] = {
+                value: String(aliasVal),
+                explanation: 'Extracted via alias'
+              };
+            }
+          } else {
+            console.warn(`[Attribute Extraction] Missing attribute "${attr}", defaulting to unknown`);
+            result[attr] = {
+              value: 'unknown',
+              explanation: 'Insufficient information provided'
+            };
+          }
         }
       }
 
-      // Also include any other keys the LLM might have returned that we didn't explicitly expect
-      // but are not in our list yet (protection against future/dynamic keys)
+      // Include any other keys returned by LLM (extra context)
       for (const key of Object.keys(parsed)) {
-        if (!result[key] && parsed[key].value) {
-          result[key] = parsed[key];
+        if (!result[key]) {
+          const val = parsed[key];
+          result[key] = typeof val === 'object' && val.value !== undefined
+            ? val
+            : { value: String(val), explanation: 'Additional extracted field' };
         }
       }
 
       return result as ExtractedAttributes;
     } catch (error) {
+      console.error('[Attribute Extraction] Parse error:', error);
       throw new Error(
         `Failed to parse attribute extraction response: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  /**
+   * Helper to find value by potential key aliases
+   */
+  private findAliasKey(key: string, data: any): string | null {
+    const aliases: { [key: string]: string[] } = {
+      'judgment_required': ['judgement_required', 'judgement', 'judgment'],
+      'business_value': ['value', 'impact', 'priority'],
+      'success_criteria': ['success'],
+      'risks_constraints': ['risks', 'constraints', 'blockers'],
+      'current_state': ['automation_level', 'process_state']
+    };
+
+    const list = aliases[key] || [];
+    for (const alias of list) {
+      if (data[alias] !== undefined) return alias;
+    }
+
+    return null;
   }
 
 

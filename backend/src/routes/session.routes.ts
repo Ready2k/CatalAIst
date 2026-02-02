@@ -38,7 +38,7 @@ router.get('/models', async (req: Request, res: Response) => {
 
     if (provider === 'openai') {
       const apiKey = req.headers['x-api-key'] as string;
-      
+
       if (!apiKey) {
         return res.status(400).json({
           error: 'Missing API key',
@@ -47,10 +47,10 @@ router.get('/models', async (req: Request, res: Response) => {
       }
 
       const models = await openaiService.listModels({ provider: 'openai', apiKey });
-      
+
       // Filter to only show relevant models for classification
-      const relevantModels = models.filter(model => 
-        model.id.includes('gpt-4') || 
+      const relevantModels = models.filter(model =>
+        model.id.includes('gpt-4') ||
         model.id.includes('gpt-3.5') ||
         model.id.includes('o1')
       );
@@ -110,9 +110,14 @@ router.get('/models', async (req: Request, res: Response) => {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { 
-      apiKey, 
-      model = 'gpt-4', 
+    // Run cleanup for stale sessions (2 hour timeout)
+    sessionStorage.cleanupStaleSessions(2 * 60 * 60 * 1000).catch(err =>
+      console.error('[Session Cleanup] Background cleanup failed:', err)
+    );
+
+    const {
+      apiKey,
+      model = 'gpt-4',
       userId = 'anonymous',
       provider = 'openai',
       awsAccessKeyId,
@@ -132,7 +137,7 @@ router.post('/', async (req: Request, res: Response) => {
           message: 'AWS Access Key ID and Secret Access Key are required for Bedrock'
         });
       }
-      
+
       // Validate AWS Access Key ID format (basic check)
       if (!awsAccessKeyId.startsWith('AKIA') && !awsAccessKeyId.startsWith('ASIA')) {
         return res.status(400).json({

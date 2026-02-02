@@ -82,7 +82,7 @@ export class SessionStorageService {
     }
 
     const relativePath = `sessions/${sessionId}.json`;
-    
+
     try {
       const exists = await this.jsonStorage.exists(relativePath);
       if (!exists) {
@@ -90,7 +90,7 @@ export class SessionStorageService {
       }
 
       const sessionData = await this.jsonStorage.readJson<Session>(relativePath);
-      
+
       // Validate session data
       const session = SessionSchema.parse(sessionData);
 
@@ -104,7 +104,7 @@ export class SessionStorageService {
         console.error(`Corrupted session file for ${sessionId}:`, error);
         throw new Error(`Session file ${sessionId} is corrupted and cannot be loaded`);
       }
-      
+
       console.error('Failed to load session:', error);
       throw error;
     }
@@ -115,7 +115,7 @@ export class SessionStorageService {
    */
   async updateSession(sessionId: string, updates: Partial<Session>): Promise<Session> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -137,7 +137,7 @@ export class SessionStorageService {
    */
   async deleteSession(sessionId: string): Promise<void> {
     const relativePath = `sessions/${sessionId}.json`;
-    
+
     try {
       await this.jsonStorage.delete(relativePath);
       this.sessionCache.delete(sessionId);
@@ -171,7 +171,7 @@ export class SessionStorageService {
     try {
       const sessionIds = await this.listSessions();
       const sessions: Session[] = [];
-      
+
       for (const sessionId of sessionIds) {
         try {
           const session = await this.loadSession(sessionId);
@@ -183,7 +183,7 @@ export class SessionStorageService {
           // Continue with other sessions
         }
       }
-      
+
       return sessions;
     } catch (error) {
       console.error('Failed to get all sessions:', error);
@@ -228,7 +228,7 @@ export class SessionStorageService {
     processDescription: string
   ): Promise<Session> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -242,7 +242,7 @@ export class SessionStorageService {
 
     session.conversations.push(conversation);
     await this.saveSession(session);
-    
+
     return session;
   }
 
@@ -259,7 +259,7 @@ export class SessionStorageService {
     answer: string
   ): Promise<Session> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -273,7 +273,7 @@ export class SessionStorageService {
     currentConversation.clarificationQA.push({ question, answer });
 
     await this.saveSession(session);
-    
+
     return session;
   }
 
@@ -286,7 +286,7 @@ export class SessionStorageService {
     sessionId: string
   ): Promise<Array<{ question: string; answer: string }>> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -306,7 +306,7 @@ export class SessionStorageService {
    */
   async getConversationHistory(sessionId: string): Promise<Conversation[]> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -321,7 +321,7 @@ export class SessionStorageService {
    */
   async getCurrentConversation(sessionId: string): Promise<Conversation | null> {
     const session = await this.loadSession(sessionId);
-    
+
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -341,22 +341,22 @@ export class SessionStorageService {
    */
   async buildClassificationContext(sessionId: string): Promise<string> {
     const conversations = await this.getConversationHistory(sessionId);
-    
+
     if (conversations.length === 0) {
       return '';
     }
 
     let context = '';
-    
+
     for (let i = 0; i < conversations.length; i++) {
       const conv = conversations[i];
-      
+
       if (i > 0) {
         context += '\n\n--- Previous Conversation ---\n';
       }
-      
+
       context += `Process Description: ${conv.processDescription}\n`;
-      
+
       if (conv.clarificationQA.length > 0) {
         context += '\nClarification Q&A:\n';
         for (const qa of conv.clarificationQA) {
@@ -364,7 +364,51 @@ export class SessionStorageService {
         }
       }
     }
-    
+
     return context;
+  }
+
+  /**
+   * Automatically close sessions that haven't been updated in a specified timeframe
+   * @param timeoutMs - Timeout in milliseconds
+   */
+  async cleanupStaleSessions(timeoutMs: number): Promise<number> {
+    try {
+      const sessionIds = await this.listSessions();
+      let cleanedCount = 0;
+      const now = Date.now();
+
+      for (const sessionId of sessionIds) {
+        const session = await this.loadSession(sessionId);
+        if (session && session.status === 'active') {
+          const updatedAt = new Date(session.updatedAt).getTime();
+          if (now - updatedAt > timeoutMs) {
+            console.log(`[Session Cleanup] Timing out session ${sessionId} (last updated: ${session.updatedAt})`);
+
+            // Update status to completed or pending review depending on if it has a classification
+            // For general timeout, we'll mark as completed but with a note
+            session.status = 'completed';
+            session.updatedAt = new Date().toISOString();
+
+            // Add a flag or note to classification rationale if it exists
+            if (session.classification) {
+              session.classification.rationale += '\n\n[System Note: This session was automatically closed due to inactivity.]';
+            }
+
+            await this.saveSession(session);
+            cleanedCount++;
+          }
+        }
+      }
+
+      if (cleanedCount > 0) {
+        console.log(`[Session Cleanup] Successfully timed out ${cleanedCount} inactive sessions`);
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('[Session Cleanup] Failed to cleanup stale sessions:', error);
+      return 0;
+    }
   }
 }

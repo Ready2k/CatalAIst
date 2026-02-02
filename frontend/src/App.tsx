@@ -431,7 +431,7 @@ function App() {
             marginTop: '2px',
             fontFamily: 'monospace'
           }}>
-            v3.1.3 • 2026-01-31
+            v3.2.0 • 2026-02-02
           </span>
         </div>
 

@@ -1,6 +1,6 @@
 # CatalAIst - AI-Powered Process Classification System
 
-**Version 3.0.1** - Nova Support & Voice Interface Enhancement
+**Version 3.2.0** - Discovery-First Intelligence & Dynamic Configuration
 
 CatalAIst is an intelligent system that classifies business processes into transformation categories using AI, helping organizations identify the best approach for process improvement.
 
@@ -65,6 +65,38 @@ Use the `catalai.sh` script for all operations:
 - **Health Check:** http://localhost:4000/health
 
 ---
+
+## ✨ What's New in v3.2.0
+
+### 🧠 Discovery-First Intelligence
+
+- **Higher Quality Bar** - Auto-classification threshold raised to **0.95** (95% confidence) to ensure manual review or clarification for non-obvious cases.
+- **Strategic Evidence Requirement** - The system now mandates evidence for strategic questions (e.g., success criteria, sponsorship) before considering a session complete.
+- **Improved Information Completeness** - Advanced assessment of user descriptions to identify and fill information gaps proactively.
+- **Infinite Loop Protection** - Enhanced detection and breaking of repetitive clarification loops.
+
+### ⚙️ Dynamic Strategic Configuration
+
+- **Fully Configurable Questions** - Manage "Strategic Questions" directly through the Admin UI (Configuration tab).
+- **Automated Prompt Injection** - New questions are automatically injected into both classification and attribute extraction prompts.
+- **Priority-Driven Discovery** - The system uses these questions as confidence factors to drive deeper inquiry when needed.
+
+### 📊 Robust Attribute Extraction
+
+- **Fault-Tolerant Parsing** - New robust JSON parser handles varied LLM response formats (nested vs. flat JSON).
+- **Key Alias Support** - Automatic mapping for attribute variations (e.g., "impact" -> "business_value", "judgement" -> "judgment_required").
+- **Core Attribute Stability** - Ensures critical decision matrix fields (frequency, risk, complexity, etc.) are always prioritized and never missed.
+
+### ⏱️ Session Lifecycle Management
+
+- **Automatic Timeout** - Standard sessions now automatically close after **2 hours** of inactivity.
+- **System Closure Documentation** - Timed-out sessions are automatically marked as 'completed' with a clear system note in the rationale.
+- **Hygiene Maintenance** - Background cleanup triggers during session listing and creation to keep the system clean.
+
+### 📂 Git-Integrated Decision Matrix
+
+- **Versioned Configuration** - Decision matrix logic is now stored as versioned JSON files in the repository.
+- **Audit Trail** - Full history of logic changes through standard Git versioning.
 
 ## ✨ What's New in v3.0.1
 
@@ -753,6 +785,15 @@ Contributions are welcome! Please:
 ---
 
 ## 📈 Version History
+
+### v3.2.0 (2026-02-02) - Discovery-First Intelligence & Dynamic Config
+
+- ✅ **95% Confidence Threshold** for auto-classification.
+- ✅ **Dynamic Strategic Questions** managed via Admin UI.
+- ✅ **Robust Attribute Parser** with fallback and alias support.
+- ✅ **2-Hour Session Timeout** for inactive sessions.
+- ✅ **Git-Based Versioning** for Decision Matrix.
+- ✅ **Information Completeness** assessment and gap detection.
 
 ### v3.0.1 (2025-12-21) - Nova Support & Voice Enhancement
 

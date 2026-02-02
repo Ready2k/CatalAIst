@@ -7,7 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.0.0] - 2025-11-14
+## [3.2.0] - 2026-02-02
+
+### Added
+
+#### 🧠 Discovery-First Intelligence
+- **High-Confidence Auto-Classification**: Threshold raised to 0.95 to ensure accuracy.
+- **Mandatory Strategic Evidence**: System now requires evidence for strategic factors before concluding an interview.
+- **Information Completeness Algorithm**: New service to assess user descriptions and identify missing data points.
+- **Advanced Loop Detection**: Identifies and breaks repetitive LLM clarification cycles.
+
+#### ⚙️ Dynamic Strategic Configuration
+- **Admin UI for Strategic Questions**: Real-time management of inquiry factors.
+- **Automated Prompt Injection**: questions are dynamically woven into Classification and Attribute Extraction prompts.
+- **Priority-Driven Discovery**: Uses strategic questions as weights for confidence assessment.
+
+#### 📊 Robust Attribute Extraction
+- **Flexible JSON Parser**: Handles both flat and nested JSON responses from different LLM providers.
+- **Attribute Alias Mapping**: Maps variations in attribute naming (e.g., "impact" -> "business_value").
+- **Custom Attribute Preservation**: Correctly handles and preserves strategic attributes in the decision matrix.
+
+#### ⏱️ Session Lifecycle Management
+- **2-Hour Inactivity Timeout**: Automatically closes stale sessions to maintain system hygiene.
+- **Background Cleanup**: Integrated into session listing and creation routes.
+- **System Closure Rationale**: Automatically appends termination notes to timed-out sessions.
+
+#### 📂 Git-Integrated Decision Matrix
+- **Versioned Matrix Config**: Decision matrix logic is now tracked via Git.
+- **Audit History**: Full visibility into evolution of classification logic.
+
+## [3.0.1] - 2025-12-21
+
+### Added
+- **Amazon Nova Model Support** (Micro, Lite, Pro)
+- **AWS Bedrock Converse API** implementation
+- **Nova 2 Sonic** voice interface for Bedrock
+- **Unified voice experience** across providers
+- **Enhanced error handling** and model detection
 
 ### Added
 
