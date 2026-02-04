@@ -13,6 +13,7 @@ export interface NovaSonicConfig {
   systemPrompt?: string;
   userId?: string;
   modelId?: string;
+  voiceId?: string;
 }
 
 export interface NovaSonicCallbacks {
@@ -77,7 +78,8 @@ export class NovaSonicWebSocketService {
             awsRegion: config.awsRegion || 'us-east-1',
             systemPrompt: config.systemPrompt,
             userId: config.userId || 'anonymous',
-            modelId: config.modelId
+            modelId: config.modelId,
+            voiceId: config.voiceId
           });
         };
 

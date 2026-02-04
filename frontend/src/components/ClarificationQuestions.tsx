@@ -14,6 +14,7 @@ interface ClarificationQuestionsProps {
   isProcessing?: boolean;
   showVoiceButton?: boolean;
   streamingMode?: boolean;
+  voiceType?: string;
 }
 
 const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
@@ -27,6 +28,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
   isProcessing = false,
   showVoiceButton = true,
   streamingMode = false,
+  voiceType,
 }) => {
   // Initialize answers array with empty strings for each question
   const [answers, setAnswers] = useState<string[]>(questions.map(() => ''));
@@ -55,7 +57,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
     const newAnswers = [...answers];
     newAnswers[index] = value;
     setAnswers(newAnswers);
-    
+
     // Clear error for this question
     const newErrors = [...errors];
     newErrors[index] = '';
@@ -64,14 +66,14 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate all answers
-    const newErrors = answers.map((answer, index) => 
+    const newErrors = answers.map((answer, index) =>
       answer.trim().length < 1 ? 'Please provide an answer' : ''
     );
-    
+
     setErrors(newErrors);
-    
+
     // Check if any errors
     if (newErrors.some(error => error !== '')) {
       return;
@@ -79,7 +81,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
 
     // Submit all answers
     onAnswer(answers);
-    
+
     // Don't clear immediately - let the useEffect handle it when processing completes
     // This allows users to see their answers while processing
   };
@@ -208,18 +210,19 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
                   </button>
                 )}
               </div>
-              
+
               {/* Audio Player for question playback */}
               {showVoiceButton && (
                 <div style={{ marginBottom: '10px' }}>
                   <AudioPlayer
                     text={question}
+                    voiceType={voiceType}
                     autoPlay={false}
                     onError={(err) => console.warn('Audio playback error:', err)}
                   />
                 </div>
               )}
-              
+
               <textarea
                 value={answers[index]}
                 onChange={(e) => handleAnswerChange(index, e.target.value)}
@@ -282,6 +285,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
             onCancel={handleVoiceCancel}
             currentQuestion={questions[voiceQuestionIndex]}
             onSwitchToNonStreaming={handleSwitchToNonStreaming}
+            voiceType={voiceType}
           />
         ) : (
           <NonStreamingModeController
@@ -305,7 +309,7 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
             </span>
           )}
         </p>
-        
+
         {(onSkipInterview || onStartFresh) && (
           <div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -372,9 +376,9 @@ const ClarificationQuestions: React.FC<ClarificationQuestionsProps> = ({
                 </button>
               )}
             </div>
-            <p style={{ 
-              fontSize: '12px', 
-              color: '#999', 
+            <p style={{
+              fontSize: '12px',
+              color: '#999',
               marginTop: '8px',
               fontStyle: 'italic'
             }}>

@@ -10,6 +10,7 @@ interface StreamingModeControllerProps {
   onCancel: () => void;
   currentQuestion?: string;
   onSwitchToNonStreaming?: () => void;
+  voiceType?: string;
 }
 
 /**
@@ -29,6 +30,7 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
   onCancel,
   currentQuestion,
   onSwitchToNonStreaming,
+  voiceType,
 }) => {
   const [flowState, setFlowState] = useState<'initializing' | 'recording' | 'processing' | 'reviewing' | 'playing-question'>('initializing');
   const [transcription, setTranscription] = useState('');
@@ -68,7 +70,8 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
           awsSessionToken: config.awsSessionToken,
           awsRegion: config.awsRegion || 'us-east-1',
           systemPrompt: 'You are a helpful assistant. Just transcribe what the user says.',
-          userId: 'voice-user-streaming'
+          userId: 'voice-user-streaming',
+          voiceId: voiceType || config.voiceType
         }, {
           onTranscription: (text) => {
             // Nova sends segments, we append them
@@ -324,6 +327,7 @@ const StreamingModeController: React.FC<StreamingModeControllerProps> = ({
             </div>
             <AudioPlayer
               text={currentQuestion}
+              voiceType={voiceType}
               autoPlay={true}
               onPlaybackComplete={handlePlaybackComplete}
               onError={handlePlaybackError}

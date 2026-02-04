@@ -78,6 +78,7 @@ interface SessionData {
   config: LLMProviderConfig;
   bedrockClient: BedrockRuntimeClient;
   modelId: string;
+  voiceId?: string;
 }
 
 export class NovaSonicWebSocketService {
@@ -93,7 +94,8 @@ export class NovaSonicWebSocketService {
    */
   async initializeSession(
     config: LLMProviderConfig,
-    systemPrompt?: string
+    systemPrompt?: string,
+    voiceId?: string
   ): Promise<{ sessionId: string }> {
     const sessionId = uuidv4();
 
@@ -132,6 +134,7 @@ export class NovaSonicWebSocketService {
       config,
       bedrockClient,
       modelId,
+      voiceId: voiceId || config.voiceId,
     };
 
     this.activeSessions.set(sessionId, session);
@@ -246,7 +249,10 @@ export class NovaSonicWebSocketService {
         promptStart: {
           promptName: session.promptName,
           textOutputConfiguration: DefaultTextConfiguration,
-          audioOutputConfiguration: DefaultAudioOutputConfiguration,
+          audioOutputConfiguration: {
+            ...DefaultAudioOutputConfiguration,
+            ...(session.voiceId ? { voiceId: session.voiceId } : {})
+          },
         },
       });
       session.isPromptStartSent = true;
@@ -522,27 +528,57 @@ export class NovaSonicWebSocketService {
 
       const chunks: Buffer[] = [];
       let errorData = '';
+      let hasError = false;
+
+      const handleError = (err: Error) => {
+        if (hasError) return;
+        hasError = true;
+        console.error('[Nova 2 Sonic] FFmpeg error:', err);
+        reject(err);
+      };
 
       ffmpeg.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
       ffmpeg.stderr.on('data', (data: Buffer) => {
-        // ffmpeg logs to stderr
         errorData += data.toString();
       });
 
-      ffmpeg.on('error', (err: Error) => reject(err));
+      ffmpeg.on('error', (err: Error) => {
+        if (err.message.includes('ENOENT')) {
+          handleError(new Error('FFmpeg not found. Please install ffmpeg to use voice features.'));
+        } else {
+          handleError(err);
+        }
+      });
+
+      if (ffmpeg.stdin) {
+        ffmpeg.stdin.on('error', (err: Error) => {
+          // EPIPE is expected if ffmpeg fails to spawn but we try to write
+          if ((err as any).code !== 'EPIPE') {
+            handleError(err);
+          }
+        });
+      }
 
       ffmpeg.on('close', (code: number) => {
+        if (hasError) return;
+
         if (code !== 0) {
           console.error('[Nova 2 Sonic] FFmpeg error log:', errorData);
-          reject(new Error(`FFmpeg exited with code ${code}`));
+          handleError(new Error(`FFmpeg exited with code ${code}`));
         } else {
           resolve(Buffer.concat(chunks));
         }
       });
 
       // Write audio data to stdin
-      ffmpeg.stdin.write(audioBuffer);
-      ffmpeg.stdin.end();
+      try {
+        if (ffmpeg.stdin && !hasError) {
+          ffmpeg.stdin.write(audioBuffer);
+          ffmpeg.stdin.end();
+        }
+      } catch (err) {
+        handleError(err instanceof Error ? err : new Error(String(err)));
+      }
     });
   }
 

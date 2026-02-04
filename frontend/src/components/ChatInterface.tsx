@@ -8,6 +8,7 @@ interface ChatInterfaceProps {
   isProcessing?: boolean;
   showVoiceButton?: boolean;
   streamingMode?: boolean;
+  voiceType?: string;
 }
 
 // Common business subjects
@@ -55,6 +56,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   isProcessing = false,
   showVoiceButton = true,
   streamingMode = false,
+  voiceType,
 }) => {
   const [description, setDescription] = useState('');
   const [subject, setSubject] = useState('');
@@ -121,10 +123,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setError('');
 
     if (validateDescription(description)) {
-      const finalSubject = showCustomSubject && customSubject.trim() 
-        ? customSubject.trim() 
+      const finalSubject = showCustomSubject && customSubject.trim()
+        ? customSubject.trim()
         : subject || undefined;
-      
+
       // If custom subject was entered, save it to the backend
       if (showCustomSubject && customSubject.trim()) {
         try {
@@ -139,7 +141,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           // Continue anyway - subject will still be used for this session
         }
       }
-      
+
       onSubmit(description, finalSubject);
       // Don't clear the input immediately - let the parent component handle it
       // This allows users to see their text while processing
@@ -151,8 +153,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setShowVoiceModal(false);
     // Auto-submit after voice input
     if (validateDescription(text)) {
-      const finalSubject = showCustomSubject && customSubject.trim() 
-        ? customSubject.trim() 
+      const finalSubject = showCustomSubject && customSubject.trim()
+        ? customSubject.trim()
         : subject || undefined;
       onSubmit(text, finalSubject);
     }
@@ -180,9 +182,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '15px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
+          <label style={{
+            display: 'block',
+            marginBottom: '8px',
             fontWeight: 'bold',
             fontSize: '14px'
           }}>
@@ -215,9 +217,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
         {showCustomSubject && (
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
               fontWeight: 'bold',
               fontSize: '14px'
             }}>
@@ -242,9 +244,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
 
         <div style={{ marginBottom: '15px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
+          <label style={{
+            display: 'block',
+            marginBottom: '8px',
             fontWeight: 'bold',
             fontSize: '14px'
           }}>
@@ -340,6 +342,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onTranscriptionComplete={handleVoiceTranscription}
             onCancel={handleVoiceCancel}
             onSwitchToNonStreaming={handleSwitchToNonStreaming}
+            voiceType={voiceType}
           />
         ) : (
           <NonStreamingModeController

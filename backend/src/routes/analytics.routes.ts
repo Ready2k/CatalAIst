@@ -82,7 +82,7 @@ router.get('/sessions', authenticateToken, requireRole('admin'), generalLimiter,
       filters.model = req.query.model as string;
     }
     if (req.query.status) {
-      filters.status = req.query.status as 'active' | 'completed' | 'manual_review';
+      filters.status = req.query.status as 'active' | 'completed' | 'manual_review' | 'pending_admin_review';
     }
     if (req.query.searchText) {
       const searchText = req.query.searchText as string;
@@ -239,7 +239,7 @@ router.get('/sessions/export', authenticateToken, requireRole('admin'), exportLi
       filters.model = req.query.model as string;
     }
     if (req.query.status) {
-      filters.status = req.query.status as 'active' | 'completed' | 'manual_review';
+      filters.status = req.query.status as 'active' | 'completed' | 'manual_review' | 'pending_admin_review';
     }
     if (req.query.searchText) {
       const searchText = req.query.searchText as string;

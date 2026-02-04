@@ -1118,11 +1118,24 @@ export class AWSVoiceService {
             'pipe:1'
         ]);
 
+        let ffmpegError: Error | null = null;
+
+        // IMPORTANT: Handle spawn errors (like ENOENT if ffmpeg is missing)
+        // Without this, the backend will crash silently if ffmpeg is not found.
+        ffmpeg.on('error', (err: any) => {
+            console.error('[AWS Transcribe] FFmpeg spawn error:', err);
+            if (err.code === 'ENOENT') {
+                ffmpegError = new Error('FFmpeg not found in PATH. Please install ffmpeg to use standard transcription.');
+            } else {
+                ffmpegError = err;
+            }
+        });
+
         const audioStream = ffmpeg.stdout;
 
         // Handle fs stream errors
         ffmpeg.stderr.on('data', (data) => {
-            // Optional: Log ffmpeg errors if needed, but be careful of noise
+            // Optional: Log ffmpeg errors if needed
             // console.log(`[FFmpeg Error]: ${data}`);
         });
 
@@ -1132,7 +1145,12 @@ export class AWSVoiceService {
             const CHUNK_SIZE = 8 * 1024; // 8KB chunks
             let buffer = Buffer.alloc(0);
 
+            // Check for initial spawn errors
+            if (ffmpegError) throw ffmpegError;
+
             for await (const chunk of audioStream) {
+                if (ffmpegError) throw ffmpegError;
+
                 buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
 
                 while (buffer.length >= CHUNK_SIZE) {
@@ -1140,6 +1158,8 @@ export class AWSVoiceService {
                     buffer = buffer.subarray(CHUNK_SIZE);
                 }
             }
+
+            if (ffmpegError) throw ffmpegError;
 
             if (buffer.length > 0) {
                 yield { AudioEvent: { AudioChunk: buffer } };

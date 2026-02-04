@@ -44,6 +44,7 @@ export interface LLMProviderConfig {
   regionalInferenceEndpoint?: string; // Custom regional inference endpoint
   modelId?: string; // Specific model ID
   voiceService?: 'nova-sonic' | 'polly'; // Specific voice service to use
+  voiceId?: string; // Specific voice ID for synthesis
 }
 
 /**

@@ -65,7 +65,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
   // Announce filter changes to screen readers
   const announceFilterChange = (key: keyof SessionFiltersType, value: any) => {
     if (!announcementRef.current) return;
-    
+
     let message = '';
     switch (key) {
       case 'dateFrom':
@@ -90,7 +90,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
         message = value ? `Searching for: ${value}` : 'Search cleared';
         break;
     }
-    
+
     announcementRef.current.textContent = message;
   };
 
@@ -98,7 +98,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
     const emptyFilters: SessionFiltersType = {};
     setLocalFilters(emptyFilters);
     onFiltersChange(emptyFilters);
-    
+
     // Announce to screen readers
     if (announcementRef.current) {
       announcementRef.current.textContent = 'All filters cleared';
@@ -196,7 +196,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
           overflow: 'hidden'
         }}
       />
-      
+
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -336,7 +336,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
           <select
             id="status"
             value={localFilters.status || ''}
-            onChange={(e) => handleFilterChange('status', e.target.value as 'active' | 'completed' | 'manual_review')}
+            onChange={(e) => handleFilterChange('status', e.target.value as 'active' | 'completed' | 'manual_review' | 'pending_admin_review')}
             style={inputStyle}
             aria-label="Filter by status"
             onFocus={(e) => Object.assign(e.currentTarget.style, inputFocusStyle)}
@@ -346,6 +346,7 @@ const SessionFilters: React.FC<SessionFiltersProps> = ({
             <option value="active">Active</option>
             <option value="completed">Completed</option>
             <option value="manual_review">Manual Review</option>
+            <option value="pending_admin_review">Pending Admin Review</option>
           </select>
         </div>
       </div>

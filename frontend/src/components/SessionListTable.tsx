@@ -35,7 +35,7 @@ const SessionRow = memo<SessionRowProps>(({
   renderIndicators
 }) => {
   const [isFocused, setIsFocused] = React.useState(false);
-  
+
   return (
     <tr
       onClick={() => onSessionClick(session.sessionId)}
@@ -169,7 +169,7 @@ const SessionListTable: React.FC<SessionListTableProps> = ({
   // Announce session count changes to screen readers
   React.useEffect(() => {
     if (announcementRef.current && !loading) {
-      const message = sessions.length === 0 
+      const message = sessions.length === 0
         ? 'No sessions found matching your filters'
         : `Showing ${sessions.length} session${sessions.length === 1 ? '' : 's'} on page ${pagination.page} of ${pagination.totalPages}. Total ${pagination.total} sessions.`;
       announcementRef.current.textContent = message;
@@ -206,6 +206,8 @@ const SessionListTable: React.FC<SessionListTableProps> = ({
         return '#28a745';
       case 'manual_review':
         return '#ffc107';
+      case 'pending_admin_review':
+        return '#fd7e14'; // Orange for pending review
       case 'active':
         return '#007bff';
       default:
@@ -219,6 +221,8 @@ const SessionListTable: React.FC<SessionListTableProps> = ({
         return 'Completed';
       case 'manual_review':
         return 'Manual Review';
+      case 'pending_admin_review':
+        return 'Pending Admin Review';
       case 'active':
         return 'Active';
       default:
@@ -437,7 +441,7 @@ const SessionListTable: React.FC<SessionListTableProps> = ({
             overflow: 'hidden'
           }}
         />
-        
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} role="list" aria-label="Session list">
           {sessions.map((session) => (
             <div
@@ -675,7 +679,7 @@ const SessionListTable: React.FC<SessionListTableProps> = ({
           overflow: 'hidden'
         }}
       />
-      
+
       <div
         style={{
           backgroundColor: '#fff',

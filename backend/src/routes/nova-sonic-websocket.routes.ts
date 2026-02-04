@@ -137,7 +137,8 @@ export function initializeNovaSonicWebSocket(server: any): void {
           awsRegion,
           systemPrompt,
           userId: msgUserId,
-          modelId
+          modelId,
+          voiceId
         } = message;
 
         if (!awsAccessKeyId || !awsSecretAccessKey) {
@@ -151,11 +152,12 @@ export function initializeNovaSonicWebSocket(server: any): void {
           awsSecretAccessKey,
           awsSessionToken,
           awsRegion: awsRegion || 'us-east-1',
-          modelId
+          modelId,
+          voiceId
         };
 
         // Initialize Nova 2 Sonic session with bidirectional streaming
-        const session = await novaSonicService.initializeSession(config, systemPrompt);
+        const session = await novaSonicService.initializeSession(config, systemPrompt, voiceId);
         sessionId = session.sessionId;
 
         // Store connection with message queue

@@ -1,12 +1,12 @@
 // Shared TypeScript types for CatalAIst
 import { z } from 'zod';
 
-export type TransformationCategory = 
-  | 'Eliminate' 
-  | 'Simplify' 
-  | 'Digitise' 
-  | 'RPA' 
-  | 'AI Agent' 
+export type TransformationCategory =
+  | 'Eliminate'
+  | 'Simplify'
+  | 'Digitise'
+  | 'RPA'
+  | 'AI Agent'
   | 'Agentic AI';
 
 export interface Session {
@@ -237,7 +237,7 @@ export interface SessionFilters {
   category?: TransformationCategory;
   subject?: string;
   model?: string;
-  status?: 'active' | 'completed' | 'manual_review';
+  status?: 'active' | 'completed' | 'manual_review' | 'pending_admin_review';
   searchText?: string;
 }
 
@@ -524,7 +524,7 @@ export const SessionFiltersSchema = z.object({
   category: TransformationCategorySchema.optional(),
   subject: z.string().optional(),
   model: z.string().optional(),
-  status: z.enum(['active', 'completed', 'manual_review']).optional(),
+  status: z.enum(['active', 'completed', 'manual_review', 'pending_admin_review']).optional(),
   searchText: z.string().max(500).optional()
 });
 

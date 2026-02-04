@@ -21,6 +21,7 @@ export interface LLMConfig {
   useRegionalInference?: boolean;
   regionalInferenceEndpoint?: string;
   voiceService?: 'nova-sonic' | 'polly';
+  voiceType?: string;
 }
 
 class ApiService {

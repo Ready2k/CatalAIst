@@ -860,6 +860,7 @@ function App() {
                   isProcessing={isProcessing}
                   showVoiceButton={shouldShowVoiceButton()}
                   streamingMode={voiceConfig?.streamingMode || false}
+                  voiceType={voiceConfig?.voiceType}
                 />
               )}
 
@@ -875,6 +876,7 @@ function App() {
                   isProcessing={isProcessing}
                   showVoiceButton={shouldShowVoiceButton()}
                   streamingMode={voiceConfig?.streamingMode || false}
+                  voiceType={voiceConfig?.voiceType}
                 />
               )}
 

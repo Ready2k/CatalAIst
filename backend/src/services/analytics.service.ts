@@ -2,9 +2,9 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { JsonStorageService } from './storage.service';
 import { SessionStorageService } from './session-storage.service';
-import { 
-  AnalyticsMetrics, 
-  AnalyticsMetricsSchema, 
+import {
+  AnalyticsMetrics,
+  AnalyticsMetricsSchema,
   Session,
   SessionFilters,
   SessionFiltersSchema,
@@ -46,7 +46,7 @@ export class AnalyticsService {
   // In-memory caches
   private filterOptionsCache: CacheEntry<FilterOptions> | null = null;
   private sessionListCache: Map<string, CacheEntry<SessionListResponse>> = new Map();
-  
+
   // Cache TTLs in milliseconds
   private readonly FILTER_OPTIONS_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly SESSION_LIST_TTL = 1 * 60 * 1000; // 1 minute
@@ -145,16 +145,20 @@ export class AnalyticsService {
    */
   private calculateOverallAgreementRate(sessions: Session[]): number {
     const sessionsWithFeedback = sessions.filter(
-      s => s.classification && s.feedback
+      s => s.classification && (s.feedback || (s.adminReview && s.adminReview.reviewed))
     );
 
     if (sessionsWithFeedback.length === 0) {
       return 1.0; // No feedback yet, assume 100%
     }
 
-    const confirmedCount = sessionsWithFeedback.filter(
-      s => s.feedback!.confirmed
-    ).length;
+    const confirmedCount = sessionsWithFeedback.filter(s => {
+      // Admin review takes precedence as the "expert" ground truth
+      if (s.adminReview && s.adminReview.reviewed) {
+        return s.adminReview.approved;
+      }
+      return s.feedback?.confirmed;
+    }).length;
 
     return confirmedCount / sessionsWithFeedback.length;
   }
@@ -177,7 +181,9 @@ export class AnalyticsService {
 
     for (const category of categories) {
       const sessionsInCategory = sessions.filter(
-        s => s.classification && s.feedback && s.classification.category === category
+        s => s.classification &&
+          (s.feedback || (s.adminReview && s.adminReview.reviewed)) &&
+          s.classification.category === category
       );
 
       if (sessionsInCategory.length === 0) {
@@ -185,9 +191,13 @@ export class AnalyticsService {
         continue;
       }
 
-      const confirmedCount = sessionsInCategory.filter(
-        s => s.feedback!.confirmed
-      ).length;
+      const confirmedCount = sessionsInCategory.filter(s => {
+        // Admin review takes precedence
+        if (s.adminReview && s.adminReview.reviewed) {
+          return s.adminReview.approved;
+        }
+        return s.feedback?.confirmed;
+      }).length;
 
       agreementRates[category] = confirmedCount / sessionsInCategory.length;
     }
@@ -231,7 +241,7 @@ export class AnalyticsService {
       const createdAt = new Date(session.createdAt).getTime();
       const classifiedAt = new Date(session.classification!.timestamp).getTime();
       const timeMs = classifiedAt - createdAt;
-      
+
       // Only count positive times (in case of clock skew)
       if (timeMs > 0) {
         totalTimeMs += timeMs;
@@ -301,7 +311,7 @@ export class AnalyticsService {
     // Check cache first
     const cacheKey = this.getSessionListCacheKey(filters, pagination);
     const cachedEntry = this.sessionListCache.get(cacheKey);
-    
+
     if (this.isCacheValid(cachedEntry || null, this.SESSION_LIST_TTL)) {
       return cachedEntry!.data;
     }
@@ -326,7 +336,7 @@ export class AnalyticsService {
     let filteredSessions = this.applyFilters(allSessions, filters);
 
     // Sort by createdAt descending (most recent first)
-    filteredSessions.sort((a, b) => 
+    filteredSessions.sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
@@ -340,7 +350,7 @@ export class AnalyticsService {
     filteredSessions = filteredSessions.slice(startIndex, endIndex);
 
     // Convert to SessionListItem format with memoized computed properties
-    const sessions: SessionListItem[] = filteredSessions.map(session => 
+    const sessions: SessionListItem[] = filteredSessions.map(session =>
       this.sessionToListItem(session)
     );
 
@@ -384,7 +394,7 @@ export class AnalyticsService {
 
     // Category filter
     if (filters.category) {
-      filtered = filtered.filter(s => 
+      filtered = filtered.filter(s =>
         s.classification && s.classification.category === filters.category
       );
     }
@@ -409,12 +419,12 @@ export class AnalyticsService {
       const searchLower = filters.searchText.toLowerCase();
       filtered = filtered.filter(s => {
         // Search in process descriptions
-        const processDescMatch = s.conversations.some(conv => 
+        const processDescMatch = s.conversations.some(conv =>
           conv.processDescription.toLowerCase().includes(searchLower)
         );
 
         // Search in classification rationale
-        const rationaleMatch = s.classification && 
+        const rationaleMatch = s.classification &&
           s.classification.rationale.toLowerCase().includes(searchLower);
 
         // Search in feedback comments
@@ -453,7 +463,7 @@ export class AnalyticsService {
       confidence: session.classification?.confidence,
       status: session.status,
       modelUsed: session.modelUsed,
-      feedbackConfirmed: session.feedback?.confirmed,
+      feedbackConfirmed: session.adminReview?.reviewed ? session.adminReview.approved : session.feedback?.confirmed,
       userRating: session.userRating?.rating,
       requiresAttention: requiresAttention,
       triggeredRulesCount: triggeredRulesCount,
@@ -637,7 +647,7 @@ export class AnalyticsService {
     }
 
     // Sort by createdAt descending (most recent first)
-    filteredSessions.sort((a, b) => 
+    filteredSessions.sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
@@ -660,7 +670,7 @@ export class AnalyticsService {
 
     for (const session of filteredSessions) {
       const triggeredRulesCount = session.classification?.decisionMatrixEvaluation?.triggeredRules?.length || 0;
-      
+
       const row = [
         this.escapeCsvValue(session.sessionId),
         this.escapeCsvValue(session.createdAt),

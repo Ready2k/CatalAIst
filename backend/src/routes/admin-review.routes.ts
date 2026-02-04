@@ -3,6 +3,7 @@ import { SessionStorageService } from '../services/session-storage.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { JsonStorageService } from '../services/storage.service';
 import { Session, AdminReview, TransformationCategory } from '../types';
+import { analyticsService } from './analytics.routes';
 
 const router = Router();
 
@@ -27,13 +28,13 @@ router.get('/pending-reviews', async (req: Request, res: Response) => {
     const allSessions: Session[] = await sessionStorage.getAllSessions();
 
     // Filter for pending admin review
-    const pendingSessions: Session[] = allSessions.filter((session: Session) => 
-      session.status === 'pending_admin_review' && 
+    const pendingSessions: Session[] = allSessions.filter((session: Session) =>
+      session.status === 'pending_admin_review' &&
       (!session.adminReview || !session.adminReview.reviewed)
     );
 
     // Sort by creation date (oldest first)
-    pendingSessions.sort((a: Session, b: Session) => 
+    pendingSessions.sort((a: Session, b: Session) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
@@ -66,9 +67,9 @@ router.get('/pending-reviews', async (req: Request, res: Response) => {
 router.post('/review/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
-    const { 
-      approved, 
-      correctedCategory, 
+    const {
+      approved,
+      correctedCategory,
       reviewNotes,
       userId = 'admin'
     } = req.body;
@@ -121,6 +122,9 @@ router.post('/review/:sessionId', async (req: Request, res: Response) => {
 
     await sessionStorage.saveSession(session);
 
+    // Invalidate analytics cache
+    analyticsService.invalidateCache();
+
     // Log admin review
     await auditLogService.log({
       sessionId,
@@ -162,20 +166,20 @@ router.get('/review-stats', async (req: Request, res: Response) => {
   try {
     const allSessions: Session[] = await sessionStorage.getAllSessions();
 
-    const pendingCount = allSessions.filter((s: Session) => 
-      s.status === 'pending_admin_review' && 
+    const pendingCount = allSessions.filter((s: Session) =>
+      s.status === 'pending_admin_review' &&
       (!s.adminReview || !s.adminReview.reviewed)
     ).length;
 
-    const reviewedCount = allSessions.filter((s: Session) => 
+    const reviewedCount = allSessions.filter((s: Session) =>
       s.adminReview && s.adminReview.reviewed
     ).length;
 
-    const approvedCount = allSessions.filter((s: Session) => 
+    const approvedCount = allSessions.filter((s: Session) =>
       s.adminReview && s.adminReview.reviewed && s.adminReview.approved
     ).length;
 
-    const correctedCount = allSessions.filter((s: Session) => 
+    const correctedCount = allSessions.filter((s: Session) =>
       s.adminReview && s.adminReview.reviewed && !s.adminReview.approved
     ).length;
 
